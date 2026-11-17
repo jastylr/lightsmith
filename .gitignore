@@ -1,0 +1,6 @@
+node_modules/
+dist/
+public/fixtures/
+.DS_Store
+*.log
+.vite/
