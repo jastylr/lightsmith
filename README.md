@@ -10,15 +10,34 @@ inputs, fixture definitions and the 3D view.
 
 No lighting experience needed, no account, no server. Your files never leave your browser.
 
+![Building a song in Lightsmith](docs/screenshot-songs.png)
+
+## What you can do
+
+- **Place your lights on a stage plan.** Drag each light into the backdrop, moving-head, side or front lane; its position sets
+  which side of the stage it's on.
+- **Lay out a song.** Sections sit on a timeline (width is length, height is energy). Drag to reorder them.
+- **Pick a look for each section.** Ten moods, an energy level, your own colours (gels or a colour wheel) with optional
+  colour changes on the beat or bar, 21 backdrop patterns, 8 moving-head movements, a focus player and layered effects
+  (rain, lightning, blinder hit, beat pulse, sparkle, strobe hits).
+- **See it before you export.** A live preview sketches each section on your own stage at the song's tempo.
+- **Export a clean QLC+ file** with a function folder per song, a song cue chaser and Virtual Console buttons, checked
+  before you download it.
+
+Backdrop patterns only use RGB matrix scripts that ship with both QLC+ 4.14 and QLC+ 5.2, so exported shows work in
+either.
+
+![Placing lights on the stage plan](docs/screenshot-stage.png)
+
 ## How it works
 
 1. **Show file.** Patch your fixtures in QLC+ as usual and save the workspace (`.qxw`). Drop it
    into Lightsmith. Fixtures from the QLC+ library are recognised automatically; for any
    definitions you made yourself, drop in their `.qxf` files.
-2. **Stage.** Tell Lightsmith what each light does: backdrop, side/floor light, moving head or
-   front light, and where it sits (stage left, centre, stage right).
+2. **Stage.** Drag each light onto the stage plan. The lane sets its job (backdrop, moving head,
+   side/floor or front light) and its position sets the side of the stage.
 3. **Songs.** Add sections (Intro, Verse, Chorus…), set BPM and length, and pick a mood,
-   energy, colours, movement, focus and effects for each.
+   energy, colours, pattern, movement, focus and effects for each.
 4. **Export.** Lightsmith adds the song to a copy of your workspace and checks it. Open it in
    QLC+ and find the song's frame in the Virtual Console: one button per section.
 
@@ -54,7 +73,7 @@ src/core/      The engine. Plain TypeScript, no browser or React code.
   rig.ts         Matches fixtures to definitions and guesses their roles
   generate.ts    Turns a song into QLC+ functions and Virtual Console buttons
   checks.ts      Checks the result before download
-src/ui/        The React app (one file per step)
+src/ui/        The React app: one page per step, plus controls, colour picker, stage preview
 scripts/       sync-fixtures.mjs copies the QLC+ fixture library
 tests/         Engine tests (node:test)
 docs/          Notes on QLC+ behaviour the generator relies on

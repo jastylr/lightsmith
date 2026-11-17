@@ -8,6 +8,7 @@ import {
   guessRig,
   matchProfiles,
   newSong,
+  normalizeProject,
   parseFixtureDef,
   parseWorkspace,
   type FixtureDef,
@@ -76,7 +77,7 @@ async function fetchLibraryDef(f: WsFixture): Promise<LoadedDef | null> {
 // ---------------------------------------------------------------- hook
 
 export function useLightsmith() {
-  const [project, setProject] = useState<Project>(() => load(KEY_PROJECT, emptyProject()));
+  const [project, setProject] = useState<Project>(() => normalizeProject(load(KEY_PROJECT, emptyProject())));
   const [workspace, setWorkspace] = useState<{ name: string; xml: string } | null>(() => load(KEY_WS, null));
   const [defs, setDefs] = useState<Map<string, LoadedDef>>(() => {
     const m = new Map<string, LoadedDef>();
@@ -147,7 +148,8 @@ export function useLightsmith() {
       const same = JSON.stringify(next) === JSON.stringify(p.rig);
       return same ? p : { ...p, rig: next };
     });
-  }, [fixtures, profiles]);
+    // Re-run when the rig changes too, so a loaded project gets stage positions.
+  }, [fixtures, profiles, project.rig]);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     setError(null);
@@ -164,7 +166,7 @@ export function useLightsmith() {
         } else if (lower.endsWith(".json")) {
           const p = JSON.parse(text) as Project;
           if (p.version !== 1 || !Array.isArray(p.songs)) throw new Error("Not a Lightsmith project file");
-          setProject(p);
+          setProject(normalizeProject(p));
         } else {
           setError(`"${file.name}" isn't a .qxw, .qxf or Lightsmith .json file.`);
         }
@@ -185,7 +187,7 @@ export function useLightsmith() {
   const setRig = useCallback((rig: Rig) => setProject((p) => ({ ...p, rig })), []);
   const updateSong = useCallback((song: Song) => setProject((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), []);
   const addSong = useCallback(() => {
-    const s = newSong(`Song ${Date.now() % 1000}`, 120);
+    const s = newSong("Untitled song", 120);
     setProject((p) => ({ ...p, songs: [...p.songs, s] }));
     return s.id;
   }, []);

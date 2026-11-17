@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { sectionTypeById } from "./presets";
+import { sectionTypeById, type ColorChange, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -11,8 +11,10 @@ export interface RigFixture {
   fixtureId: number;
   role: Role;
   side: Side;
-  /** Left-to-right order on stage, as seen from the stage (stage left first). */
+  /** Left-to-right order on stage, stage left first. */
   order: number;
+  /** Where it sits on the stage plan, seen from the audience (0..1, x = left→right, y = back→front). */
+  pos?: { x: number; y: number };
   /** Movers: the position everything moves around (0-255). */
   home?: { pan: number; tilt: number };
   /** Movers: run movement in the opposite direction (e.g. a head facing the other way). */
@@ -28,6 +30,16 @@ export interface Rig {
 export type Focus = "all" | Side;
 export type Transition = "snap" | "fade" | "build";
 
+export interface SectionEffects {
+  rain?: boolean;
+  lightning?: boolean;
+  lightningDelaySec?: number;
+  strobe?: boolean;
+  blinder?: boolean;
+  beatPulse?: boolean;
+  sparkle?: boolean;
+}
+
 export interface Section {
   id: string;
   type: string; // SECTION_TYPES id
@@ -37,15 +49,17 @@ export interface Section {
   beatsPerBar: number;
   mood: string; // MOODS id
   energy: number; // 1..5
-  colors: string[]; // empty = use the mood's colours
-  movement: string; // MOVEMENTS id, or "mood" to follow the mood
+  colors: string[]; // colour ids or "#rrggbb"; empty = use the mood's colours
+  /** How often to switch between the colours ("mood" follows the mood). */
+  colorChange: ColorChange | "mood";
+  /** Crossfade when switching colours. */
+  colorFade: boolean;
+  /** Backdrop pattern id, or "mood". */
+  pattern: string;
+  movement: string; // MOVEMENTS id, or "mood"
+  moverSpread: MoverSpread;
   focus: Focus;
-  effects: {
-    rain?: boolean;
-    lightning?: boolean;
-    lightningDelaySec?: number;
-    strobe?: boolean;
-  };
+  effects: SectionEffects;
   transition: Transition;
   /** Move to the next section by itself after its length (otherwise wait for a trigger). */
   autoAdvance: boolean;
@@ -82,11 +96,29 @@ export function newSection(type: string, bpm: number): Section {
     mood: t.mood,
     energy: t.energy,
     colors: [],
+    colorChange: "mood",
+    colorFade: false,
+    pattern: "mood",
     movement: "mood",
+    moverSpread: "together",
     focus: "all",
     effects: {},
     transition: t.transition,
     autoAdvance: false,
+  };
+}
+
+/** Fill in fields added after a section was saved. */
+export function normalizeSection(s: Partial<Section> & { id: string }): Section {
+  const base = newSection(s.type ?? "custom", s.bpm ?? 120);
+  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])] };
+}
+
+export function normalizeProject(p: Project): Project {
+  return {
+    version: 1,
+    rig: { fixtures: [...(p.rig?.fixtures ?? [])] },
+    songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
   };
 }
 
@@ -99,6 +131,11 @@ export function newSong(title = "New song", bpm = 120): Song {
   };
 }
 
-export function sectionMs(s: Section): number {
+export function sectionMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars">): number {
   return (60000 / s.bpm) * s.beatsPerBar * s.bars;
+}
+
+/** Side of the stage from a stage-plan position seen from the audience (stage left is on the audience's right). */
+export function sideFromX(x: number): Side {
+  return x > 0.62 ? "SL" : x < 0.38 ? "SR" : "C";
 }

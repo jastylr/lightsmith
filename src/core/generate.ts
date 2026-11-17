@@ -13,7 +13,7 @@ import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
 import type { Rig, RigFixture, Song } from "./model";
 import { sectionMs } from "./model";
-import { colorById, energyOf, moodById, MOVEMENTS, type RGB } from "./presets";
+import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type RGB } from "./presets";
 import { fixturesWithRole } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, type Workspace } from "./workspace";
@@ -126,7 +126,7 @@ class Builder {
     return this.fn("Collection", name, path, ids.map((id, n) => textEl("Step", id, { Number: n })));
   }
 
-  efx(name: string, path: string, opts: { algorithm: string; movers: RigFixture[]; width: number; height: number; x: number; y: number; durationMs: number }): number {
+  efx(name: string, path: string, opts: { algorithm: string; movers: RigFixture[]; width: number; height: number; x: number; y: number; durationMs: number; propagation?: string }): number {
     const kids: XmlElement[] = [];
     for (const m of opts.movers) {
       kids.push(
@@ -140,7 +140,7 @@ class Builder {
       );
     }
     kids.push(
-      textEl("PropagationMode", "Parallel"),
+      textEl("PropagationMode", opts.propagation ?? "Parallel"),
       el("Speed", { FadeIn: 0, FadeOut: 0, Duration: Math.round(opts.durationMs) }),
       textEl("Direction", "Forward"),
       textEl("RunOrder", "Loop"),
@@ -263,6 +263,30 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     return strikesId;
   };
 
+  // Shared overlays.
+  let blinderSceneId: number | undefined;
+  const blinderScene = () => {
+    if (blinderSceneId !== undefined) return blinderSceneId;
+    const v: Vals = new Map();
+    for (const r of [...backdrop, ...sides, ...fronts, ...movers]) {
+      const p = prof(r);
+      const s = fixtureLevel(v, r.fixtureId, p, 1);
+      for (const h of p.heads) headColor(v, r.fixtureId, h, WHITE, s);
+    }
+    return (blinderSceneId = b.scene("Blinder flash", sharedPath, v));
+  };
+  let pulseSceneId: number | undefined;
+  const pulseScene = () => {
+    if (pulseSceneId !== undefined) return pulseSceneId;
+    const v: Vals = new Map();
+    for (const r of [...sides, ...fronts]) {
+      const p = prof(r);
+      const s = fixtureLevel(v, r.fixtureId, p, 1);
+      for (const h of p.heads) headColor(v, r.fixtureId, h, WARM_WHITE, s);
+    }
+    return (pulseSceneId = b.scene("Beat pulse", sharedPath, v));
+  };
+
   const sectionIds: number[] = [];
   song.sections.forEach((s, idx) => {
     const label = `${idx + 1}. ${safeName(s.name)}`;
@@ -270,144 +294,141 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     const mood = moodById(s.mood);
     const en = energyOf(s.energy);
     const palette: RGB[] = (s.colors.length ? s.colors : mood.colors).map((c) => colorById(c).rgb);
-    const p0 = palette[0]!;
-    const p1 = palette[1] ?? p0;
     const level = Math.max(0.15, Math.min(1, mood.intensity * en.level));
     const speed = en.speed;
     const beat = 60000 / s.bpm;
     const bar = beat * s.beatsPerBar;
     const fade = s.transition === "snap" ? 0 : s.transition === "fade" ? beat : Math.min(sectionMs(s), bar * 4);
+    const pattern = patternById(s.pattern === "mood" ? mood.pattern : s.pattern);
+    const changeId = s.colorChange === "mood" ? mood.colorChange : s.colorChange;
+    const change = COLOR_CHANGES.find((c) => c.id === changeId) ?? COLOR_CHANGES[0]!;
+    const period = change.beats === 0 ? 0 : change.beats > 0 ? change.beats * beat : -change.beats * bar;
+    const moveId = s.movement === "mood" ? mood.movement : s.movement;
+    const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
     const parts: number[] = [];
 
-    // ---- backdrop
-    if (backdrop.length) {
-      const style = s.effects.rain ? "drift" : mood.backdrop;
-      const v: Vals = new Map();
-      const floor = style === "solid" ? 1 : 0.25;
-      backdrop.forEach((r, i) => {
-        const p = prof(r);
-        const sc = fixtureLevel(v, r.fixtureId, p, level);
-        const color = style === "solid" ? palette[i % palette.length]! : p0;
-        for (const h of p.heads) headColor(v, r.fixtureId, h, color, floor * sc);
-        if (s.focus !== "all" && r.side === s.focus) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
-      });
-      parts.push(b.scene("Backdrop base", path, v, fade, beat));
+    /** Everything that depends on colour, for one arrangement of the palette. */
+    const look = (pal: RGB[], tag: string, withFades: boolean): number[] => {
+      const out: number[] = [];
+      const named = (n: string) => (tag ? `${n} ${tag}` : n);
+      const fi = withFades ? fade : 0;
+      const fo = withFades ? beat : 0;
+      const p0 = pal[0]!;
+      const p1 = pal[1] ?? p0;
 
-      if (backdropGroup !== undefined) {
-        const g = backdropGroup;
-        const step = beat / 4 / speed;
-        switch (style) {
-          case "drift":
-            parts.push(b.matrix(s.effects.rain ? "Backdrop rain" : "Backdrop drift", path, {
-              algorithm: "Noise", colors: [s.effects.rain ? mix(p0, WHITE, 0.4) : p1], stepMs: 140 / speed, group: g, direction: "Backward", props: { noisePercentage: "Medium" },
-            }));
-            break;
-          case "waves":
-          case "slowWaves":
-            parts.push(b.matrix("Backdrop waves", path, {
-              algorithm: "Waves", colors: [p1], stepMs: style === "waves" ? step : step * 2, group: g, order: "PingPong",
-              props: { direction: "Out", orientation: "Vertical", tailfade: "Yes", taillength: 10 },
-            }));
-            break;
-          case "stripes": {
-            const ms = palette.map((c, i) => b.matrix(`Backdrop stripes ${i + 1}`, path, { algorithm: "Stripes", colors: [c], stepMs: step, group: g, order: "PingPong", props: { orientation: "Horizontal" } }));
-            parts.push(ms.length > 1 ? b.chaser("Backdrop colour cycle", path, ms.map((id) => ({ id, hold: bar * 2 }))) : ms[0]!);
-            break;
+      if (backdrop.length) {
+        const v: Vals = new Map();
+        backdrop.forEach((r, i) => {
+          const p = prof(r);
+          const sc = fixtureLevel(v, r.fixtureId, p, level);
+          const color = pattern.id === "solid" ? pal[i % pal.length]! : p0;
+          for (const h of p.heads) headColor(v, r.fixtureId, h, color, pattern.floor * sc);
+          if (s.focus !== "all" && r.side === s.focus) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
+        });
+        out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
+        if (backdropGroup !== undefined && pattern.algorithm) {
+          const single = pattern.whiten ? mix(pattern.floor > 0 ? p1 : p0, WHITE, pattern.whiten) : pattern.floor > 0 ? p1 : p0;
+          const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [p0, p1] : pal.slice(0, 5);
+          const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
+          out.push(b.matrix(named(`Backdrop ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: backdropGroup, direction: pattern.direction, order: pattern.order, props: pattern.props }));
+        }
+      }
+
+      const sideLook = (rs: RigFixture[], hot: "SL" | "SR" | null): Vals => {
+        const v: Vals = new Map();
+        for (const r of rs) {
+          const p = prof(r);
+          const focused = s.focus !== "all" && r.side === s.focus;
+          const dimmed = s.focus !== "all" && !focused;
+          const isHot = hot === null || r.side === hot || r.side === "C";
+          const lv = focused ? 1 : dimmed ? level * 0.35 : isHot ? level : level * 0.35;
+          const sc = fixtureLevel(v, r.fixtureId, p, lv);
+          const color = focused ? WARM_WHITE : isHot ? p0 : p1;
+          for (const h of p.heads) {
+            const whiteOnly = h.red === undefined && h.white !== undefined;
+            if (whiteOnly) setVal(v, r.fixtureId, h.white, focused ? 255 : 0);
+            else headColor(v, r.fixtureId, h, color, sc);
           }
-          case "colorCycle": {
-            const ms = palette.map((c, i) => b.matrix(`Backdrop waves ${i + 1}`, path, { algorithm: "Waves", colors: [c], stepMs: step / 1.5, group: g, props: { direction: "Out", orientation: "Horizontal", tailfade: "Yes", taillength: 6 } }));
-            parts.push(ms.length > 1 ? b.chaser("Backdrop colour chase", path, ms.map((id) => ({ id, hold: bar }))) : ms[0]!);
-            break;
-          }
-          case "strobe":
-            parts.push(b.matrix("Backdrop strobe", path, { algorithm: "Strobe", colors: [p1], stepMs: step, group: g }));
-            break;
-          case "solid":
-            break;
         }
-        if (s.effects.strobe && style !== "strobe") {
-          parts.push(b.matrix("Backdrop strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: g }));
-        }
-      }
-    }
-
-    // ---- side and front lights
-    const sideLook = (rs: RigFixture[], hot: "SL" | "SR" | null): Vals => {
-      const v: Vals = new Map();
-      for (const r of rs) {
-        const p = prof(r);
-        const focused = s.focus !== "all" && r.side === s.focus;
-        const dimmed = s.focus !== "all" && !focused;
-        const isHot = hot === null || r.side === hot || r.side === "C";
-        const lv = focused ? 1 : dimmed ? level * 0.35 : isHot ? level : level * 0.35;
-        const sc = fixtureLevel(v, r.fixtureId, p, lv);
-        const color = focused ? WARM_WHITE : isHot ? p0 : p1;
-        for (const h of p.heads) {
-          const whiteOnly = h.red === undefined && h.white !== undefined;
-          if (whiteOnly) setVal(v, r.fixtureId, h.white, focused ? 255 : 0);
-          else headColor(v, r.fixtureId, h, color, sc);
+        return v;
+      };
+      if (sides.length) {
+        if (s.focus !== "all" || mood.side === "static") {
+          out.push(b.scene(named("Side lights"), path, sideLook(sides, null), fi, fo));
+        } else {
+          const swap = mood.side === "swapBeat" ? beat : bar;
+          const a = b.scene(named("Side lights A"), path, sideLook(sides, "SL"));
+          const c = b.scene(named("Side lights B"), path, sideLook(sides, "SR"));
+          const sf = mood.side === "swapBar" ? Math.min(300, swap / 4) : 0;
+          out.push(b.chaser(named("Side lights swap"), path, [{ id: a, fadeIn: sf, hold: swap - sf }, { id: c, fadeIn: sf, hold: swap - sf }]));
         }
       }
-      return v;
-    };
-    if (sides.length) {
-      if (s.focus !== "all" || mood.side === "static") {
-        parts.push(b.scene("Side lights", path, sideLook(sides, null), fade, beat));
-      } else {
-        const period = mood.side === "swapBeat" ? beat : bar;
-        const a = b.scene("Side lights A", path, sideLook(sides, "SL"));
-        const c = b.scene("Side lights B", path, sideLook(sides, "SR"));
-        const fi = mood.side === "swapBar" ? Math.min(300, period / 4) : 0;
-        parts.push(b.chaser("Side lights swap", path, [{ id: a, fadeIn: fi, hold: period - fi }, { id: c, fadeIn: fi, hold: period - fi }]));
-      }
-    }
-    if (fronts.length) {
-      const v: Vals = new Map();
-      for (const r of fronts) {
-        const p = prof(r);
-        const sc = fixtureLevel(v, r.fixtureId, p, Math.max(0.3, level * 0.8));
-        for (const h of p.heads) headColor(v, r.fixtureId, h, WARM_WHITE, sc);
-      }
-      parts.push(b.scene("Front light", path, v, fade, beat));
-    }
-
-    // ---- movers
-    if (movers.length) {
-      const moveId = s.movement === "mood" ? mood.movement : s.movement;
-      const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
-      const v: Vals = new Map();
-      for (const r of movers) {
-        const p = prof(r);
-        const sc = fixtureLevel(v, r.fixtureId, p, level);
-        for (const h of p.heads) headColor(v, r.fixtureId, h, p1, sc);
-        if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
-        if (!mv.algorithm) {
-          const home = r.home ?? { pan: 128, tilt: 128 };
-          setVal(v, r.fixtureId, p.pan, home.pan);
-          setVal(v, r.fixtureId, p.panFine, 0);
-          setVal(v, r.fixtureId, p.tilt, home.tilt);
-          setVal(v, r.fixtureId, p.tiltFine, 0);
+      if (fronts.length) {
+        const v: Vals = new Map();
+        for (const r of fronts) {
+          const p = prof(r);
+          const sc = fixtureLevel(v, r.fixtureId, p, Math.max(0.3, level * 0.8));
+          for (const h of p.heads) headColor(v, r.fixtureId, h, WARM_WHITE, sc);
         }
+        out.push(b.scene(named("Front light"), path, v, fi, fo));
       }
-      parts.push(b.scene(mv.algorithm ? "Movers colour" : "Movers colour + position", path, v, fade, beat));
-      if (mv.algorithm) {
-        // One EFX per distinct home position.
-        const byHome = new Map<string, RigFixture[]>();
+      if (movers.length) {
+        const v: Vals = new Map();
         for (const r of movers) {
-          const h = r.home ?? { pan: 128, tilt: 128 };
-          const k = `${h.pan},${h.tilt}`;
-          byHome.set(k, [...(byHome.get(k) ?? []), r]);
+          const p = prof(r);
+          const sc = fixtureLevel(v, r.fixtureId, p, level);
+          for (const h of p.heads) headColor(v, r.fixtureId, h, p1, sc);
+          if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
+          if (!mv.algorithm) {
+            const home = r.home ?? { pan: 128, tilt: 128 };
+            setVal(v, r.fixtureId, p.pan, home.pan);
+            setVal(v, r.fixtureId, p.panFine, 0);
+            setVal(v, r.fixtureId, p.tilt, home.tilt);
+            setVal(v, r.fixtureId, p.tiltFine, 0);
+          }
         }
-        for (const [k, rs] of byHome) {
-          const [x, y] = k.split(",").map(Number) as [number, number];
-          const w = Math.min(mv.width, 2 * Math.min(x, 255 - x));
-          const h = Math.min(mv.height, 2 * Math.min(y, 255 - y));
-          parts.push(b.efx(`Movers ${mv.label.toLowerCase()}`, path, { algorithm: mv.algorithm, movers: rs, width: w, height: h, x, y, durationMs: (mv.bars * bar) / speed }));
-        }
+        out.push(b.scene(named(mv.algorithm ? "Movers colour" : "Movers colour + position"), path, v, fi, fo));
+      }
+      return out;
+    };
+
+    if (period > 0 && palette.length > 1) {
+      const rotations = palette.map((_, k) => [...palette.slice(k), ...palette.slice(0, k)]);
+      const looks = rotations.map((pal, k) => b.collection(`Colours ${k + 1}`, path, look(pal, `(colours ${k + 1})`, false)));
+      const cf = s.colorFade ? Math.min(period / 2, 1500) : 0;
+      parts.push(b.chaser("Colour changes", path, looks.map((id) => ({ id, fadeIn: cf, hold: period - cf }))));
+    } else {
+      parts.push(...look(palette, "", true));
+    }
+
+    // ---- movement
+    if (movers.length && mv.algorithm) {
+      const spread = SPREADS.find((x) => x.id === s.moverSpread) ?? SPREADS[0]!;
+      const byHome = new Map<string, RigFixture[]>();
+      for (const r of movers) {
+        const h = r.home ?? { pan: 128, tilt: 128 };
+        const k = `${h.pan},${h.tilt}`;
+        byHome.set(k, [...(byHome.get(k) ?? []), r]);
+      }
+      for (const [k, rs] of byHome) {
+        const [x, y] = k.split(",").map(Number) as [number, number];
+        const w = Math.min(mv.width, 2 * Math.min(x, 255 - x));
+        const h = Math.min(mv.height, 2 * Math.min(y, 255 - y));
+        parts.push(b.efx(`Movers ${mv.label.toLowerCase()}`, path, { algorithm: mv.algorithm, movers: rs, width: w, height: h, x, y, durationMs: (mv.bars * bar) / speed, propagation: spread.propagation }));
       }
     }
 
-    // ---- lightning
+    // ---- effects layered on top
+    const p0 = palette[0]!;
+    if (backdropGroup !== undefined) {
+      if (s.effects.rain) parts.push(b.matrix("Rain", path, { algorithm: "Noise", colors: [mix(p0, WHITE, 0.4)], stepMs: 120 / speed, group: backdropGroup, direction: "Backward", props: { noisePercentage: "Medium" } }));
+      if (s.effects.sparkle) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: backdropGroup }));
+      if (s.effects.strobe && pattern.id !== "strobe") parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: backdropGroup, props: { frequency: 2 } }));
+    }
+    if (s.effects.blinder) parts.push(b.chaser("Blinder hit", path, [{ id: blinderScene(), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));
+    if (s.effects.beatPulse && (sides.length || fronts.length)) {
+      parts.push(b.chaser("Beat pulse", path, [{ id: pulseScene(), hold: beat * 0.2, fadeOut: beat * 0.5 }, { id: blank(), hold: beat * 0.8 }]));
+    }
     if (s.effects.lightning) {
       const delay = Math.max(0, (s.effects.lightningDelaySec ?? 0) * 1000);
       const st = strikes();

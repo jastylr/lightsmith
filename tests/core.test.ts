@@ -7,13 +7,17 @@ import {
   generateSong,
   guessRig,
   matchProfiles,
+  MOVEMENTS,
   newSection,
+  normalizeSection,
   parseFixtureDef,
+  PATTERNS,
   parseWorkspace,
   parseXml,
   serializeWorkspace,
   serializeXml,
   type FixtureDef,
+  type Section,
   type Song,
 } from "../src/core/index";
 import { BAR_QXF, MOVER_QXF, PAR_QXF, WORKSPACE_QXW } from "./fixtures";
@@ -103,4 +107,39 @@ test("missing definitions are reported, not guessed", () => {
   const only = new Map([...defs()].filter(([k]) => !k.includes("mover")));
   const { missing } = matchProfiles(ws.fixtures, only);
   assert.equal(missing.length, 2);
+});
+
+test("patterns, colour changes, custom colours and effects all export cleanly", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const sections = PATTERNS.map((p, i) => ({
+    ...newSection("chorus", 120),
+    name: p.label,
+    pattern: p.id,
+    colors: i % 2 ? ["#12ab34", "magenta", "amber"] : [],
+    colorChange: (i % 3 === 0 ? "bar" : "hold") as Section["colorChange"],
+    colorFade: i % 2 === 0,
+    movement: MOVEMENTS[i % MOVEMENTS.length]!.id,
+    moverSpread: (["together", "chase", "offset"] as const)[i % 3]!,
+    effects: { rain: i % 2 === 0, sparkle: i % 3 === 0, blinder: i % 4 === 0, beatPulse: i % 5 === 0, strobe: i % 6 === 0, lightning: i === 1 },
+  }));
+  const s: Song = { id: "p", title: "Pattern test", bpm: 120, sections };
+  generateSong({ ws, profiles, rig, song: s });
+  const xml = serializeWorkspace(ws);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+  for (const p of PATTERNS) if (p.algorithm) assert.ok(xml.includes(`>${p.algorithm}</Algorithm>`), p.algorithm);
+  assert.match(xml, /Colour changes/);
+  assert.match(xml, /<PropagationMode>Serial<\/PropagationMode>/);
+  // The custom hex colour reached a scene (0x12ab34 on a pixel bar head: 18,171,52).
+  assert.match(xml, /,18,\d+,171,\d+,52/);
+});
+
+test("sections saved by older versions are filled in", () => {
+  const old = { id: "x", type: "verse", name: "Verse", bpm: 100, bars: 8, beatsPerBar: 4, mood: "moody", energy: 2, colors: [], movement: "mood", focus: "all", effects: {}, transition: "fade", autoAdvance: false } as unknown as Section;
+  const n = normalizeSection(old);
+  assert.equal(n.pattern, "mood");
+  assert.equal(n.colorChange, "mood");
+  assert.equal(n.moverSpread, "together");
+  assert.equal(n.bpm, 100);
 });
