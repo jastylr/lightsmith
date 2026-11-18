@@ -198,7 +198,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const engine = ws.engine;
 
   // 0. Lights moved in Lightsmith: move them in QLC+'s 3D view too.
-  writePlaces(ws, new Map(rig.fixtures.filter((f) => f.moved && f.pos).map((f) => [f.fixtureId, { x: f.pos!.x, y: f.pos!.y, height: f.height ?? 0, upright: f.upright }])));
+  writePlaces(ws, new Map(rig.fixtures.filter((f) => f.moved && f.pos).map((f) => [f.fixtureId, { x: f.pos!.x, y: f.pos!.y, height: f.height ?? 0, upright: f.upright, facesBack: profiles.get(f.fixtureId)?.isMover ? !!f.facesBack : undefined }])));
 
   // 1. Remove what a previous export of this song created.
   let removed = removeWhere(engine, (e) => {

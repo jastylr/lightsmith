@@ -471,6 +471,8 @@ function FixtureGlyph({
         <circle r={kind === "bar" && upright ? 44 : 34} className="halo" />
         <circle r={kind === "bar" && upright ? 40 : 28} className="job-ring" />
         <g transform={flip ? "scale(1 -1)" : undefined}>{shape}</g>
+        {/* From above, a moving head shows which way it faces: down the page is towards the audience. */}
+        {view === "above" && kind === "mover" && <path d={rf.facesBack ? "M-7 -33 L0 -41 L7 -33" : "M-7 33 L0 41 L7 33"} className="facing" />}
         {view === "above" && hung && (
           <g className="hanger" aria-hidden="true">
             <rect x={-14} y={-half - 12} width="28" height="4.5" rx="1.5" />
@@ -595,6 +597,23 @@ function Inspector({
       )}
 
       {rf.role === "mover" && (
+        <Field
+          label="Which way it faces"
+          hint="A head turned to face the back aims as the mirror image of one facing the audience when both get the same pan and tilt, so a pair can make an X over the drums with the same values. QLC+ shows this as Invert pan in its 3D view."
+        >
+          <Segmented
+            label="Which way it faces"
+            value={rf.facesBack ? "back" : "front"}
+            onChange={(v: "front" | "back") => onChange({ facesBack: v === "back", moved: true })}
+            options={[
+              { value: "front", label: "The audience" },
+              { value: "back", label: "The back" },
+            ]}
+          />
+        </Field>
+      )}
+
+      {rf.role === "mover" && (
         <div className="mover-box">
           <h3>Home position</h3>
           <p className="hint">
@@ -615,7 +634,7 @@ function Inspector({
               <NumberInput label={`${axis} value`} value={rf.home?.[axis] ?? 128} min={0} max={255} onChange={(v) => onChange({ home: { pan: rf.home?.pan ?? 128, tilt: rf.home?.tilt ?? 128, [axis]: Math.round(v) } })} />
             </div>
           ))}
-          <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="For a head facing the other way, so pairs mirror each other." />
+          <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="Runs each movement's shape the other way round, for example clockwise instead of anticlockwise." />
         </div>
       )}
     </div>

@@ -513,3 +513,23 @@ test("the stage layout comes from QLC+'s 3D view, and lights moved here are writ
   // Lights not moved here are left exactly as QLC+ had them.
   assert.match(out, /<FxItem ID="3" XPos="500" YPos="1500" ZPos="4400"\/>/);
 });
+
+test("a moving head turned to face the back comes from QLC+'s Invert pan, and goes back on export", () => {
+  const { profiles: all } = matchProfiles(parseWorkspace(WORKSPACE_QXW).fixtures, defs());
+  const moverId = [...all].find(([, p]) => p.isMover)![0];
+  const xml = WORKSPACE_QXW.replace(
+    " </Engine>",
+    `  <Monitor DisplayMode="1"><Grid Width="5" Height="3" Depth="4" Units="0"/><FxItem ID="${moverId}" InvertedPan="True" XPos="4500" YPos="0" ZPos="2000" XRot="180" YRot="180"/></Monitor>\n </Engine>`,
+  );
+  const ws = parseWorkspace(xml);
+  assert.equal(ws.fixtures.find((f) => f.id === moverId)!.place!.facesBack, true);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles, undefined, ws.stage);
+  assert.equal(rig.fixtures.find((f) => f.fixtureId === moverId)!.facesBack, true);
+  // Turn it to face the audience in Lightsmith: the export clears Invert pan.
+  const turned = { ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === moverId ? { ...f, facesBack: false, moved: true } : f)) };
+  generateSong({ ws, profiles, rig: turned, song: { id: "s", title: "Facing", bpm: 120, sections: [newSection("verse", 120)] } });
+  const item = serializeWorkspace(ws).split("\n").find((l) => l.includes(`<FxItem ID="${moverId}"`))!;
+  assert.ok(!item.includes("InvertedPan"));
+  assert.ok(item.includes('XRot="180"'));
+});

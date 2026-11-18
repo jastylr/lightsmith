@@ -78,11 +78,13 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
       rf.pos = old.pos;
       rf.height = old.height;
       rf.upright = old.upright;
+      rf.facesBack = old.facesBack;
       rf.moved = true;
     } else if (f.place) {
       rf.pos = { x: f.place.x, y: f.place.y };
       rf.height = f.place.height;
       rf.upright = isBar(p) ? f.place.upright : undefined;
+      rf.facesBack = p?.isMover && f.place.facesBack ? true : undefined;
       delete rf.moved;
     } else if (old?.pos) {
       rf.pos = old.pos;

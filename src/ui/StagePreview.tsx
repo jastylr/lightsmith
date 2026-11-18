@@ -389,7 +389,9 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
         const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
-        const mirror = f.reverse ? -1 : 1;
+        // A head turned to face the back mirrors one facing the audience for the
+        // same pan and tilt, so its sweep (and its lean) runs the other way.
+        const mirror = (f.reverse ? -1 : 1) * (f.facesBack ? -1 : 1);
         const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;
         const values =
           movement.id === "figure8" || movement.id === "ballyhoo"
@@ -398,7 +400,13 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         // Match the export: "Together" moves every head as one; the other spreads
         // stagger the heads across the shape, stage left first.
         const phase = section.moverSpread === "together" ? 0 : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
-        const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
+        // Where the head points at rest, from its home pan and tilt: 128/128 is
+        // straight out of the head. A rough sketch, assuming a 540° pan and a
+        // 270° tilt; a head facing the back mirrors one facing the audience.
+        const home = f.home ?? { pan: 128, tilt: 128 };
+        const tiltRad = (((home.tilt - 128) / 128) * 135 * Math.PI) / 180;
+        const panRad = (((home.pan - 128) / 255) * 540 * Math.PI) / 180;
+        const lean = Math.max(-60, Math.min(60, Math.sin(tiltRad) * Math.cos(panRad) * 60)) * (f.facesBack ? -1 : 1);
         const rotateAnim = (cx: number, cy: number) =>
           animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
         if (mountOf(f) === "truss") {

@@ -24,6 +24,11 @@ export interface RigFixture {
   height?: number;
   /** A bar standing on its end rather than lying flat. */
   upright?: boolean;
+  /**
+   * Moving heads: turned around to face the back of the stage. The same pan
+   * and tilt then aim it as the mirror image of a head facing the audience.
+   */
+  facesBack?: boolean;
   /** Moved in Lightsmith since the show file was loaded; otherwise QLC+'s 3D view wins. */
   moved?: boolean;
   /** Movers: the position everything moves around (0-255). */

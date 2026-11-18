@@ -45,6 +45,11 @@ export interface Placement {
   height: number;
   /** The fixture's long side stands up (a bar on its end), from its rotation. */
   upright: boolean;
+  /**
+   * A moving head turned to face the back of the stage. QLC+ shows this with
+   * "Invert pan" on the fixture in its 3D view.
+   */
+  facesBack: boolean;
 }
 
 /** The stage size in QLC+'s 3D view, in metres. */
@@ -189,6 +194,7 @@ function readStage(doc: XmlDocument, fixtures: WsFixture[]): StageSize | undefin
       y: Math.max(0, Math.min(1.25, share(num(it, "ZPos"), stage.depth))),
       height,
       upright: standsUp(num(it, "YRot"), num(it, "ZRot")),
+      facesBack: getAttr(it, "InvertedPan") === "True",
     };
   }
   return stage;
@@ -205,7 +211,7 @@ export function standsUp(yRot: number, zRot: number): boolean {
 }
 
 /** Write fixtures' places back into QLC+'s 3D view, so both apps show the same stage. */
-export function writePlaces(ws: Workspace, places: Map<number, Omit<Placement, "upright"> & { upright?: boolean }>): number {
+export function writePlaces(ws: Workspace, places: Map<number, Omit<Placement, "upright" | "facesBack"> & { upright?: boolean; facesBack?: boolean }>): number {
   const monitor = monitorOf(ws.doc);
   if (!monitor || !ws.stage || !places.size) return 0;
   const items = new Map(childElements(monitor, "FxItem").map((it) => [Number(getAttr(it, "ID")), it]));
@@ -223,6 +229,10 @@ export function writePlaces(ws: Workspace, places: Map<number, Omit<Placement, "
     // Stand a bar up, or lay it down, only when QLC+ has it the other way.
     const yRot = Number(getAttr(it, "YRot") ?? 0);
     if (p.upright !== undefined && standsUp(yRot, Number(getAttr(it, "ZRot") ?? 0)) !== p.upright) setAttr(it, "ZRot", p.upright ? 270 : 0);
+    if (p.facesBack !== undefined) {
+      if (p.facesBack) setAttr(it, "InvertedPan", "True");
+      else it.attrs = it.attrs.filter(([k]) => k !== "InvertedPan");
+    }
     n++;
   }
   return n;
