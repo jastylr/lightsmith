@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { sectionTypeById, type ColorChange, type MoverSpread } from "./presets";
+import { SONG_TEMPLATES, sectionTypeById, type ColorChange, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -122,13 +122,25 @@ export function normalizeProject(p: Project): Project {
   };
 }
 
+/** A new song starts empty; the user adds sections (or picks a starting structure). */
 export function newSong(title = "New song", bpm = 120): Song {
-  return {
-    id: newId("song"),
-    title,
-    bpm,
-    sections: ["intro", "verse", "chorus", "verse", "chorus", "outro"].map((t) => newSection(t, bpm)),
-  };
+  return { id: newId("song"), title, bpm, sections: [] };
+}
+
+/** Sections for one of the SONG_TEMPLATES, at the song's tempo. */
+export function sectionsFromTemplate(templateId: string, bpm: number): Section[] {
+  const t = SONG_TEMPLATES.find((x) => x.id === templateId);
+  if (!t) return [];
+  const count: Record<string, number> = {};
+  const totals: Record<string, number> = {};
+  for (const type of t.sections) totals[type] = (totals[type] ?? 0) + 1;
+  return t.sections.map((type) => {
+    const s = newSection(type, bpm);
+    count[type] = (count[type] ?? 0) + 1;
+    // Number repeated sections: Verse 1, Verse 2…
+    if ((totals[type] ?? 0) > 1) s.name = `${s.name} ${count[type]}`;
+    return s;
+  });
 }
 
 export function sectionMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars">): number {

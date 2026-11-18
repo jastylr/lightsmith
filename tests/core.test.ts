@@ -9,7 +9,9 @@ import {
   matchProfiles,
   MOVEMENTS,
   newSection,
+  newSong,
   normalizeSection,
+  sectionsFromTemplate,
   parseFixtureDef,
   PATTERNS,
   parseWorkspace,
@@ -142,4 +144,12 @@ test("sections saved by older versions are filled in", () => {
   assert.equal(n.colorChange, "mood");
   assert.equal(n.moverSpread, "together");
   assert.equal(n.bpm, 100);
+});
+
+test("new songs start empty, and templates number repeated sections", () => {
+  assert.equal(newSong("x", 100).sections.length, 0);
+  const s = sectionsFromTemplate("bridge", 100);
+  assert.deepEqual(s.map((x) => x.name), ["Intro", "Verse 1", "Chorus 1", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"]);
+  assert.ok(s.every((x) => x.bpm === 100));
+  assert.equal(sectionsFromTemplate("nope", 100).length, 0);
 });

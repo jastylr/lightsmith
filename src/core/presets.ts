@@ -226,6 +226,14 @@ export function sectionTypeById(id: string): SectionTypePreset {
   return SECTION_TYPES.find((s) => s.id === id) ?? SECTION_TYPES[SECTION_TYPES.length - 1]!;
 }
 
+/** Optional starting structures for a new song. */
+export const SONG_TEMPLATES: { id: string; label: string; sections: string[] }[] = [
+  { id: "short", label: "Short song", sections: ["intro", "verse", "chorus", "verse", "chorus", "outro"] },
+  { id: "bridge", label: "With a bridge", sections: ["intro", "verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"] },
+  { id: "prechorus", label: "With pre-choruses", sections: ["intro", "verse", "prechorus", "chorus", "verse", "prechorus", "chorus", "bridge", "chorus", "outro"] },
+  { id: "solo", label: "With a solo", sections: ["intro", "verse", "chorus", "verse", "chorus", "solo", "chorus", "outro"] },
+];
+
 /** Energy 1..5 scales speed and brightness on top of the mood. */
 export const ENERGY = [
   { label: "Very low", speed: 0.5, level: 0.6 },

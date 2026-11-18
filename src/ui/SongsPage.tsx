@@ -7,6 +7,7 @@ import {
   MOVEMENTS,
   PATTERNS,
   SECTION_TYPES,
+  SONG_TEMPLATES,
   SPREADS,
   moodById,
   newId,
@@ -14,6 +15,7 @@ import {
   patternById,
   sectionMs,
   sectionTypeById,
+  sectionsFromTemplate,
   type EffectId,
   type Focus,
   type MoverSpread,
@@ -148,25 +150,72 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         </div>
       </header>
 
-      <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onAdd={add} />
-
-      <div className="songs-body">
-        <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
-        {current ? (
-          <LookEditor key={current.id} s={current} rig={store.project.rig} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
-        ) : (
-          <div className="empty">
-            <p>This song has no sections yet. Add one from the timeline.</p>
+      {song.sections.length === 0 ? (
+        <SongStarter
+          onAdd={add}
+          onTemplate={(id) => {
+            const sections = sectionsFromTemplate(id, song.bpm);
+            set({ sections });
+            setSelected(sections[0]?.id ?? null);
+          }}
+        />
+      ) : (
+        <>
+          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onAdd={add} />
+          <div className="songs-body">
+            <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
+            {current && (
+              <LookEditor key={current.id} s={current} rig={store.project.rig} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="page-actions">
-        <button className="primary" onClick={onNext}>
+        <button className="primary" onClick={onNext} disabled={song.sections.length === 0}>
           Continue to export
         </button>
       </div>
     </section>
+  );
+}
+
+/** What an empty song shows: add sections one by one, or start from a common structure. */
+function SongStarter({ onAdd, onTemplate }: { onAdd: (type: string) => void; onTemplate: (id: string) => void }) {
+  return (
+    <div className="starter">
+      <div className="starter-head">
+        <h2>Build the song's structure</h2>
+        <p className="muted">Add sections in the order the band plays them. You can rename, reorder and adjust them afterwards.</p>
+      </div>
+      <div className="starter-types">
+        {SECTION_TYPES.map((t) => (
+          <button key={t.id} onClick={() => onAdd(t.id)}>
+            <span className="swatch-row">
+              {moodById(t.mood).colors.map((c) => (
+                <i key={c} style={{ background: cssColor(c) }} />
+              ))}
+            </span>
+            <Icon name="plus" size={14} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <h3>Or start from a common structure</h3>
+      <div className="starter-templates">
+        {SONG_TEMPLATES.map((t) => (
+          <button key={t.id} onClick={() => onTemplate(t.id)}>
+            <span className="template-strip" aria-hidden="true">
+              {t.sections.map((type, i) => (
+                <i key={i} style={{ height: `${30 + sectionTypeById(type).energy * 14}%`, background: cssColor(moodById(sectionTypeById(type).mood).colors[0]!) }} />
+              ))}
+            </span>
+            <strong>{t.label}</strong>
+            <small>{t.sections.map((type) => sectionTypeById(type).label).join(", ")}</small>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

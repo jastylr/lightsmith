@@ -1452,6 +1452,64 @@ li.bad .fx-source {
   padding: 0 0.7rem 0.6rem;
 }
 
+/* empty song */
+.starter {
+  border: 1px dashed #4a4450;
+  border-radius: var(--r-lg);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  background: radial-gradient(ellipse at 50% 0%, rgba(242, 167, 59, 0.07), transparent 60%);
+}
+.starter-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.starter-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.starter-types button {
+  background: var(--deck);
+}
+.starter h3 {
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+.starter-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.6rem;
+}
+.starter-templates button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.8rem;
+  background: var(--deck);
+  text-align: left;
+}
+.starter-templates small {
+  color: var(--faint);
+  font-size: 0.78rem;
+}
+.template-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  width: 100%;
+  margin-bottom: 0.2rem;
+}
+.template-strip i {
+  flex: 1;
+  border-radius: 3px 3px 1px 1px;
+  opacity: 0.85;
+}
+
 /* ------------------------------------------------------------- export */
 .export-card {
   display: flex;
