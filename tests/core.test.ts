@@ -7,6 +7,7 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  defaultPosition,
   matchProfiles,
   MOVEMENTS,
   MOODS,
@@ -376,4 +377,14 @@ test("brightness can be set per kind of light, and a warm-white backdrop makes t
   const color = Number(/<Color Index="0">(\d+)<\/Color>/.exec(pattern)![1]);
   const [r, g, b] = [(color >> 16) & 255, (color >> 8) & 255, color & 255];
   assert.ok(r > 200 && g > 200 && b > 150, `rain color ${r},${g},${b}`);
+});
+
+test("first-guess positions never stack lights of the same job on top of each other", () => {
+  for (const n of [2, 3, 4, 6, 8]) {
+    const xs = Array.from({ length: n }, (_, i) => defaultPosition("side", i < n / 2 ? "SL" : "SR", i, n)!.x);
+    assert.equal(new Set(xs.map((x) => x.toFixed(3))).size, n, `${n} lights`);
+    // Stage left first: x runs from the right of the plan to the left.
+    assert.ok(xs.every((x, i) => i === 0 || x < xs[i - 1]!));
+    assert.ok(xs.every((x) => x > 0.05 && x < 0.95));
+  }
 });

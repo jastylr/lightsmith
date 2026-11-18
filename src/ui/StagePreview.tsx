@@ -70,8 +70,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   // Fixtures from the rig, placed by their stage-plan position (audience view).
   const byRole = (role: string) => rig.fixtures.filter((f) => f.role === role && f.pos).sort((a, b) => a.pos!.x - b.pos!.x);
   const backFx = byRole("backdrop");
-  // With no backdrop on the plan, sketch four generic bars (id -1).
-  const bars = backFx.length ? backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId })) : [0.2, 0.4, 0.6, 0.8].map((x) => ({ x, id: -1 }));
+  // Only the backdrop lights the rig really has: a rig without any shows a bare wall.
+  const bars = backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId }));
   const sides = byRole("side");
   const movers = byRole("mover");
   const fronts = byRole("front");
@@ -80,7 +80,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
     [...list.keys()].sort((a, b) => (list[b]!.pos?.x ?? 0) - (list[a]!.pos?.x ?? 0)).indexOf(i);
   const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
-  const twinkles = (id: number) => (id === -1 ? !!section.effects.sparkle : sparkleOn.has(id));
+  const twinkles = (id: number) => sparkleOn.has(id);
   const WARM = "#ffd9a8";
 
   /** A fill that steps through the palette when colors change. */
@@ -199,7 +199,14 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const c = fill(color, 0);
         const paint = focused ? color : c.fill;
         const anim = focused ? null : c.anim;
-        const pulse = animate && section.effects.beatPulse ? <animate attributeName="opacity" values="1;0.35;0.35" keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" /> : null;
+        // Beat pulse, or the pattern when it runs on this light (rigs without a backdrop).
+        const onPattern = !!pattern.algorithm && family !== "solid" && patternOn.has(f.fixtureId);
+        const pulse =
+          animate && section.effects.beatPulse ? (
+            <animate attributeName="opacity" values="1;0.35;0.35" keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" />
+          ) : animate && onPattern ? (
+            <animate attributeName="opacity" values="0.35;1;0.35" dur={`${cycle}s`} begin={`${-rnd(f.fixtureId * 7) * cycle}s`} repeatCount="indefinite" />
+          ) : null;
         return (
           <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
             <g opacity={0.25 + 0.7 * lv.side.level}>
@@ -248,7 +255,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         {bars.map((bar, i) => {
           const x = xAt(bar.x, 0) - barW / 2;
           const k = backFx.length ? stageIndex(backFx, i) : i;
-          const runsPattern = !!pattern.algorithm && (bar.id === -1 ? patternOn.size === 0 && backFx.length === 0 : patternOn.has(bar.id));
+          const runsPattern = !!pattern.algorithm && patternOn.has(bar.id);
           const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
           const base = fill(solidColor, 0);
           const backLevel = lv.backdrop.level;

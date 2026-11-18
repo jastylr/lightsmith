@@ -94,12 +94,10 @@ export const ROLE_ROW: Record<Role, number> = { backdrop: 0.14, mover: 0.42, sid
 export function defaultPosition(role: Role, side: Side, idx: number, count: number): { x: number; y: number } | undefined {
   if (role === "ignore") return undefined;
   const y = ROLE_ROW[role];
-  if (role === "backdrop" || count === 1) {
-    const x = count === 1 ? (side === "SL" ? 0.8 : side === "SR" ? 0.2 : 0.5) : 0.85 - (0.7 * idx) / (count - 1);
-    return { x, y };
-  }
-  const x = side === "SL" ? 0.82 - 0.06 * (idx % 2) : side === "SR" ? 0.18 + 0.06 * (idx % 2) : 0.5;
-  return { x, y };
+  if (count === 1) return { x: side === "SL" ? 0.8 : side === "SR" ? 0.2 : 0.5, y };
+  // Spread lights of the same job evenly across their lane, stage left first,
+  // so none starts hidden behind another however many there are.
+  return { x: 0.88 - (0.76 * idx) / (count - 1), y };
 }
 
 /** After fixtures move on the plan: work out each side and the stage-left-first order. */
