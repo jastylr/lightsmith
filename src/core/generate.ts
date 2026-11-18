@@ -11,7 +11,7 @@
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
-import { colorLayoutOf, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { colorLayoutOf, lightLevels, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -328,7 +328,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     const mood = moodById(s.mood);
     const en = energyOf(s.energy);
     const palette: RGB[] = (s.colors.length ? s.colors : mood.colors).map((c) => colorById(c).rgb);
-    const level = Math.max(0.15, Math.min(1, mood.intensity * en.level));
+    const levels = lightLevels(s);
     const speed = en.speed;
     const beat = 60000 / s.bpm;
     const bar = beat * s.beatsPerBar;
@@ -367,8 +367,10 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       const p0 = pal[0]!;
       const fixed = typeof layout.backdrop === "number" ? layout.backdrop : null;
       // The pattern's color: the one after the backdrop's chosen color, or the second color.
-      const main = fixed !== null ? pal[fixed % pal.length]! : p0;
-      const accent = fixed !== null ? pal[(fixed + 1) % pal.length]! : (pal[1] ?? p0);
+      // With the backdrop set to warm white, the pattern is warm white too.
+      const white = layout.backdrop === "white";
+      const main = white ? WARM_WHITE : fixed !== null ? pal[fixed % pal.length]! : p0;
+      const accent = white ? WARM_WHITE : fixed !== null ? pal[(fixed + 1) % pal.length]! : (pal[1] ?? p0);
 
       if (backdrop.length) {
         const v: Vals = new Map();
@@ -376,7 +378,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
         backdrop.forEach((r, i) => {
           const p = prof(r);
-          const sc = fixtureLevel(v, r.fixtureId, p, level);
+          const sc = fixtureLevel(v, r.fixtureId, p, levels.backdrop.level);
           const color = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!) : colorFor(pal, "backdrop", i, 0);
           // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
           const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
@@ -399,7 +401,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           const p = prof(r);
           const focused = focusSet.has(r.fixtureId);
           const isHot = hot === null || r.side === hot || r.side === "C";
-          const base = job === "front" ? Math.max(0.3, level * 0.8) : level;
+          const base = levels[job].level;
           const lv = focused ? 1 : focusing ? base * 0.35 : isHot ? base : base * 0.35;
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
           const color = focused ? WARM_WHITE : colorFor(pal, job, k, isHot ? 0 : 1);
@@ -428,7 +430,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         for (const [k, r] of movers.entries()) {
           const p = prof(r);
           const focused = focusSet.has(r.fixtureId);
-          const sc = fixtureLevel(v, r.fixtureId, p, focused ? 1 : focusing ? level * 0.5 : level);
+          const sc = fixtureLevel(v, r.fixtureId, p, focused ? 1 : focusing ? levels.mover.level * 0.5 : levels.mover.level);
           for (const h of p.heads) headColor(v, r.fixtureId, h, focused ? WARM_WHITE : colorFor(pal, "mover", k, 1), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {

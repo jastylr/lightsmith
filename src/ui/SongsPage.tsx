@@ -26,6 +26,7 @@ import {
   patternTargets,
   colorById,
   colorLayoutOf,
+  lightLevels,
   type ColorJob,
   type ColorTarget,
   type Side,
@@ -41,6 +42,7 @@ import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, Toggle, useDismis
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
 import { LightPicker, type Light } from "./LightPicker";
+import { PreviewWindow } from "./PreviewWindow";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
 import { moveItem, useSortable } from "./useSortable";
@@ -84,6 +86,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const songs = store.project.songs;
   const song = songs.find((s) => s.id === songId) ?? songs[0];
   const [selected, setSelected] = useState<string | null>(song?.sections[0]?.id ?? null);
+  const [popped, setPopped] = useState(false);
 
   useEffect(() => {
     if (song && !song.sections.some((s) => s.id === selected)) setSelected(song.sections[0]?.id ?? null);
@@ -232,7 +235,12 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} s={current} songBpm={song.bpm} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+            )}
+            {popped && current && (
+              <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
+                <SectionPreview s={current} rig={store.project.rig} />
+              </PreviewWindow>
             )}
           </div>
         </>
@@ -298,7 +306,7 @@ function AddSectionMenu({ onAdd }: { onAdd: (type: string) => void }) {
       </button>
       {open && (
         <div className="popover add-menu" role="menu">
-          {SECTION_TYPES.map((t) => (
+          {[...SECTION_TYPES.filter((t) => t.id === "blackout"), ...SECTION_TYPES.filter((t) => t.id !== "blackout")].map((t) => (
             <button
               key={t.id}
               role="menuitem"
@@ -731,6 +739,58 @@ function ChoiceCards<T extends string>({ value, options, onChange, label }: { va
 const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Side and floor", mover: "Moving heads", front: "Front" };
 
 /** For each kind of light on the stage: mix the palette across them, or pick one color. */
+/**
+ * Brightness per kind of light. Each starts on Auto (from the mood and
+ * energy); moving a slider sets that kind's own level for this section.
+ */
+function BrightnessEditor({ s, rig, onChange, gesture }: { s: Section; rig: Store["project"]["rig"]; onChange: (p: Partial<Section>) => void; gesture: Gesture }) {
+  const jobs = (["backdrop", "side", "mover", "front"] as ColorJob[]).filter((j) => rig.fixtures.some((f) => f.role === j));
+  if (!jobs.length) return null;
+  const levels = lightLevels(s);
+  const set = (job: ColorJob, v: number | undefined) => {
+    const next = { ...(s.brightness ?? {}) };
+    if (v === undefined) delete next[job];
+    else next[job] = v;
+    onChange({ brightness: next });
+  };
+  return (
+    <div className="light-brightness">
+      <span className="light-picker-label">Brightness</span>
+      {jobs.map((job) => {
+        const { level, auto } = levels[job];
+        const pct = Math.round(level * 100);
+        return (
+          <div key={job} className={auto ? "bright-row auto" : "bright-row"}>
+            <span className="layout-job">{JOB_LABEL[job]}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={pct}
+              style={{ "--pct": `${pct}%` } as CSSProperties}
+              aria-label={`${JOB_LABEL[job]} brightness`}
+              onPointerDown={gesture.begin}
+              onPointerUp={gesture.end}
+              onChange={(e) => set(job, Number(e.target.value) / 100)}
+            />
+            <span className="bright-value">{pct}%</span>
+            {auto ? (
+              <span className="bright-auto" title="Set by the mood and energy. Move the slider to choose your own.">
+                Auto
+              </span>
+            ) : (
+              <button type="button" className="link small bright-reset" onClick={() => set(job, undefined)} title="Go back to the mood and energy's brightness (Auto)">
+                Reset
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; onChange: (p: Partial<Section>) => void }) {
   const jobs = (["backdrop", "side", "mover", "front"] as ColorJob[]).filter((j) => rig.fixtures.some((f) => f.role === j));
   if (!jobs.length) return null;
@@ -739,6 +799,7 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
   return (
     <div className="color-layout">
       <span className="light-picker-label">Which lights get which color</span>
+      <p className="hint layout-hint">Mix spreads all your colors across those lights; a swatch puts them all in that one color; the last swatch is warm white.</p>
       {jobs.map((job) => {
         const v = layout[job];
         const current = typeof v === "number" ? v % palette.length : v;
@@ -768,7 +829,43 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
   );
 }
 
-function LookEditor({ s, songBpm, rig, lights, index, onChange }: { s: Section; songBpm: number; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void }) {
+/** The stage preview for a section, or the "All lights off" panel for a blackout. */
+function SectionPreview({ s, rig }: { s: Section; rig: Store["project"]["rig"] }) {
+  if (!isBlackout(s)) return <StagePreview section={s} rig={rig} />;
+  return (
+    <div className="blackout-preview">
+      <Icon name="moon" size={26} />
+      <strong>All lights off</strong>
+      <span>
+        {s.transition === "snap" ? "The lights cut to black" : "The lights fade to black over one bar"} for {lengthLabel(s)}.
+      </span>
+    </div>
+  );
+}
+
+function LookEditor({
+  s,
+  songBpm,
+  rig,
+  lights,
+  index,
+  onChange,
+  gesture,
+  popped,
+  onPopOut,
+  onPopIn,
+}: {
+  s: Section;
+  songBpm: number;
+  rig: Store["project"]["rig"];
+  lights: Light[];
+  index: number;
+  onChange: (p: Partial<Section>) => void;
+  gesture: Gesture;
+  popped: boolean;
+  onPopOut: () => void;
+  onPopIn: () => void;
+}) {
   const mood = moodById(s.mood);
   const moodPattern = patternById(mood.pattern);
   const moodMove = MOVEMENTS.find((m) => m.id === mood.movement)!;
@@ -809,18 +906,25 @@ function LookEditor({ s, songBpm, rig, lights, index, onChange }: { s: Section; 
 
       <div className="editor-grid">
         <div className="editor-preview">
-          <figure className="preview-figure">
-            {blackout ? (
-              <div className="blackout-preview">
-                <Icon name="moon" size={26} />
-                <strong>All lights off</strong>
-                <span>{s.transition === "snap" ? "The lights cut to black" : "The lights fade to black over one bar"} for {lengthLabel(s)}.</span>
+          {popped ? (
+            <div className="preview-docked">
+              <Icon name="popout" size={16} />
+              <span>The stage preview is in its own window.</span>
+              <button type="button" className="link small" onClick={onPopIn}>
+                Put it back here
+              </button>
+            </div>
+          ) : (
+            <figure className="preview-figure">
+              <div className="preview-frame">
+                <SectionPreview s={s} rig={rig} />
+                <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
+                  <Icon name="popout" size={15} /> Pop out
+                </button>
               </div>
-            ) : (
-              <StagePreview section={s} rig={rig} />
-            )}
-            <figcaption className="hint">{blackout ? "A blackout: a gap, a pause or a dramatic stop with no lights." : "A sketch of this section on your stage, at its tempo."}</figcaption>
-          </figure>
+              <figcaption className="hint">{blackout ? "A blackout: a gap, a pause or a dramatic stop with no lights." : "A sketch of this section on your stage, at its tempo."}</figcaption>
+            </figure>
+          )}
           <div className="timing-row">
             <Field label="Section type">
               <Dropdown
@@ -854,9 +958,10 @@ function LookEditor({ s, songBpm, rig, lights, index, onChange }: { s: Section; 
         <div className="editor-controls">
           {!blackout && (
             <>
-          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors, a pattern and movement; energy sets brightness and speed.">
+          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors, a pattern and movement; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
+            <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />
           </Group>
 
           <Group icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">

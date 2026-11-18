@@ -10,6 +10,7 @@ import {
   matchProfiles,
   MOVEMENTS,
   MOODS,
+  lightLevels,
   UndoHistory,
   colorById,
   colorLayoutOf,
@@ -353,4 +354,26 @@ test("a gesture is one undo step however long it takes", () => {
   assert.equal(h.undo(8), 7);
   assert.equal(h.undo(7), 1); // back to the start of the drag in one step
   assert.equal(h.undo(1), 0);
+});
+
+test("brightness can be set per kind of light, and a warm-white backdrop makes the pattern warm white", () => {
+  const base = { ...newSection("verse", 120), mood: "dark", energy: 2 };
+  const auto = lightLevels(base);
+  assert.ok(auto.backdrop.auto && auto.backdrop.level < 0.5);
+  const own = lightLevels({ ...base, brightness: { backdrop: 1 } });
+  assert.deepEqual(own.backdrop, { level: 1, auto: false });
+  assert.equal(own.side.auto, true);
+
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...base, pattern: "rainfall", brightness: { backdrop: 1 }, colorLayout: { backdrop: "white" as const } };
+  generateSong({ ws, profiles, rig, song: { id: "w", title: "White rain", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+  // The pattern's color is warm white lightened for rain, not indigo.
+  const pattern = xml.slice(xml.indexOf('Name="Pattern: falling rain"'));
+  const color = Number(/<Color Index="0">(\d+)<\/Color>/.exec(pattern)![1]);
+  const [r, g, b] = [(color >> 16) & 255, (color >> 8) & 255, color & 255];
+  assert.ok(r > 200 && g > 200 && b > 150, `rain color ${r},${g},${b}`);
 });

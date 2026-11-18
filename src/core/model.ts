@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
+import { energyOf, moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -61,6 +61,8 @@ export interface Section {
   colorFade: boolean;
   /** Which palette color each kind of light uses (missing = DEFAULT_COLOR_LAYOUT). */
   colorLayout?: Partial<Record<ColorJob, ColorTarget>>;
+  /** Brightness (0–1) per kind of light; missing = automatic, from the mood and energy. */
+  brightness?: Partial<Record<ColorJob, number>>;
   /** Lights the pattern runs on (fixture IDs). Missing = the backdrop. */
   patternTargets?: number[];
   /** Backdrop pattern id, or "mood". */
@@ -122,7 +124,7 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) } };
+  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) } };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
@@ -163,6 +165,24 @@ export function sectionsFromTemplate(templateId: string, bpm: number): Section[]
     if ((totals[type] ?? 0) > 1) s.name = `${s.name} ${count[type]}`;
     return s;
   });
+}
+
+/** The overall level a section's mood and energy give (0.15–1). */
+export function sectionLevel(s: Pick<Section, "mood" | "energy">): number {
+  return Math.max(0.15, Math.min(1, moodById(s.mood).intensity * energyOf(s.energy).level));
+}
+
+/** How bright each kind of light is: the section's own setting, or automatic from mood and energy. */
+export function lightLevels(s: Pick<Section, "mood" | "energy" | "brightness">): Record<ColorJob, { level: number; auto: boolean }> {
+  const level = sectionLevel(s);
+  const auto: Record<ColorJob, number> = { backdrop: level, side: level, mover: level, front: Math.max(0.3, level * 0.8) };
+  const own = s.brightness ?? {};
+  const out = {} as Record<ColorJob, { level: number; auto: boolean }>;
+  for (const job of Object.keys(auto) as ColorJob[]) {
+    const v = own[job];
+    out[job] = v === undefined ? { level: auto[job], auto: true } : { level: Math.max(0, Math.min(1, v)), auto: false };
+  }
+  return out;
 }
 
 /** Which color each kind of light uses: the section's choices, else the mood's, else the defaults. */

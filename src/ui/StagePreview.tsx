@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, colorLayoutOf, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, colorLayoutOf, lightLevels, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -15,7 +15,7 @@ const rnd = (n: number) => {
   return x - Math.floor(x);
 };
 
-type Family = "solid" | "wave" | "vertical" | "random" | "strobe";
+type Family = "solid" | "wave" | "vertical" | "random" | "strobe" | "rain";
 const FAMILY: Record<string, Family> = {
   solid: "solid",
   slowWaves: "wave",
@@ -27,9 +27,9 @@ const FAMILY: Record<string, Family> = {
   sineWave: "vertical",
   alternate: "vertical",
   marquee: "vertical",
-  rainfall: "vertical",
+  rainfall: "rain",
   drizzle: "random",
-  snow: "vertical",
+  snow: "rain",
   bubbles: "vertical",
   strobe: "strobe",
 };
@@ -39,6 +39,8 @@ const FAMILY: Record<string, Family> = {
  * lights, moving-head beams and front light, animated at the song's tempo.
  * It's a sketch to judge color and energy, not a simulation.
  */
+const cells = 9;
+
 export function StagePreview({ section, rig, compact = false }: { section: Section; rig: Rig; compact?: boolean }) {
   const view = useMemo(() => {
     const mood = moodById(section.mood);
@@ -56,6 +58,10 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   }, [section]);
 
   const { pal, pattern, period, beat, movement, level, en } = view;
+  // Each kind of light's brightness (the section's own, or automatic); vis()
+  // keeps dim lights visible on screen while still showing the difference.
+  const lv = lightLevels(section);
+  const vis = (l: number) => 0.3 + 0.7 * l;
   const p0 = pal[0]!;
   const p1 = pal[1] ?? p0;
   const rotating = period > 0 && pal.length > 1;
@@ -90,7 +96,6 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   };
 
   const family = FAMILY[pattern.id] ?? "random";
-  const cells = 9;
   const cycle = Math.max(0.6, (beat * 4) / en.speed);
   const barW = 8;
   const topY = 52;
@@ -106,8 +111,14 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
     return pal[(k + offset) % pal.length]!;
   };
   const fixedBack = typeof layout.backdrop === "number" ? layout.backdrop : null;
-  const main = fixedBack !== null ? pal[fixedBack % pal.length]! : p0;
-  const accent = fixedBack !== null ? pal[(fixedBack + 1) % pal.length]! : p1;
+  const whiteBack = layout.backdrop === "white";
+  const main = whiteBack ? WARM : fixedBack !== null ? pal[fixedBack % pal.length]! : p0;
+  const accent = whiteBack ? WARM : fixedBack !== null ? pal[(fixedBack + 1) % pal.length]! : p1;
+  /** Rain and snow are lightened towards white, as in the export. */
+  const whiten = (c: string) => (pattern.whiten ? `color-mix(in srgb, ${c} ${Math.round((1 - pattern.whiten) * 100)}%, white)` : c);
+  // Rain: streaks run down each bar, each bar at its own moment.
+  const stepT = ((pattern.stepMs ?? 90) / 1000) / en.speed;
+  const rainDur = Math.max(0.6, stepT * cells * 2.2);
   const patternOn = new Set(patternTargets(section, rig));
 
   // ---- stage geometry (audience view, gentle perspective)
@@ -174,66 +185,6 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       <rect y={LIP} width={W} height={H - LIP} fill="#0b0a0d" />
       <line x1="0" y1={LIP + 0.5} x2={W} y2={LIP + 0.5} stroke="#3a3540" strokeWidth="1" />
 
-      {/* Backdrop bars, with the glow they throw on the wall and floor */}
-      <g>
-        {bars.map((bar, i) => {
-          const x = xAt(bar.x, 0) - barW / 2;
-          const k = backFx.length ? stageIndex(backFx, i) : i;
-          const runsPattern = !!pattern.algorithm && (bar.id === -1 ? patternOn.size === 0 && backFx.length === 0 : patternOn.has(bar.id));
-          const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
-          const base = fill(solidColor, 0);
-          const floorLevel = runsPattern ? Math.max(0.12, pattern.floor) * level : level;
-          return (
-            <g key={i}>
-              <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
-                {base.anim}
-              </ellipse>
-              <ellipse cx={x + barW / 2} cy={BACK + 4} rx="20" ry="4" fill={base.fill} opacity={0.4 * floorLevel} filter={url("soft")}>
-                {base.anim}
-              </ellipse>
-              <rect x={x - 1.5} y={topY - 1.5} width={barW + 3} height={cells * cellH + 3} rx="2" fill="#141217" stroke="#34303a" strokeWidth="0.6" />
-              <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />
-              {Array.from({ length: cells }, (_, c) => {
-                const y = topY + c * cellH;
-                const over = fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
-                let begin = 0;
-                if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
-                else if (family === "vertical") begin = (c / cells) * cycle;
-                else if (family === "random") begin = rnd(i * 31 + c * 7) * cycle;
-                const showOver = family !== "solid" && runsPattern;
-                return (
-                  <g key={c}>
-                    <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={base.fill} opacity={floorLevel}>
-                      {base.anim}
-                    </rect>
-                    {showOver && (
-                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={pattern.id === "rainbow" ? `hsl(${(c * 40 + i * 25) % 360} 90% 55%)` : over.fill} opacity={animate ? 0 : 0.6 * level}>
-                        {pattern.id !== "rainbow" && over.anim}
-                        {animate && (
-                          <animate
-                            attributeName="opacity"
-                            values={family === "strobe" ? `0;${level};0;0` : `0;${level};0`}
-                            keyTimes={family === "strobe" ? "0;0.05;0.15;1" : "0;0.35;1"}
-                            dur={`${family === "strobe" ? beat / en.speed : cycle}s`}
-                            begin={`${-begin}s`}
-                            repeatCount="indefinite"
-                          />
-                        )}
-                      </rect>
-                    )}
-                    {twinkles(bar.id) && animate && (
-                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill="#fff" opacity="0">
-                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
-                      </rect>
-                    )}
-                  </g>
-                );
-              })}
-            </g>
-          );
-        })}
-      </g>
-
       {/* Side and floor lights: soft washes up onto the wall */}
       {sides.map((f, i) => {
         const d = depthOf(f.pos!.y);
@@ -251,7 +202,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const pulse = animate && section.effects.beatPulse ? <animate attributeName="opacity" values="1;0.35;0.35" keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" /> : null;
         return (
           <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
-            <g opacity={0.45 + 0.45 * level}>
+            <g opacity={0.25 + 0.7 * lv.side.level}>
               {pulse}
               <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>
                 {anim}
@@ -278,6 +229,84 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         );
       })}
 
+      {/* Front lights: a broad wash over the front of the stage */}
+      {fronts.map((f, i) => {
+        const fx = xAt(f.pos!.x, 1);
+        const focused = focusSet.has(f.fixtureId);
+        const color = focused ? WARM : colorFor("front", stageIndex(fronts, i), 0);
+        return (
+          <g key={f.fixtureId} opacity={focusing && !focused ? 0.35 : 1}>
+            <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * lv.front.level} filter={url("glow")} />
+            <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+            <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={color} />
+          </g>
+        );
+      })}
+
+      {/* Backdrop bars, with the glow they throw on the wall and floor */}
+      <g>
+        {bars.map((bar, i) => {
+          const x = xAt(bar.x, 0) - barW / 2;
+          const k = backFx.length ? stageIndex(backFx, i) : i;
+          const runsPattern = !!pattern.algorithm && (bar.id === -1 ? patternOn.size === 0 && backFx.length === 0 : patternOn.has(bar.id));
+          const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
+          const base = fill(solidColor, 0);
+          const backLevel = lv.backdrop.level;
+          const floorLevel = runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
+          return (
+            <g key={i}>
+              <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
+                {base.anim}
+              </ellipse>
+              <ellipse cx={x + barW / 2} cy={BACK + 4} rx="20" ry="4" fill={base.fill} opacity={0.4 * floorLevel} filter={url("soft")}>
+                {base.anim}
+              </ellipse>
+              <rect x={x - 1.5} y={topY - 1.5} width={barW + 3} height={cells * cellH + 3} rx="2" fill="#141217" stroke="#34303a" strokeWidth="0.6" />
+              <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />
+              {Array.from({ length: cells }, (_, c) => {
+                const y = topY + c * cellH;
+                const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
+                let begin = 0;
+                const phase = rnd(i * 17 + 3) * rainDur;
+                if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
+                else if (family === "vertical") begin = (c / cells) * cycle;
+                else if (family === "random") begin = rnd(i * 31 + c * 7) * cycle;
+                else if (family === "rain") begin = (((phase - c * stepT) % rainDur) + rainDur) % rainDur;
+                const peak = vis(backLevel);
+                const showOver = family !== "solid" && runsPattern;
+                return (
+                  <g key={c}>
+                    <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={base.fill} opacity={floorLevel}>
+                      {base.anim}
+                    </rect>
+                    {showOver && (
+                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={pattern.id === "rainbow" ? `hsl(${(c * 40 + i * 25) % 360} 90% 55%)` : over.fill} opacity={animate ? 0 : 0.6 * vis(backLevel)}>
+                        {pattern.id !== "rainbow" && over.anim}
+                        {animate && (
+                          <animate
+                            attributeName="opacity"
+                            values={family === "strobe" ? `0;${peak};0;0` : family === "rain" ? `${peak};${peak * 0.35};0;0` : `0;${peak};0`}
+                            keyTimes={family === "strobe" ? "0;0.05;0.15;1" : family === "rain" ? "0;0.12;0.3;1" : "0;0.35;1"}
+                            dur={`${family === "strobe" ? beat / en.speed : family === "rain" ? rainDur : cycle}s`}
+                            begin={`${-begin}s`}
+                            repeatCount="indefinite"
+                          />
+                        )}
+                      </rect>
+                    )}
+                    {twinkles(bar.id) && animate && (
+                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill="#fff" opacity="0">
+                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
+                      </rect>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+      </g>
+
       {/* Moving heads: crisp beams that follow the chosen movement */}
       {movers.map((f, i) => {
         const d = depthOf(f.pos!.y);
@@ -297,11 +326,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         return (
           <g key={f.fixtureId} opacity={focusing && !moverFocused ? 0.5 : 1}>
-            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={0.35 * level} filter={url("soft")}>
+            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={0.35 * vis(lv.mover.level)} filter={url("soft")}>
               {c.anim}
             </ellipse>
             <g transform={`rotate(${lean} ${fx} ${hy})`}>
-              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={0.55 + 0.35 * level} mask={url("beam")}>
+              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={0.2 + 0.75 * lv.mover.level} mask={url("beam")}>
                 {c.anim}
               </path>
               {animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${fx} ${hy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />}
@@ -314,20 +343,6 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                 {c.anim}
               </circle>
             </g>
-          </g>
-        );
-      })}
-
-      {/* Front lights: a broad wash over the front of the stage */}
-      {fronts.map((f, i) => {
-        const fx = xAt(f.pos!.x, 1);
-        const focused = focusSet.has(f.fixtureId);
-        const color = focused ? WARM : colorFor("front", stageIndex(fronts, i), 0);
-        return (
-          <g key={f.fixtureId} opacity={focusing && !focused ? 0.35 : 1}>
-            <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.12 + 0.14 * level} filter={url("glow")} />
-            <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
-            <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={color} />
           </g>
         );
       })}
