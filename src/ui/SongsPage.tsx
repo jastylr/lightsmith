@@ -373,8 +373,6 @@ function describeLights(ids: Set<number>, lights: Light[], custom: boolean): str
  */
 function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { label: string; chosen: number[]; custom: boolean; lights: Light[]; needsRgb: boolean; onChange: (ids: number[] | undefined) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(open, () => setOpen(false), ref);
   const set = new Set(chosen.filter((id) => lights.some((l) => l.id === id && (!needsRgb || l.hasRgb))));
   const roles = [...new Set(lights.map((l) => l.role))];
   const toggle = (id: number) => {
@@ -384,17 +382,18 @@ function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { la
     onChange([...next]);
   };
   return (
-    <div className="light-picker popover-anchor" ref={ref}>
+    <div className="light-picker">
       <span className="light-picker-label">{label}</span>
-      <button type="button" className={set.size ? "picker-button" : "picker-button empty"} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog" title="Choose which lights to use">
+      <button type="button" className={set.size ? "picker-button" : "picker-button empty"} onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Choose which lights to use">
         <Icon name="stage" size={15} />
-        <span>{describeLights(set, lights, custom)}</span>
-        <span className="picker-action">Choose lights</span>
-        <Icon name="chevronDown" size={14} />
+        <span className="picker-summary">{describeLights(set, lights, custom)}</span>
+        <span className="picker-action">{open ? "Done" : "Choose lights"}</span>
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={14} />
       </button>
       {open && (
-        <div className="popover lights-popover" role="dialog" aria-label={label}>
+        <div className="lights-panel" role="group" aria-label={label} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
           <p className="hint">Tick the lights to use.{needsRgb ? " Lights without color channels can't show this." : ""}</p>
+          <div className="lights-groups">
           {roles.map((role) => (
             <fieldset key={role}>
               <legend>{ROLE_LABEL[role]}</legend>
@@ -411,6 +410,7 @@ function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { la
                 })}
             </fieldset>
           ))}
+          </div>
           <div className="lights-foot">
             {custom ? (
               <button type="button" className="link small" onClick={() => onChange(undefined)}>
@@ -419,6 +419,9 @@ function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { la
             ) : (
               <span className="hint">Using the usual lights.</span>
             )}
+            <button type="button" className="ghost small" onClick={() => setOpen(false)}>
+              Done
+            </button>
           </div>
         </div>
       )}

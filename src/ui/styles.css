@@ -1496,6 +1496,8 @@ li.bad .fx-source {
   flex-direction: column;
   align-items: flex-start;
   gap: 0.3rem;
+  width: 100%;
+  min-width: 0;
 }
 .light-picker-label {
   color: var(--muted);
@@ -1509,10 +1511,11 @@ li.bad .fx-source {
   gap: 0.5rem;
   max-width: 100%;
 }
-.picker-button > span:first-of-type {
+.picker-summary {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 .picker-action {
   color: var(--tungsten-hi);
@@ -1520,6 +1523,58 @@ li.bad .fx-source {
   font-weight: 600;
   padding-left: 0.5rem;
   border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+.lights-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--house);
+}
+.lights-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.6rem;
+}
+.lights-panel fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.7rem 0.6rem;
+  margin: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+}
+.lights-panel legend {
+  padding: 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.lights-panel .check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.lights-panel .check input {
+  accent-color: var(--tungsten);
+  margin-top: 0.2rem;
+}
+.lights-panel .blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.lights-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 .picker-button.empty {
   border-color: var(--warn);
@@ -1620,7 +1675,7 @@ li.bad .fx-source {
 
 .effects {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
 }
 .effect {
@@ -1659,35 +1714,6 @@ li.bad .fx-source {
 .effect.on > button {
   color: var(--tungsten-hi);
 }
-.lights-popover {
-  top: calc(100% + 6px);
-  min-width: 260px;
-  max-height: 340px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.lights-popover fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.5rem 0.7rem;
-}
-.lights-popover .check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.86rem;
-  cursor: pointer;
-}
-.lights-popover .check input {
-  accent-color: var(--tungsten);
-}
-.lights-popover .blocked {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
 .warn-text {
   color: var(--warn) !important;
 }
@@ -1698,8 +1724,8 @@ li.bad .fx-source {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.55rem;
-  padding: 0 0.7rem 0.75rem;
+  gap: 0.6rem;
+  padding: 0.1rem 0.8rem 0.8rem 2.6rem;
 }
 .effect-state {
   margin-left: auto;

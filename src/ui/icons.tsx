@@ -13,6 +13,7 @@ const PATHS = {
   copy: "M9 9h11v11H9zM5 15V4h11",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   chevronDown: "M6 9l6 6l6-6",
+  chevronUp: "M6 15l6-6l6 6",
   chevronRight: "M9 6l6 6l-6 6",
   edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
   rain: "M7 13v4M12 15v4M17 13v4M7 11a5 5 0 1 1 9.6-2A3.5 3.5 0 1 1 17 11z",
