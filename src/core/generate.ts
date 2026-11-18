@@ -75,6 +75,8 @@ function mix(a: RGB, b: RGB, t: number): RGB {
 
 const WHITE: RGB = [255, 255, 255];
 const WARM_WHITE = colorById("warmWhite").rgb;
+/** With Focus on, lights outside the spotlight run at this share of their level. */
+export const FOCUS_DIM = 0.5;
 
 class Builder {
   functions: XmlElement[] = [];
@@ -391,7 +393,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
           const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
           for (const h of p.heads) headColor(v, r.fixtureId, h, color, (underPattern ? pattern.floor : 1) * sc);
-          if (focusSet.has(r.fixtureId) && !o.color && !o.off) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
+          if (focusSet.has(r.fixtureId) && !o.off) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
         });
         out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
       }
@@ -411,13 +413,14 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           const focused = focusSet.has(r.fixtureId);
           const isHot = hot === null || r.side === hot || r.side === "C";
           const base = levels[job].level;
-          // A light's own brightness wins over focus and side-to-side swaps.
-          const lv = o.off ? 0 : (o.level ?? (focused ? 1 : focusing ? base * 0.35 : isHot ? base : base * 0.35));
+          // Focus: the spotlight lights go warm white at full, even with their own
+          // settings; every other light dims to half. Only "Off" wins over Focus.
+          const lv = o.off ? 0 : focused ? 1 : (o.level ?? (isHot ? base : base * 0.35)) * (focusing ? FOCUS_DIM : 1);
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
-          const color = o.off ? BLACK : (o.color ?? (focused ? WARM_WHITE : colorFor(pal, job, k, isHot ? 0 : 1)));
+          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, job, k, isHot ? 0 : 1));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
-            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : o.color || o.level !== undefined ? 255 * lv : focused ? 255 : 0);
+            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
             else headColor(v, r.fixtureId, h, color, sc);
           }
         }
@@ -441,8 +444,8 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           const p = prof(r);
           const o = own(r);
           const focused = focusSet.has(r.fixtureId);
-          const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : (o.level ?? (focused ? 1 : focusing ? levels.mover.level * 0.5 : levels.mover.level)));
-          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : (o.color ?? (focused ? WARM_WHITE : colorFor(pal, "mover", k, 1))), sc);
+          const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : focused ? 1 : (o.level ?? levels.mover.level) * (focusing ? FOCUS_DIM : 1));
+          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, "mover", k, 1)), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {
             const home = r.home ?? { pan: 128, tilt: 128 };

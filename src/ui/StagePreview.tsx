@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -191,6 +191,13 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       <line x1="0" y1={BACK} x2={W} y2={BACK} stroke="#2e2a33" strokeWidth="1" />
       <rect y={LIP} width={W} height={H - LIP} fill="#0b0a0d" />
       <line x1="0" y1={LIP + 0.5} x2={W} y2={LIP + 0.5} stroke="#3a3540" strokeWidth="1" />
+      {/* Seen from the audience, so stage right is on the left. */}
+      <text x="10" y={LIP + 10.5} fontSize="8.5" fill="#6f6875" letterSpacing="0.04em">
+        STAGE RIGHT
+      </text>
+      <text x={W - 10} y={LIP + 10.5} fontSize="8.5" fill="#6f6875" letterSpacing="0.04em" textAnchor="end">
+        STAGE LEFT
+      </text>
 
       {/* Side and floor lights: soft washes up onto the wall */}
       {sides.map((f, i) => {
@@ -200,15 +207,16 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const sc = scaleAt(d);
         const focused = focusSet.has(f.fixtureId);
         const o = ownOf(f.fixtureId);
-        const dimmed = focusing && !focused && o.level === undefined && !o.color;
-        const color = o.color ?? (focused ? WARM : colorFor("side", stageIndex(sides, i), 0));
+        // The same rules as the export: the spotlight goes warm white at full,
+        // everything else runs at half its level, and only "Off" wins over Focus.
+        const color = focused ? WARM : (o.color ?? colorFor("side", stageIndex(sides, i), 0));
         const steady = focused || !!o.color;
         const dir = fx < W / 2 ? 1 : -1;
         const tx = fx + dir * Math.min(110, Math.abs(W / 2 - fx) * 0.5 + 30);
         const c = fill(color, 0);
         const paint = o.off ? DARK_LENS : steady ? color : c.fill;
         const anim = steady || o.off ? null : c.anim;
-        const sideLevel = o.off ? 0 : (o.level ?? lv.side.level);
+        const sideLevel = o.off ? 0 : focused ? 1 : (o.level ?? lv.side.level) * (focusing ? FOCUS_DIM : 1);
         // Beat pulse, or the pattern when it runs on this light (rigs without a backdrop).
         const onPattern = !!pattern.algorithm && family !== "solid" && patternOn.has(f.fixtureId);
         const pulse =
@@ -218,8 +226,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             <animate attributeName="opacity" values="0.35;1;0.35" dur={`${cycle}s`} begin={`${-rnd(f.fixtureId * 7) * cycle}s`} repeatCount="indefinite" />
           ) : null;
         return (
-          <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
-            <g opacity={o.off ? 0 : 0.25 + 0.7 * sideLevel}>
+          <g key={f.fixtureId}>
+            <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
               {pulse}
               <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>
                 {anim}
@@ -251,10 +259,10 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const fx = xAt(f.pos!.x, 1);
         const focused = focusSet.has(f.fixtureId);
         const o = ownOf(f.fixtureId);
-        const color = o.color ?? (focused ? WARM : colorFor("front", stageIndex(fronts, i), 0));
-        const frontLevel = o.off ? 0 : (o.level ?? lv.front.level);
+        const color = focused ? WARM : (o.color ?? colorFor("front", stageIndex(fronts, i), 0));
+        const frontLevel = o.off ? 0 : focused ? 1 : (o.level ?? lv.front.level) * (focusing ? FOCUS_DIM : 1);
         return (
-          <g key={f.fixtureId} opacity={focusing && !focused && o.level === undefined && !o.color ? 0.35 : 1}>
+          <g key={f.fixtureId}>
             {!o.off && <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * frontLevel} filter={url("glow")} />}
             <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
             <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={o.off ? DARK_LENS : color} />
@@ -336,8 +344,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const hy = fy - 12 * sc;
         const moverFocused = focusSet.has(f.fixtureId);
         const o = ownOf(f.fixtureId);
-        const c = o.color ? { fill: o.color, anim: null } : moverFocused ? { fill: WARM, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
-        const moverLevel = o.off ? 0 : (o.level ?? lv.mover.level);
+        const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
+        const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
         const mirror = f.reverse ? -1 : 1;
         const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;
@@ -347,7 +355,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         return (
-          <g key={f.fixtureId} opacity={focusing && !moverFocused && o.level === undefined && !o.color ? 0.5 : 1}>
+          <g key={f.fixtureId}>
             <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={o.off ? 0 : 0.35 * vis(moverLevel)} filter={url("soft")}>
               {c.anim}
             </ellipse>

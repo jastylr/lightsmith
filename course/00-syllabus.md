@@ -539,7 +539,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Concepts.**
 - The generator, step by step: the `Builder` pattern, removing a previous export, fixture groups, building each section's look (scenes, matrices, EFX, chasers), effects and blend modes, blackouts and fade-to-black, the song cue list, and Virtual Console buttons placed where they can be seen.
-- How each light's final color and brightness is decided: the mood and energy, then its kind of light, then its own settings, which win over everything including Focus; and which lights sit out the pattern and effects.
+- How each light's final color and brightness is decided: the mood and energy, then its kind of light, then its own settings. Focus sits on top: its spotlight lights go warm white at full and everything else dims to half, and only a light switched off wins over Focus. Also which lights sit out the pattern and effects.
 - Making exports repeatable: exporting twice gives one copy and keeps a frame the user moved.
 - Domain rules in code: the shutter trap, HTP vs LTP channels.
 - Validation before download (`checkWorkspace`).

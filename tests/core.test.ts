@@ -13,6 +13,7 @@ import {
   MOODS,
   lightLevels,
   sitsOut,
+  FOCUS_DIM,
   patternTargets,
   effectTargets,
   UndoHistory,
@@ -425,4 +426,28 @@ test("individual lights can have their own color, brightness or be off, and sit 
   assert.equal(par.get(3), 255);
   assert.equal(par.get(2), 0);
   assert.equal(fixtureVals("Side lights", 3).get(0), 0);
+});
+
+test("Focus spotlights its lights even with their own settings, and dims the rest to half", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  // Pars 2 (stage left) and 3 (stage right). Par 2 has its own color, par 3 its own brightness.
+  const sl = rig.fixtures.find((f) => f.fixtureId === 2)!.side;
+  const s = { ...newSection("verse", 120), mood: "dark", focus: sl, lights: { "2": { color: "#00ff00" }, "3": { level: 0.8 } } };
+  generateSong({ ws, profiles, rig, song: { id: "f", title: "Focus", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  const scene = xml.slice(xml.indexOf('Name="Side lights"'));
+  const vals = (id: number) => {
+    const m = new RegExp(`<FixtureVal ID="${id}">([^<]*)</FixtureVal>`).exec(scene.slice(0, scene.indexOf("</Function>")))!;
+    const a = m[1]!.split(",").map(Number);
+    return new Map(a.flatMap((v, i) => (i % 2 ? [] : [[v, a[i + 1]!] as [number, number]])));
+  };
+  // The spotlight: full dimmer, warm white (not its own green).
+  const spot = vals(2);
+  assert.equal(spot.get(0), 255);
+  // On an RGBW par, warm white uses the white LED plus some red: not green.
+  assert.ok(spot.get(5)! > 0 && spot.get(2)! > spot.get(3)!);
+  // The other par: its own 80% halved.
+  assert.equal(vals(3).get(0), Math.round(255 * 0.8 * FOCUS_DIM));
 });

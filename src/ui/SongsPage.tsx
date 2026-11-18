@@ -1016,7 +1016,7 @@ function LookEditor({
             )}
           </Group>
 
-          <Group icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. Their lights go warm white; the rest dim.">
+          <Group icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. The lights on their side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.">
             <Segmented
               label="Who to light"
               value={s.focus}
@@ -1028,9 +1028,9 @@ function LookEditor({
             />
             <p className="hint">
               {s.focus === "all"
-                ? "Stage left and right are the performers' left and right."
+                ? "Stage left and right are the performers' left and right, so stage left is on the right as the audience sees it."
                 : focusIds.length
-                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}.`
+                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}. Lights you've switched off stay off.`
                   : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
             </p>
           </Group>
