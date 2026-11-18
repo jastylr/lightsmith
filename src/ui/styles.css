@@ -2275,3 +2275,64 @@ body.is-resizing * {
 .blackout-preview span {
   font-size: 0.85rem;
 }
+
+/* ------------------------------------------------------------- playback */
+.ruler {
+  cursor: pointer;
+}
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--tungsten-hi);
+  box-shadow: 0 0 10px rgba(255, 196, 107, 0.7);
+  z-index: 4;
+  pointer-events: none;
+}
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -5px;
+  border: 6px solid transparent;
+  border-top: 8px solid var(--tungsten-hi);
+}
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+}
+.play-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--tungsten);
+  background: var(--tungsten);
+  color: #2a1a05;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.play-button:hover:not(:disabled) {
+  background: var(--tungsten-hi);
+  border-color: var(--tungsten-hi);
+}
+.play-button.on {
+  background: transparent;
+  color: var(--tungsten-hi);
+}
+.play-button.on:hover:not(:disabled) {
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten-hi);
+}
+.transport-time {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 6.5rem;
+}

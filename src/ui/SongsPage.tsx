@@ -327,11 +327,88 @@ function Timeline({
   };
   useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---- Playback: a playhead runs through the song at each section's length,
+  // selecting each section as it starts so the preview shows it.
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0); // ms from the start of the song
+  const posRef = useRef(0);
+  const totalMs = totalSec * 1000;
+  const sectionAt = (ms: number) => {
+    let t = 0;
+    for (const s of song.sections) {
+      t += sectionMs(s);
+      if (ms < t) return s;
+    }
+    return song.sections[song.sections.length - 1];
+  };
+  const seek = (ms: number) => {
+    const t = Math.max(0, Math.min(totalMs, ms));
+    posRef.current = t;
+    setPos(t);
+    const s = sectionAt(t);
+    if (s && s.id !== selected) onSelect(s.id);
+  };
+  const latestPlay = useRef({ song, selected, onSelect, totalMs, scale });
+  latestPlay.current = { song, selected, onSelect, totalMs, scale };
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    let last = performance.now();
+    const frame = (now: number) => {
+      const { song: sg, selected: sel, onSelect: pick, totalMs: total, scale: sc } = latestPlay.current;
+      const t = posRef.current + (now - last);
+      last = now;
+      if (t >= total) {
+        posRef.current = total;
+        setPos(total);
+        setPlaying(false);
+        return;
+      }
+      posRef.current = t;
+      setPos(t);
+      // Select the section under the playhead.
+      let acc = 0;
+      const cur = sg.sections.find((s) => (acc += sectionMs(s)) > t);
+      if (cur && cur.id !== sel) pick(cur.id);
+      // Keep the playhead in view.
+      const el = scroller.current;
+      const x = (t / 1000) * sc;
+      if (el && (x > el.scrollLeft + el.clientWidth - 80 || x < el.scrollLeft)) el.scrollLeft = Math.max(0, x - 80);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
+  const togglePlay = () => {
+    if (!playing) seek(posRef.current >= totalMs - 1 ? 0 : posRef.current);
+    setPlaying((p) => !p);
+  };
+  // Space plays and pauses, unless you're typing or on a control.
+  const toggleRef = useRef(togglePlay);
+  toggleRef.current = togglePlay;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      const t = e.target as HTMLElement;
+      if (t.closest("input, textarea, select, button, [contenteditable], [role=radio], [role=checkbox], .lights-pop")) return;
+      e.preventDefault();
+      toggleRef.current();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+  // Stop when switching songs.
+  useEffect(() => {
+    setPlaying(false);
+    posRef.current = 0;
+    setPos(0);
+  }, [song.id]);
+
   // Keep the selected section in view (for example one just added at the end).
   useEffect(() => {
     const el = selected ? scroller.current?.querySelector<HTMLElement>(`[data-id="${selected}"]`) : null;
-    el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-  }, [selected, song.sections.length]);
+    if (!playing) el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [selected, song.sections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startResize = (e: ReactPointerEvent<HTMLElement>, id: string) => {
     if (e.button !== 0) return;
@@ -416,7 +493,14 @@ function Timeline({
       <div className="timeline-row">
         <div className="timeline" ref={scroller}>
           <div className="timeline-track" ref={track} style={{ width: width + 16 }}>
-            <div className="ruler" aria-hidden="true">
+            <div
+              className="ruler"
+              title="Click to play from here"
+              onPointerDown={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                seek(((e.clientX - r.left) / scale) * 1000);
+              }}
+            >
               {Array.from({ length: Math.floor(totalSec / step) + 1 }, (_, i) => (
                 <span key={i} style={{ left: i * step * scale }}>
                   {fmt(i * step * 1000)}
@@ -459,6 +543,7 @@ function Timeline({
                 );
               })}
             </div>
+            {(playing || pos > 0) && <div className="playhead" style={{ left: (pos / 1000) * scale }} aria-hidden="true" />}
             {resizing &&
               (() => {
                 const s = song.sections.find((v) => v.id === resizing.id);
@@ -483,7 +568,19 @@ function Timeline({
         {addButton}
       </div>
       <div className="timeline-foot">
-        <p className="hint">Drag a block to reorder it, or drag its right edge to change its length. Taller blocks have more energy.</p>
+        <div className="transport" role="group" aria-label="Play the song">
+          <button type="button" className={playing ? "play-button on" : "play-button"} onClick={togglePlay} disabled={!song.sections.length} aria-label={playing ? "Pause" : "Play the song"} title={playing ? "Pause (Space)" : "Play the song (Space)"}>
+            <Icon name={playing ? "pause" : "play"} size={15} />
+            {playing ? "Pause" : "Play"}
+          </button>
+          <button type="button" className="ghost small" onClick={() => seek(0)} disabled={pos === 0} aria-label="Back to the start" title="Back to the start">
+            <Icon name="skipBack" size={14} />
+          </button>
+          <span className="transport-time">
+            {fmt(pos)} / {fmt(totalMs)}
+          </span>
+        </div>
+        <p className="hint">Drag a block to reorder it, or its right edge to change its length.</p>
         <div className="zoom" role="group" aria-label="Zoom the timeline">
           <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.max(1, v / 1.5))} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />

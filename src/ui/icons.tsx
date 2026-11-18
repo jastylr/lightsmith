@@ -40,6 +40,8 @@ const PATHS = {
   hidden: "M3 3l18 18M10.6 6.2A9.7 9.7 0 0 1 12 6c5 0 8.5 4.2 9.5 6c-.4.8-1.3 2.1-2.6 3.3M6.6 6.6C4.4 8 3 10.2 2.5 12c1 1.8 4.5 6 9.5 6a9.4 9.4 0 0 0 4.4-1.1",
   focus: "M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6z",
   play: "M7 4l12 8l-12 8z",
+  pause: "M7 5h3v14H7zM14 5h3v14h-3z",
+  skipBack: "M18 5L8 12l10 7zM6 5v14",
 } as const;
 
 export type IconName = keyof typeof PATHS;
