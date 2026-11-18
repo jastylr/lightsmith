@@ -391,9 +391,12 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           movement.id === "figure8" || movement.id === "ballyhoo"
             ? `${-swing * mirror};${swing * mirror};${-swing * mirror * 0.4};${swing * mirror * 0.4};${-swing * mirror}`
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
+        // Match the export: "Together" moves every head as one; the other spreads
+        // stagger the heads across the shape, stage left first.
+        const phase = section.moverSpread === "together" ? 0 : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         const rotateAnim = (cx: number, cy: number) =>
-          animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />;
+          animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
         if (f.mount === "truss") {
           // Hung upside down: the beam points down at the stage and sweeps across it.
           const top = HANG_Y;
