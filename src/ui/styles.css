@@ -2336,3 +2336,8 @@ body.is-resizing * {
   font-variant-numeric: tabular-nums;
   min-width: 6.5rem;
 }
+.tempo-reset {
+  align-self: flex-start;
+  font-size: 0.78rem;
+  padding: 0;
+}

@@ -116,7 +116,14 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     set({ sections: [...song.sections.slice(0, i + 1), copy, ...song.sections.slice(i + 1)] });
     setSelected(copy.id);
   };
-  const remove = (s: Section) => set({ sections: song.sections.filter((x) => x.id !== s.id) });
+  /** Delete a section after asking, then select its neighbour. */
+  const remove = (s: Section) => {
+    if (!confirm(`Delete the section "${s.name}"? This can't be undone.`)) return;
+    const i = song.sections.findIndex((x) => x.id === s.id);
+    const rest = song.sections.filter((x) => x.id !== s.id);
+    set({ sections: rest });
+    setSelected(rest[Math.min(i, rest.length - 1)]?.id ?? null);
+  };
   const total = song.sections.reduce((t, s) => t + sectionMs(s), 0);
   const names = new Map(store.fixtures.map((f) => [f.id, f.name]));
   const lights: Light[] = store.project.rig.fixtures
@@ -138,7 +145,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" />
           <div className="song-meta">
             <label className="stat stat-input">
-              <span>Tempo</span>
+              <span>Song tempo</span>
               <NumberInput
                 label="Song tempo in BPM"
                 value={song.bpm}
@@ -184,17 +191,17 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} addButton={<AddSectionMenu onAdd={add} />} />
+          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
                 <h2>Sections</h2>
                 <span>Drag to reorder</span>
               </div>
-              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
+              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDelete={remove} />
             </div>
             {current && (
-              <LookEditor key={current.id} s={current} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} s={current} songBpm={song.bpm} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
             )}
           </div>
         </>
@@ -301,6 +308,7 @@ function Timeline({
   onSelect,
   onMove,
   onResize,
+  onDelete,
   addButton,
 }: {
   song: Song;
@@ -308,6 +316,7 @@ function Timeline({
   onSelect: (id: string) => void;
   onMove: (a: number, b: number) => void;
   onResize: (id: string, bars: number) => void;
+  onDelete: (s: Section) => void;
   addButton: ReactNode;
 }) {
   const keys = song.sections.map((s) => s.id);
@@ -522,10 +531,13 @@ function Timeline({
                     className={`block${isBlackout(s) ? " blackout" : ""}${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
                     style={{ width: w, ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
                     tabIndex={0}
-                    aria-label={`${s.name}, ${lengthLabel(s)}, ${fmt(ms)}. Enter to edit, Alt and arrows to move, Shift and arrows to change the length.`}
+                    aria-label={`${s.name}, ${lengthLabel(s)}, ${fmt(ms)}. Enter to edit, Alt and arrows to move, Shift and arrows to change the length, Delete to remove.`}
                     onPointerDown={h.onPointerDown}
                     onKeyDown={(e) => {
-                      if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+                      if (e.key === "Delete" || e.key === "Backspace") {
+                        e.preventDefault();
+                        onDelete(s);
+                      } else if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
                         e.preventDefault();
                         resizeKey(e, s);
                       } else h.onKeyDown(e);
@@ -580,7 +592,7 @@ function Timeline({
             {fmt(pos)} / {fmt(totalMs)}
           </span>
         </div>
-        <p className="hint">Drag a block to reorder it, or its right edge to change its length.</p>
+        <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>
         <div className="zoom" role="group" aria-label="Zoom the timeline">
           <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.max(1, v / 1.5))} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
@@ -597,7 +609,7 @@ function Timeline({
   );
 }
 
-function CueList({ song, selected, onSelect, onMove }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void }) {
+function CueList({ song, selected, onSelect, onMove, onDelete }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDelete: (s: Section) => void }) {
   const keys = song.sections.map((s) => s.id);
   const { dragging, itemRef, handle } = useSortable(keys, onMove, "y");
   return (
@@ -607,7 +619,17 @@ function CueList({ song, selected, onSelect, onMove }: { song: Song; selected: s
           <span className="cue-grip" aria-label={`Drag to move ${s.name}`} title="Drag to reorder (or Alt + arrow keys)" tabIndex={0} {...handle(s.id)}>
             <Icon name="grip" size={16} />
           </span>
-          <button className="cue-main" onClick={() => onSelect(s.id)} aria-pressed={selected === s.id}>
+          <button
+            className="cue-main"
+            onClick={() => onSelect(s.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Delete" || e.key === "Backspace") {
+                e.preventDefault();
+                onDelete(s);
+              }
+            }}
+            aria-pressed={selected === s.id}
+          >
             <span className="cue-num">{i + 1}</span>
             <span className="swatch-row">
               {isBlackout(s) ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}
@@ -702,7 +724,7 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
   );
 }
 
-function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: { s: Section; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void; onDuplicate: () => void; onRemove: () => void }) {
+function LookEditor({ s, songBpm, rig, lights, index, onChange, onDuplicate, onRemove }: { s: Section; songBpm: number; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void; onDuplicate: () => void; onRemove: () => void }) {
   const mood = moodById(s.mood);
   const moodPattern = patternById(mood.pattern);
   const moodMove = MOVEMENTS.find((m) => m.id === mood.movement)!;
@@ -776,8 +798,13 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
                 }}
               />
             </Field>
-            <Field label="Tempo">
+            <Field label="Section tempo" hint={s.bpm === songBpm ? "Same as the song" : undefined}>
               <NumberInput label="Section tempo" value={s.bpm} min={30} max={300} suffix="BPM" onChange={(bpm) => onChange({ bpm })} />
+              {s.bpm !== songBpm && (
+                <button type="button" className="link small tempo-reset" onClick={() => onChange({ bpm: songBpm })} title="Use the song tempo for this section">
+                  Reset to {songBpm}
+                </button>
+              )}
             </Field>
             <Field label="Length" hint={`${sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}, a` : "A"}bout ${fmt(sectionMs(s))}`}>
               <NumberInput label="Length in bars" value={Math.floor(sectionBeats(s) / s.beatsPerBar)} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + (sectionBeats(s) % s.beatsPerBar) / s.beatsPerBar })} />
