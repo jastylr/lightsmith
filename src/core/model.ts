@@ -14,13 +14,23 @@ export interface RigFixture {
   side: Side;
   /** Left-to-right order on stage, stage left first. */
   order: number;
-  /** Where it sits on the stage plan, seen from the audience (0..1, x = left→right, y = back→front). */
+  /**
+   * Where it is on the stage, seen from the audience: x from stage right to
+   * stage left (0..1), y from the back wall to the front edge (0..1; a little
+   * past 1 is in front of the stage). Read from QLC+'s 3D view when it has one.
+   */
   pos?: { x: number; y: number };
+  /** How high it is, as a share of the stage height (0 = floor). Above half is hung from a truss. */
+  height?: number;
+  /** A bar standing on its end rather than lying flat. */
+  upright?: boolean;
+  /** Moved in Lightsmith since the show file was loaded; otherwise QLC+'s 3D view wins. */
+  moved?: boolean;
   /** Movers: the position everything moves around (0-255). */
   home?: { pan: number; tilt: number };
   /** Movers: run movement in the opposite direction (e.g. a head facing the other way). */
   reverse?: boolean;
-  /** Standing on the floor (the default) or hung from a truss and pointing down. */
+  /** Older projects: floor or truss, before heights were kept. Use mountOf(). */
   mount?: Mount;
   /** True once the user has edited this fixture; until then we keep re-guessing. */
   userSet?: boolean;
@@ -28,6 +38,14 @@ export interface RigFixture {
 
 export interface Rig {
   fixtures: RigFixture[];
+  /** The stage size from QLC+'s 3D view, in metres, when the show has one. */
+  stage?: { width: number; depth: number; height: number; feet: boolean };
+}
+
+/** On the floor, or hung from a truss (anything in the top half of the stage). */
+export function mountOf(f: Pick<RigFixture, "height" | "mount">): Mount {
+  if (f.height !== undefined) return f.height > 0.5 ? "truss" : "floor";
+  return f.mount ?? "floor";
 }
 
 export type Focus = "all" | Side;

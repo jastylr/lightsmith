@@ -13,7 +13,7 @@ export interface Light {
   pos: { x: number; y: number };
 }
 
-export const ROLE_LABEL: Record<Role, string> = { backdrop: "Backdrop", mover: "Moving heads", side: "Side and floor", front: "Front", ignore: "Not used" };
+export const ROLE_LABEL: Record<Role, string> = { backdrop: "Backdrop", mover: "Moving heads", side: "Wash lights", front: "Front", ignore: "Not used" };
 const ROLE_ORDER: Role[] = ["backdrop", "mover", "side", "front"];
 
 /** Names a set of lights briefly: "Backdrop · 4", "Backdrop + Moving heads · 6", "All lights · 8". */

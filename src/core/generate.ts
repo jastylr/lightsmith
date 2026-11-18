@@ -16,7 +16,7 @@ import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
-import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, type Workspace } from "./workspace";
+import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, writePlaces, type Workspace } from "./workspace";
 
 export const INFINITE = 4294967294; // QLC+ "hold forever"
 export const PATH_ROOT = APP_NAME;
@@ -196,6 +196,9 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
   const engine = ws.engine;
+
+  // 0. Lights moved in Lightsmith: move them in QLC+'s 3D view too.
+  writePlaces(ws, new Map(rig.fixtures.filter((f) => f.moved && f.pos).map((f) => [f.fixtureId, { x: f.pos!.x, y: f.pos!.y, height: f.height ?? 0, upright: f.upright }])));
 
   // 1. Remove what a previous export of this song created.
   let removed = removeWhere(engine, (e) => {

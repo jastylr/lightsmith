@@ -749,7 +749,7 @@ function ChoiceCards<T extends string>({ value, options, onChange, label }: { va
   );
 }
 
-const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Side and floor", mover: "Moving heads", front: "Front" };
+const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Wash lights", mover: "Moving heads", front: "Front" };
 
 /** For each kind of light on the stage: mix the palette across them, or pick one color. */
 /**

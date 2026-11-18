@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  isBar,
+  mountOf,
   defaultPosition,
   matchProfiles,
   MOVEMENTS,
@@ -465,14 +467,49 @@ test("fixture heights come from QLC+'s 3D view, and high fixtures start as hung 
   assert.equal(byId.get(0)!.height, undefined);
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles);
-  const mount = (id: number) => rig.fixtures.find((f) => f.fixtureId === id)!.mount;
+  const mount = (id: number) => mountOf(rig.fixtures.find((f) => f.fixtureId === id)!);
   assert.equal(mount(4), "truss");
   assert.equal(mount(2), "floor");
   assert.equal(mount(0), "floor");
-  // A user's choice is kept on the next guess.
-  const changed = { fixtures: rig.fixtures.map((f) => (f.fixtureId === 2 ? { ...f, mount: "truss" as const, userSet: true } : f)) };
-  assert.equal(guessRig(ws.fixtures, profiles, changed).fixtures.find((f) => f.fixtureId === 2)!.mount, "truss");
+  // A light moved in Lightsmith keeps its place on the next guess...
+  const changed = { ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === 2 ? { ...f, height: 0.9, moved: true } : f)) };
+  assert.equal(mount(2), "floor");
+  assert.equal(mountOf(guessRig(ws.fixtures, profiles, changed).fixtures.find((f) => f.fixtureId === 2)!), "truss");
+  // ...until the show file is loaded again, when QLC+ wins.
+  const reloaded = { ...changed, fixtures: changed.fixtures.map(({ moved: _m, ...f }) => f) };
+  assert.equal(mountOf(guessRig(ws.fixtures, profiles, reloaded).fixtures.find((f) => f.fixtureId === 2)!), "floor");
   // QLC+ 4's 2D monitor (no Depth) is ignored.
   const flat = parseWorkspace(WORKSPACE_QXW.replace(" </Engine>", `  <Monitor><Grid Width="5" Height="5" Units="0"/><FxItem ID="4" XPos="0" YPos="4900"/></Monitor>\n </Engine>`));
   assert.equal(flat.fixtures.find((f) => f.id === 4)!.height, undefined);
+});
+
+test("the stage layout comes from QLC+'s 3D view, and lights moved here are written back", () => {
+  // A 5 m wide, 4 m deep stage. Fixture 1 near stage left at the back; fixture 3
+  // stage right, in front of the stage; fixture 5 a bar stood on its end.
+  const xml = WORKSPACE_QXW.replace(
+    " </Engine>",
+    `  <Monitor DisplayMode="1"><Grid Width="5" Height="3" Depth="4" Units="0"/><FxItem ID="1" XPos="4500" YPos="0" ZPos="400"/><FxItem ID="3" XPos="500" YPos="1500" ZPos="4400"/><FxItem ID="5" XPos="2500" YPos="0" ZPos="200" XRot="270" ZRot="270"/></Monitor>\n </Engine>`,
+  );
+  const ws = parseWorkspace(xml);
+  assert.deepEqual(ws.stage, { width: 5, depth: 4, height: 3, feet: false });
+  const place = (id: number) => ws.fixtures.find((f) => f.id === id)!.place!;
+  assert.ok(Math.abs(place(1).x - 0.9) < 1e-9 && Math.abs(place(1).y - 0.1) < 1e-9);
+  assert.ok(place(3).y > 1);
+  assert.equal(place(5).upright, true);
+  assert.equal(place(1).upright, false);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles, undefined, ws.stage);
+  const rf = (id: number) => rig.fixtures.find((f) => f.fixtureId === id)!;
+  assert.deepEqual(rf(1).pos, { x: 0.9, y: 0.1 });
+  assert.equal(rf(1).side, "SL");
+  assert.equal(rf(3).side, "SR");
+  // The job doesn't follow the position: it's guessed from what the light can do.
+  if (!profiles.get(3)!.isMover && !isBar(profiles.get(3))) assert.equal(rf(3).role, "front");
+  // Move fixture 1 in Lightsmith; the export puts it there in QLC+'s 3D view too.
+  const moved = { ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === 1 ? { ...f, pos: { x: 0.5, y: 0.5 }, height: 0.5, moved: true } : f)) };
+  generateSong({ ws, profiles, rig: moved, song: { id: "s", title: "Layout", bpm: 120, sections: [newSection("verse", 120)] } });
+  const out = serializeWorkspace(ws);
+  assert.match(out, /<FxItem ID="1" XPos="2500" YPos="1500" ZPos="2000"\/>/);
+  // Lights not moved here are left exactly as QLC+ had them.
+  assert.match(out, /<FxItem ID="3" XPos="500" YPos="1500" ZPos="4400"\/>/);
 });

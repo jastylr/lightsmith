@@ -891,33 +891,6 @@ li.bad .fx-source {
   touch-action: none;
   user-select: none;
 }
-.lane rect {
-  fill: transparent;
-  stroke: #ffffff;
-  stroke-opacity: 0.06;
-  stroke-dasharray: 6 6;
-}
-.lane text {
-  fill: var(--faint);
-  font-size: 15px;
-  font-family: var(--font);
-}
-.lane.hot rect {
-  fill: rgba(242, 167, 59, 0.08);
-  stroke: var(--tungsten);
-  stroke-opacity: 0.6;
-}
-.riser rect,
-.riser circle {
-  fill: #1b191e;
-  stroke: #46404c;
-}
-.riser text {
-  fill: var(--faint);
-  font-size: 13px;
-  text-anchor: middle;
-  font-family: var(--font);
-}
 .plan-side {
   fill: var(--muted);
   font-size: 15px;
@@ -2992,4 +2965,87 @@ body.is-resizing * {
 }
 .glyph.on .hanger path {
   stroke: var(--tungsten);
+}
+
+/* Stage page: views, jobs and the real stage layout */
+.plan-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.job-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.job-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.job-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--job);
+}
+.job-legend span {
+  color: var(--faint);
+}
+.plan-grid {
+  stroke: #fff;
+  stroke-opacity: 0.035;
+}
+.apron {
+  fill: rgba(255, 255, 255, 0.015);
+  stroke: #fff;
+  stroke-opacity: 0.06;
+  stroke-dasharray: 6 6;
+}
+.plan-note {
+  fill: var(--faint);
+  font-size: 13px;
+  text-anchor: middle;
+  font-family: var(--font);
+}
+.plan-scale {
+  fill: var(--faint);
+  font-size: 13px;
+  font-family: var(--font);
+}
+.truss line,
+.truss path {
+  stroke: #4a4450;
+  stroke-width: 1.5;
+  fill: none;
+}
+.hang-line {
+  stroke: #6f6875;
+  stroke-width: 2.5;
+}
+.glyph .job-ring {
+  fill: none;
+  stroke: var(--job);
+  stroke-width: 2;
+  stroke-opacity: 0.55;
+}
+.glyph.on .job-ring {
+  stroke-opacity: 1;
+}
+.role.on {
+  box-shadow: inset 0 -3px 0 var(--job);
+}
+.where {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
 }

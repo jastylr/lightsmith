@@ -1,36 +1,70 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ROLE_ROW, settleRig, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import type { Store } from "./store";
 
-const VW = 1000;
-const VH = 620;
-/** Lanes on the plan, back to front. Dropping a light in a lane gives it that job. */
-const LANES: { role: Exclude<Role, "ignore">; label: string; top: number; bottom: number }[] = [
-  { role: "backdrop", label: "Backdrop", top: 0.04, bottom: 0.27 },
-  { role: "mover", label: "Moving heads", top: 0.27, bottom: 0.54 },
-  { role: "side", label: "Side and floor", top: 0.54, bottom: 0.79 },
-  { role: "front", label: "Front light", top: 0.82, bottom: 0.98 },
-];
-const ROLE_INFO: Record<Role, { label: string; icon: IconName; help: string }> = {
-  backdrop: { label: "Backdrop", icon: "backdrop", help: "Bars or washes behind the band. They set the mood and run the patterns." },
-  mover: { label: "Moving head", icon: "mover", help: "Pans and tilts. Follows each section's movement." },
-  side: { label: "Side and floor", icon: "par", help: "Aimed at the players from the sides or floor. Used for focus and side swaps." },
-  front: { label: "Front light", icon: "front", help: "Lights the band from the audience side so faces are visible." },
-  ignore: { label: "Not used", icon: "hidden", help: "Lightsmith leaves this fixture alone." },
+/** What each job is called and does. Where a light is and what it does are separate. */
+const ROLE_INFO: Record<Role, { label: string; icon: IconName; help: string; color: string }> = {
+  backdrop: { label: "Backdrop", icon: "backdrop", help: "Bars or washes behind the band. They set the mood and run the patterns.", color: "#b792ff" },
+  mover: { label: "Moving head", icon: "mover", help: "Pans and tilts, from the floor or a truss. Follows each section's movement.", color: "#f2a73b" },
+  side: { label: "Wash light", icon: "par", help: "Colors the band and the stage, from the floor, stands or a truss. Used for focus and side-to-side swaps.", color: "#4cc7c0" },
+  front: { label: "Front light", icon: "front", help: "Lights the band from the audience side so faces are visible.", color: "#f1ece4" },
+  ignore: { label: "Not used", icon: "hidden", help: "Lightsmith leaves this fixture alone.", color: "#7a7369" },
 };
+const JOBS: Role[] = ["backdrop", "mover", "side", "front"];
 
-const laneAt = (y: number) => LANES.find((l) => y >= l.top && y <= l.bottom);
-const clamp01 = (v: number) => Math.max(0.03, Math.min(0.97, v));
+type View = "above" | "audience";
+const VIEW_KEY = "lightsmith.stageView.v1";
+
+// ---- drawing geometry (SVG units)
+const VW = 1000;
+const MX = 40; // left and right margin around the stage
+const DW = VW - 2 * MX; // stage width on screen
+const TOP = 34; // back wall, from above
+const APRON = 0.25; // how far in front of the stage the plan reaches, as a share of the depth
+const FLOOR_Y = 410; // the floor, from the audience
+const CEIL_Y = 46; // the top of the stage, from the audience
+const AUD_VH = 470;
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** "Wash Zoom LED 36x18W RGBWA+UV [5]" → "Wash Zoom… [5]": short enough to sit under a light. */
+function shortName(name: string): string {
+  const m = name.match(/\s*\[(\d+)\]\s*$/);
+  const base = m ? name.slice(0, m.index) : name;
+  const room = m ? 11 : 16;
+  const head = base.length > room ? base.slice(0, room - 1).trimEnd() + "…" : base;
+  return m ? `${head} [${m[1]}]` : head;
+}
 
 export function StagePage({ store, onNext }: { store: Store; onNext: () => void }) {
   const rig = store.project.rig;
   const byId = new Map(store.fixtures.map((f) => [f.id, f]));
   const [selected, setSelected] = useState<number | null>(null);
+  const [view, setViewState] = useState<View>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "audience" ? "audience" : "above";
+    } catch {
+      return "above";
+    }
+  });
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* not saved; fine */
+    }
+  };
   const [drag, setDrag] = useState<{ id: number; x: number; y: number; fromTray: boolean; sx: number; sy: number } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const svg = useRef<SVGSVGElement>(null);
+
+  // The stage's shape: from QLC+'s 3D view, or a typical club stage.
+  const stage = rig.stage ?? { width: 6, depth: 4, height: 3, feet: false };
+  const DH = clamp(DW * (stage.depth / stage.width), 240, 520);
+  const ABOVE_VH = TOP + DH * (1 + APRON) + 34;
+  const VH = view === "above" ? ABOVE_VH : AUD_VH;
 
   const canBe = (id: number, role: Role) => {
     const p = store.profiles.get(id);
@@ -41,25 +75,41 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
   };
 
   const commit = (next: Rig) => store.setRig(settleRig(next));
-  const update = (id: number, patch: Partial<RigFixture>) => commit({ fixtures: rig.fixtures.map((f) => (f.fixtureId === id ? { ...f, ...patch, userSet: true } : f)) });
+  const update = (id: number, patch: Partial<RigFixture>) => commit({ ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === id ? { ...f, ...patch, userSet: true } : f)) });
 
-  const toPlan = (clientX: number, clientY: number) => {
+  /** Screen point → stage shares for the current view. */
+  const toStage = (clientX: number, clientY: number) => {
     const r = svg.current!.getBoundingClientRect();
-    return { x: (clientX - r.left) / r.width, y: (clientY - r.top) / r.height, inside: clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom };
+    const sx = ((clientX - r.left) / r.width) * VW;
+    const sy = ((clientY - r.top) / r.height) * VH;
+    const inside = clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+    const x = clamp((sx - MX) / DW, 0, 1);
+    const y = view === "above" ? clamp((sy - TOP) / DH, 0, 1 + APRON) : clamp((FLOOR_Y - sy) / (FLOOR_Y - CEIL_Y), 0, 1);
+    return { x, y, inside };
   };
+  /** Stage shares → screen point for a light. */
+  const toScreen = (f: Pick<RigFixture, "pos" | "height">) =>
+    view === "above"
+      ? { x: MX + f.pos!.x * DW, y: TOP + f.pos!.y * DH }
+      : { x: MX + f.pos!.x * DW, y: FLOOR_Y - (f.height ?? 0) * (FLOOR_Y - CEIL_Y) };
 
-  const place = (id: number, x: number, y: number) => {
+  /** Put a light where it was dropped. Only its place changes, never its job. */
+  const place = (id: number, x: number, y: number, fromTray: boolean) => {
     const f = rig.fixtures.find((r) => r.fixtureId === id);
     if (!f) return;
-    const lane = laneAt(y) ?? LANES.reduce((a, b) => (Math.abs((a.top + a.bottom) / 2 - y) < Math.abs((b.top + b.bottom) / 2 - y) ? a : b));
-    let role: Role = lane.role;
-    if (!canBe(id, role)) {
-      const name = byId.get(id)?.name ?? "That light";
-      setNotice(role === "mover" ? `${name} can't pan or tilt, so it can't go in the moving heads lane.` : `${name} has no color or white channels Lightsmith can use there.`);
-      role = f.role !== "ignore" && canBe(id, f.role) ? f.role : "ignore";
-      if (role === "ignore") return update(id, { role, pos: undefined });
-    } else setNotice(null);
-    update(id, { role, pos: { x: clamp01(x), y: ROLE_ROW[role] }, home: role === "mover" ? f.home ?? { pan: 128, tilt: 128 } : f.home });
+    const patch: Partial<RigFixture> = { moved: true };
+    if (view === "above") patch.pos = { x, y };
+    else {
+      patch.pos = { x, y: f.pos?.y ?? 0.5 };
+      patch.height = y;
+    }
+    if (fromTray || f.role === "ignore") {
+      const p = store.profiles.get(id);
+      const role = p ? guessRole(p, patch.pos) : "ignore";
+      patch.role = role;
+      if (role === "mover") patch.home = f.home ?? { pan: 128, tilt: 128 };
+    }
+    update(id, patch);
     setSelected(id);
   };
 
@@ -67,121 +117,194 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
     if (e.button !== 0) return;
     e.preventDefault();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    const p = toPlan(e.clientX, e.clientY);
+    const p = toStage(e.clientX, e.clientY);
     setDrag({ id, x: p.x, y: p.y, fromTray, sx: e.clientX, sy: e.clientY });
     setSelected(id);
   };
   const moveDrag = (e: ReactPointerEvent) => {
     if (!drag) return;
-    const p = toPlan(e.clientX, e.clientY);
+    const p = toStage(e.clientX, e.clientY);
     setDrag({ ...drag, x: p.x, y: p.y });
   };
   const endDrag = (e: ReactPointerEvent) => {
     if (!drag) return;
-    const p = toPlan(e.clientX, e.clientY);
+    const p = toStage(e.clientX, e.clientY);
     const moved = drag.fromTray || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4;
-    if (p.inside && moved) place(drag.id, p.x, p.y);
-    else if (!p.inside && !drag.fromTray) update(drag.id, { role: "ignore", pos: undefined });
+    if (p.inside && moved) place(drag.id, p.x, p.y, drag.fromTray);
+    else if (!p.inside && !drag.fromTray) update(drag.id, { role: "ignore" });
     setDrag(null);
+  };
+  const nudge = (f: RigFixture, dx: number, dy: number) => {
+    if (!f.pos) return;
+    if (view === "above") place(f.fixtureId, clamp(f.pos.x + dx, 0, 1), clamp(f.pos.y + dy, 0, 1 + APRON), false);
+    else place(f.fixtureId, clamp(f.pos.x + dx, 0, 1), clamp((f.height ?? 0) - dy, 0, 1), false);
   };
 
   const onStage = rig.fixtures.filter((f) => f.role !== "ignore" && f.pos);
   const offStage = rig.fixtures.filter((f) => f.role === "ignore" || !f.pos);
+  // From the audience, lights further back are drawn first so nearer ones sit on top.
+  const drawOrder = view === "audience" ? [...onStage].sort((a, b) => a.pos!.y - b.pos!.y) : onStage;
   const sel = rig.fixtures.find((f) => f.fixtureId === selected);
   const selFixture = sel ? byId.get(sel.fixtureId) : undefined;
+  const hungHeights = onStage.filter((f) => mountOf(f) === "truss").map((f) => f.height ?? 0.9);
+  // The truss sits at the height of the highest hung light, with the lights hanging below it.
+  const trussY = FLOOR_Y - Math.max(0.9, ...hungHeights) * (FLOOR_Y - CEIL_Y) - 12;
+  const unit = stage.feet ? "ft" : "m";
+  const per = stage.feet ? 3.28084 : 1;
+  const gridStep = stage.feet ? 1 / 3.28084 * 5 : 1; // a line every metre, or every 5 ft
 
   return (
     <section className="page stage-page">
       <header className="page-head">
         <h1>Set up your stage</h1>
-        <p className="lead">Drag each light to where it hangs. The lane you drop it in sets its job, and its position sets which side of the stage it's on.</p>
+        <p className="lead">
+          {rig.stage
+            ? "Your lights are where you put them in QLC+'s 3D view. Pick a light to set its job, or drag it to move it. Moves here go back into QLC+ when you export."
+            : "This show file has no 3D layout, so Lightsmith has spread your lights out. Drag them to where they really are, and pick a light to set its job."}
+        </p>
       </header>
-
-      {notice && (
-        <div className="notice warn" role="status">
-          <Icon name="info" />
-          <span>{notice}</span>
-          <button className="ghost small" onClick={() => setNotice(null)}>
-            OK
-          </button>
-        </div>
-      )}
 
       <div className="stage-layout">
         <div className="stage-col">
           <div className="plan-frame">
-            <svg ref={svg} viewBox={`0 0 ${VW} ${VH}`} className="plan" role="application" aria-label="Stage plan seen from the audience. Drag lights to move them." onPointerMove={moveDrag} onPointerUp={endDrag}>
+            <div className="plan-bar">
+              <Segmented
+                label="View"
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: "above", label: "From above" },
+                  { value: "audience", label: "From the audience" },
+                ]}
+              />
+              <ul className="job-legend" aria-label="Jobs">
+                {JOBS.map((r) => (
+                  <li key={r} style={{ "--job": ROLE_INFO[r].color } as CSSProperties}>
+                    <i aria-hidden="true" />
+                    {ROLE_INFO[r].label} <span>{onStage.filter((f) => f.role === r).length}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <svg
+              ref={svg}
+              viewBox={`0 0 ${VW} ${VH}`}
+              className="plan"
+              role="application"
+              aria-label={view === "above" ? "The stage seen from above, audience at the bottom. Drag lights to move them." : "The stage seen from the audience. Drag lights to change how high they are."}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+            >
               <defs>
                 <linearGradient id="plan-deck" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0" stopColor="#24212a" />
                   <stop offset="1" stopColor="#2c2832" />
                 </linearGradient>
-                <pattern id="plan-boards" width="60" height="620" patternUnits="userSpaceOnUse">
-                  <path d="M60 0V620" stroke="#ffffff" strokeOpacity="0.025" />
-                </pattern>
+                <linearGradient id="plan-wall" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#121014" />
+                  <stop offset="1" stopColor="#1d1a21" />
+                </linearGradient>
               </defs>
-              <rect x="20" y={VH * 0.02} width={VW - 40} height={VH * 0.78} rx="10" fill="url(#plan-deck)" stroke="#3b3640" />
-              <rect x="20" y={VH * 0.02} width={VW - 40} height={VH * 0.78} rx="10" fill="url(#plan-boards)" />
-              <rect x="20" y={VH * 0.02} width={VW - 40} height="10" rx="5" fill="#0e0d10" />
-              {LANES.map((l) => {
-                const hot = drag && laneAt(drag.y)?.role === l.role;
-                return (
-                  <g key={l.role} className={hot ? "lane hot" : "lane"}>
-                    <rect x="28" y={l.top * VH} width={VW - 56} height={(l.bottom - l.top) * VH} rx="8" />
-                    <text x="40" y={l.top * VH + 22}>
-                      {l.label}
-                    </text>
-                  </g>
-                );
-              })}
-              {/* Drum riser for orientation */}
-              <g className="riser" aria-hidden="true">
-                <rect x={VW / 2 - 85} y={VH * 0.3} width="170" height="78" rx="6" />
-                <circle cx={VW / 2} cy={VH * 0.3 + 40} r="20" />
-                <circle cx={VW / 2 - 42} cy={VH * 0.3 + 32} r="12" />
-                <circle cx={VW / 2 + 42} cy={VH * 0.3 + 32} r="12" />
-                <text x={VW / 2} y={VH * 0.3 + 72}>
-                  Drums
-                </text>
-              </g>
-              <text className="plan-side" x="36" y={VH * 0.8 - 12}>
-                Stage right
-              </text>
-              <text className="plan-side" x={VW - 36} y={VH * 0.8 - 12} textAnchor="end">
-                Stage left
-              </text>
-              <text className="plan-audience" x={VW / 2} y={VH - 6}>
-                Audience
-              </text>
 
-              {onStage.map((f) => {
-                const live = drag && drag.id === f.fixtureId && !drag.fromTray ? { x: drag.x, y: drag.y } : f.pos!;
+              {view === "above" ? (
+                <g aria-hidden="true">
+                  <rect x={MX} y={TOP} width={DW} height={DH} rx="8" fill="url(#plan-deck)" stroke="#3b3640" />
+                  {Array.from({ length: Math.floor(stage.width / gridStep) }, (_, k) => (k + 1) * gridStep)
+                    .filter((m) => m < stage.width - 0.01)
+                    .map((m) => (
+                      <line key={`x${m}`} x1={MX + (m / stage.width) * DW} y1={TOP} x2={MX + (m / stage.width) * DW} y2={TOP + DH} className="plan-grid" />
+                    ))}
+                  {Array.from({ length: Math.floor(stage.depth / gridStep) }, (_, k) => (k + 1) * gridStep)
+                    .filter((m) => m < stage.depth - 0.01)
+                    .map((m) => (
+                      <line key={`y${m}`} x1={MX} y1={TOP + (m / stage.depth) * DH} x2={MX + DW} y2={TOP + (m / stage.depth) * DH} className="plan-grid" />
+                    ))}
+                  <rect x={MX} y={TOP - 8} width={DW} height="8" rx="3" fill="#0e0d10" />
+                  <text className="plan-note" x={VW / 2} y={TOP - 14}>
+                    Back wall
+                  </text>
+                  <rect x={MX} y={TOP + DH} width={DW} height={DH * APRON} className="apron" />
+                  <text className="plan-note" x={VW / 2} y={TOP + DH + (DH * APRON) / 2 + 5}>
+                    In front of the stage
+                  </text>
+                  <text className="plan-side" x={MX + 10} y={TOP + DH - 12}>
+                    Stage right
+                  </text>
+                  <text className="plan-side" x={MX + DW - 10} y={TOP + DH - 12} textAnchor="end">
+                    Stage left
+                  </text>
+                  <text className="plan-audience" x={VW / 2} y={ABOVE_VH - 8}>
+                    Audience
+                  </text>
+                  <text className="plan-scale" x={MX + DW} y={ABOVE_VH - 8} textAnchor="end">
+                    {(stage.width * per).toFixed(1)} × {(stage.depth * per).toFixed(1)} {unit}
+                    {rig.stage ? ", from QLC+" : ""}
+                  </text>
+                </g>
+              ) : (
+                <g aria-hidden="true">
+                  <rect x={MX} y={CEIL_Y} width={DW} height={FLOOR_Y - CEIL_Y} fill="url(#plan-wall)" stroke="#2c2832" />
+                  {hungHeights.length > 0 && (
+                    <g className="truss">
+                      <line x1={MX} y1={trussY} x2={MX + DW} y2={trussY} />
+                      <line x1={MX} y1={trussY + 12} x2={MX + DW} y2={trussY + 12} />
+                      <path d={Array.from({ length: Math.ceil(DW / 24) }, (_, k) => `M${MX + k * 24} ${trussY} L${MX + k * 24 + 12} ${trussY + 12} L${MX + k * 24 + 24} ${trussY}`).join(" ")} />
+                    </g>
+                  )}
+                  <rect x={MX} y={FLOOR_Y} width={DW} height="22" fill="url(#plan-deck)" stroke="#3b3640" />
+                  <text className="plan-note" x={MX - 6} y={CEIL_Y + 4} textAnchor="end">
+                    {(stage.height * per).toFixed(0)} {unit}
+                  </text>
+                  <text className="plan-note" x={MX - 6} y={FLOOR_Y + 4} textAnchor="end">
+                    0
+                  </text>
+                  <text className="plan-side" x={MX + 10} y={FLOOR_Y + 48}>
+                    Stage right
+                  </text>
+                  <text className="plan-side" x={MX + DW - 10} y={FLOOR_Y + 48} textAnchor="end">
+                    Stage left
+                  </text>
+                  <text className="plan-audience" x={VW / 2} y={FLOOR_Y + 48}>
+                    Seen from the audience
+                  </text>
+                </g>
+              )}
+
+              {drawOrder.map((f) => {
+                const dragging = drag && drag.id === f.fixtureId && !drag.fromTray;
+                const live: RigFixture = dragging ? (view === "above" ? { ...f, pos: { x: drag.x, y: drag.y } } : { ...f, pos: { x: drag.x, y: f.pos!.y }, height: drag.y }) : f;
+                const at = toScreen(live);
+                const depthScale = view === "audience" ? 0.75 + 0.35 * clamp(f.pos!.y, 0, 1) : 1;
                 return (
                   <FixtureGlyph
                     key={f.fixtureId}
-                    rf={f}
+                    rf={live}
+                    profile={store.profiles.get(f.fixtureId)}
                     fixture={byId.get(f.fixtureId)}
-                    x={live.x * VW}
-                    y={live.y * VH}
+                    view={view}
+                    x={at.x}
+                    y={at.y}
+                    scale={depthScale}
+                    trussY={trussY}
                     selected={selected === f.fixtureId}
-                    dragging={drag?.id === f.fixtureId}
+                    dragging={!!dragging}
                     onPointerDown={(e) => startDrag(e, f.fixtureId, false)}
-                    onKey={(dx, dy) => f.pos && place(f.fixtureId, f.pos.x + dx, f.pos.y + dy)}
+                    onKey={(dx, dy) => nudge(f, dx, dy)}
                     onSelect={() => setSelected(f.fixtureId)}
                   />
                 );
               })}
-              {drag?.fromTray && <circle cx={drag.x * VW} cy={drag.y * VH} r="22" className="drop-ghost" />}
+              {drag?.fromTray && <circle cx={MX + drag.x * DW} cy={view === "above" ? TOP + drag.y * DH : FLOOR_Y - drag.y * (FLOOR_Y - CEIL_Y)} r="22" className="drop-ghost" />}
             </svg>
           </div>
 
-          <div className="tray" aria-label="Lights not on the stage">
+          <div className="tray" aria-label="Lights not in use">
             <div className="tray-head">
-              <h2>Not on stage</h2>
-              <span className="hint">Drag a light onto the plan to use it. Drag one off the plan to stop using it.</span>
+              <h2>Not in use</h2>
+              <span className="hint">Drag a light onto the stage to use it. Drag one off the stage to stop using it.</span>
             </div>
             {offStage.length === 0 ? (
-              <p className="hint">Every light is on the stage.</p>
+              <p className="hint">Every light is in use.</p>
             ) : (
               <ul className="tray-list">
                 {offStage.map((f) => {
@@ -212,17 +335,17 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
 
         <aside className="inspector" aria-label="Selected light">
           {sel && selFixture ? (
-            <Inspector rf={sel} fixture={selFixture} canBe={(r) => canBe(sel.fixtureId, r)} onChange={(p) => update(sel.fixtureId, p)} />
+            <Inspector rf={sel} fixture={selFixture} profile={store.profiles.get(sel.fixtureId)} stage={rig.stage} canBe={(r) => canBe(sel.fixtureId, r)} onChange={(p) => update(sel.fixtureId, p)} />
           ) : (
             <div className="inspector-empty">
               <Icon name="stage" size={28} />
               <h2>Pick a light</h2>
-              <p>Click a light on the plan to see its details, set moving-head positions, or change its job.</p>
+              <p>Click a light to see its details, change its job, or set where a moving head points.</p>
               <dl className="counts">
-                {LANES.map((l) => (
-                  <div key={l.role}>
-                    <dt>{l.label}</dt>
-                    <dd>{rig.fixtures.filter((f) => f.role === l.role).length}</dd>
+                {JOBS.map((r) => (
+                  <div key={r}>
+                    <dt>{ROLE_INFO[r].label}</dt>
+                    <dd>{rig.fixtures.filter((f) => f.role === r).length}</dd>
                   </div>
                 ))}
               </dl>
@@ -242,9 +365,13 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
 
 function FixtureGlyph({
   rf,
+  profile,
   fixture,
+  view,
   x,
   y,
+  scale,
+  trussY,
   selected,
   dragging,
   onPointerDown,
@@ -252,9 +379,13 @@ function FixtureGlyph({
   onSelect,
 }: {
   rf: RigFixture;
+  profile?: FixtureProfile;
   fixture?: WsFixture;
+  view: View;
   x: number;
   y: number;
+  scale: number;
+  trussY: number;
   selected: boolean;
   dragging: boolean;
   onPointerDown: (e: ReactPointerEvent) => void;
@@ -262,51 +393,62 @@ function FixtureGlyph({
   onSelect: () => void;
 }) {
   const name = fixture?.name ?? `Fixture ${rf.fixtureId}`;
-  const short = name.length > 18 ? name.slice(0, 17) + "…" : name;
+  const hung = mountOf(rf) === "truss";
+  const kind = profile?.isMover ? "mover" : isBar(profile) ? "bar" : rf.role === "front" ? "front" : "par";
+  const upright = rf.upright !== false;
   const shape = (() => {
-    switch (rf.role) {
-      case "backdrop":
-        return (
+    switch (kind) {
+      case "bar":
+        return upright ? (
           <>
-            <rect x={-9} y={-38} width="18" height="76" rx="4" className="body" />
-            {Array.from({ length: 7 }, (_, i) => (
-              <circle key={i} cx="0" cy={-30 + i * 10} r="3" className="lens" />
+            <rect x={-8} y={-34} width="16" height="68" rx="4" className="body" />
+            {Array.from({ length: 6 }, (_, i) => (
+              <circle key={i} cx="0" cy={-26 + i * 10.4} r="2.8" className="lens" />
+            ))}
+          </>
+        ) : (
+          <>
+            <rect x={-34} y={-8} width="68" height="16" rx="4" className="body" />
+            {Array.from({ length: 6 }, (_, i) => (
+              <circle key={i} cx={-26 + i * 10.4} cy="0" r="2.8" className="lens" />
             ))}
           </>
         );
       case "mover":
         return (
           <>
-            <rect x={-18} y={10} width="36" height="12" rx="3" className="body" />
-            <path d="M-14 12V-6M14 12V-6" className="yoke" />
-            <circle cx="0" cy="-6" r="13" className="body" />
-            <circle cx="0" cy="-6" r="7" className="lens" />
+            <rect x={-16} y={8} width="32" height="10" rx="3" className="body" />
+            <path d="M-12 10V-5M12 10V-5" className="yoke" />
+            <circle cx="0" cy="-5" r="11.5" className="body" />
+            <circle cx="0" cy="-5" r="6" className="lens" />
           </>
         );
       case "front":
         return (
           <>
-            <path d="M-14 -12h28l-5 22h-18z" className="body" />
-            <circle cx="0" cy="-2" r="6" className="lens" />
+            <path d="M-13 -11h26l-5 20h-16z" className="body" />
+            <circle cx="0" cy="-2" r="5.5" className="lens" />
           </>
         );
       default:
         return (
           <>
-            <rect x={-18} y={-13} width="36" height="26" rx="5" className="body" />
-            <circle cx="0" cy="0" r="8" className="lens" />
+            <rect x={-16} y={-12} width="32" height="24" rx="5" className="body" />
+            <circle cx="0" cy="0" r="7.5" className="lens" />
           </>
         );
     }
   })();
-  const labelY = rf.role === "backdrop" ? 54 : 38;
-  // Hung from a truss: a clamp above the light, and moving heads drawn upside down.
-  const hung = rf.mount === "truss" && rf.role !== "backdrop";
-  const top = rf.role === "mover" ? -22 : -13;
+  const half = kind === "bar" ? (upright ? 34 : 8) : kind === "mover" ? 18 : 12;
+  const flip = hung && kind === "mover";
+  // From the audience, a light on the floor stands on its height and a hung one hangs below it.
+  const lift = view === "audience" ? (hung ? half + 4 : -half) * scale : 0;
+  const style = { "--job": ROLE_INFO[rf.role].color } as CSSProperties;
   return (
     <g
       className={`glyph${selected ? " on" : ""}${dragging ? " dragging" : ""}`}
-      transform={`translate(${x} ${y})`}
+      style={style}
+      transform={`translate(${x} ${y + lift})`}
       tabIndex={0}
       role="button"
       aria-label={`${name}, ${ROLE_INFO[rf.role].label}, ${rf.side === "SL" ? "stage left" : rf.side === "SR" ? "stage right" : "center"}${hung ? ", hung from a truss" : ""}`}
@@ -316,31 +458,60 @@ function FixtureGlyph({
         const step = e.shiftKey ? 0.05 : 0.01;
         if (e.key === "ArrowLeft") onKey(-step, 0);
         else if (e.key === "ArrowRight") onKey(step, 0);
-        else if (e.key === "ArrowUp") onKey(0, -0.26);
-        else if (e.key === "ArrowDown") onKey(0, 0.26);
+        else if (e.key === "ArrowUp") onKey(0, -step);
+        else if (e.key === "ArrowDown") onKey(0, step);
         else if (e.key === "Enter") onSelect();
         else return;
         e.preventDefault();
       }}
     >
-      <circle r="46" className="halo" />
-      {hung && (
-        <g className="hanger" aria-hidden="true">
-          <rect x={-16} y={top - 14} width="32" height="5" rx="1.5" />
-          <path d={`M0 ${top - 9}V${top}`} />
-        </g>
-      )}
-      <g transform={hung && rf.role === "mover" ? "translate(0 -4) scale(1 -1)" : undefined}>{shape}</g>
-      <text y={labelY} className="glyph-label">
-        {short}
+      {/* From the audience, a hung light hangs from the truss on a clamp. */}
+      {view === "audience" && hung && <line x1="0" y1={trussY + 12 - y - lift} x2="0" y2={-half * scale} className="hang-line" />}
+      <g transform={`scale(${scale})`}>
+        <circle r={kind === "bar" && upright ? 44 : 34} className="halo" />
+        <circle r={kind === "bar" && upright ? 40 : 28} className="job-ring" />
+        <g transform={flip ? "scale(1 -1)" : undefined}>{shape}</g>
+        {view === "above" && hung && (
+          <g className="hanger" aria-hidden="true">
+            <rect x={-14} y={-half - 12} width="28" height="4.5" rx="1.5" />
+            <path d={`M0 ${-half - 7.5}V${-half}`} />
+          </g>
+        )}
+      </g>
+      <text y={(kind === "bar" && upright ? 52 : 40) * scale} className="glyph-label">
+        {shortName(name)}
       </text>
     </g>
   );
 }
 
-function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: WsFixture; canBe: (r: Role) => boolean; onChange: (p: Partial<RigFixture>) => void }) {
+function Inspector({
+  rf,
+  fixture,
+  profile,
+  stage,
+  canBe,
+  onChange,
+}: {
+  rf: RigFixture;
+  fixture: WsFixture;
+  profile?: FixtureProfile;
+  stage?: Rig["stage"];
+  canBe: (r: Role) => boolean;
+  onChange: (p: Partial<RigFixture>) => void;
+}) {
   const roles: Role[] = ["backdrop", "mover", "side", "front", "ignore"];
   const sideLabel = rf.side === "SL" ? "Stage left" : rf.side === "SR" ? "Stage right" : "Center";
+  const mount = mountOf(rf);
+  const fmt = (share: number, metres: number) => {
+    const v = share * metres * (stage?.feet ? 3.28084 : 1);
+    return `${v.toFixed(1)} ${stage?.feet ? "ft" : "m"}`;
+  };
+  const where =
+    rf.pos && stage
+      ? `${fmt(rf.pos.x, stage.width)} from the stage right edge, ${rf.pos.y > 1 ? `${fmt(rf.pos.y - 1, stage.depth)} in front of the stage` : `${fmt(rf.pos.y, stage.depth)} from the back wall`}, ${fmt(rf.height ?? 0, stage.height)} up.`
+      : undefined;
+  const fromQlc = !!fixture.place && !rf.moved;
   return (
     <div className="inspector-body">
       <h2>{fixture.name}</h2>
@@ -357,40 +528,67 @@ function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: 
               key={r}
               type="button"
               className={rf.role === r ? "role on" : "role"}
+              style={{ "--job": ROLE_INFO[r].color } as CSSProperties}
               disabled={!canBe(r)}
               aria-pressed={rf.role === r}
-              onClick={() => onChange({ role: r, pos: r === "ignore" ? undefined : { x: rf.pos?.x ?? 0.5, y: ROLE_ROW[r] }, home: r === "mover" ? rf.home ?? { pan: 128, tilt: 128 } : rf.home })}
+              onClick={() => onChange({ role: r, home: r === "mover" ? rf.home ?? { pan: 128, tilt: 128 } : rf.home })}
             >
               <Icon name={ROLE_INFO[r].icon} size={20} />
               <span>{ROLE_INFO[r].label}</span>
             </button>
           ))}
         </div>
-        <span className="field-hint">{ROLE_INFO[rf.role].help}</span>
+        <span className="field-hint">{ROLE_INFO[rf.role].help} Its job doesn't change where it is.</span>
       </Field>
 
       {rf.role !== "ignore" && (
-        <Field label="Side of the stage" hint="Set by where it sits on the plan. Stage left is the performers' left.">
+        <Field
+          label="Where it is"
+          hint={
+            fromQlc
+              ? "From QLC+'s 3D view."
+              : rf.moved
+                ? "Moved here. Exporting puts it here in QLC+'s 3D view too."
+                : "Placed by Lightsmith, because the show file has no 3D layout. Drag it to where it really is."
+          }
+        >
           <span className="pill">{sideLabel}</span>
+          {where && <span className="where">{where}</span>}
+          {rf.moved && fixture.place && (
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => onChange({ pos: { x: fixture.place!.x, y: fixture.place!.y }, height: fixture.place!.height, upright: isBar(profile) ? fixture.place!.upright : rf.upright, moved: false })}
+            >
+              Put it back where QLC+ has it
+            </button>
+          )}
         </Field>
       )}
 
-      {rf.role !== "ignore" && rf.role !== "backdrop" && (
-        <Field
-          label="Mounting"
-          hint={
-            fixture.height !== undefined
-              ? `QLC+'s 3D view has it ${fixture.height > 0.5 ? "high up" : "low down"} (${Math.round(fixture.height * 100)}% of the stage height). This changes how it's drawn in the preview, not its colors.`
-              : "This changes how it's drawn in the preview, not its colors."
-          }
-        >
+      {rf.role !== "ignore" && (
+        <Field label="Mounting" hint="Anything in the top half of the stage is hung from a truss. This changes how it's drawn, not its colors.">
           <Segmented
             label="Mounting"
-            value={rf.mount ?? "floor"}
-            onChange={(mount: Mount) => onChange({ mount })}
+            value={mount}
+            onChange={(m: Mount) => onChange({ height: m === "truss" ? Math.max(0.9, rf.height ?? 0) : 0, moved: true })}
             options={[
               { value: "floor", label: "On the floor" },
               { value: "truss", label: "Hung from a truss" },
+            ]}
+          />
+        </Field>
+      )}
+
+      {rf.role !== "ignore" && isBar(profile) && (
+        <Field label="Which way it stands">
+          <Segmented
+            label="Which way it stands"
+            value={rf.upright === false ? "flat" : "upright"}
+            onChange={(v: "upright" | "flat") => onChange({ upright: v === "upright", moved: true })}
+            options={[
+              { value: "upright", label: "Standing up" },
+              { value: "flat", label: "Lying flat" },
             ]}
           />
         </Field>
@@ -401,7 +599,7 @@ function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: 
           <h3>Home position</h3>
           <p className="hint">
             Where the head points when still, and the center of every movement. Find good values in QLC+'s Simple Desk.
-            {rf.mount === "truss" && " Hung upside down, 128/128 points straight down at the stage, and pan and tilt run the opposite way to a head on the floor."}
+            {mount === "truss" && " Hung upside down, 128/128 points straight down at the stage, and pan and tilt run the opposite way to a head on the floor."}
           </p>
           {(["pan", "tilt"] as const).map((axis) => (
             <div key={axis} className="slider-row">
@@ -420,8 +618,6 @@ function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: 
           <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="For a head facing the other way, so pairs mirror each other." />
         </div>
       )}
-
-      <p className="hint">Position: {sideLabel}, number {rf.order + 1} from stage left among {ROLE_INFO[rf.role].label.toLowerCase()} lights.</p>
     </div>
   );
 }

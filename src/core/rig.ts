@@ -3,9 +3,9 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { sideFromX, sitsOut, type Mount, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import { sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
-import type { WsFixture } from "./workspace";
+import type { Placement, StageSize, WsFixture } from "./workspace";
 
 export interface ProfileResult {
   profiles: Map<number, FixtureProfile>;
@@ -36,57 +36,75 @@ export function matchProfiles(fixtures: WsFixture[], defs: Map<string, FixtureDe
   return { profiles, missing };
 }
 
-export function guessRole(p: FixtureProfile): Role {
+/**
+ * A first guess at a light's job, from what it can do and where it is.
+ * Moving heads are moving heads wherever they are; bars are the backdrop;
+ * a light in front of the stage (QLC+'s 3D view puts it past the front edge)
+ * lights the band from the front; anything else washes the stage with color.
+ */
+export function guessRole(p: FixtureProfile, place?: Pick<Placement, "y">): Role {
   if (p.isMover) return "mover";
   if (p.heads.length === 0) return "ignore";
   const type = p.def.type.toLowerCase();
   if (p.heads.length >= 4 || type.includes("bar") || type.includes("pixel")) return "backdrop";
+  if (place && place.y > 1.02) return "front";
   return "side";
 }
 
-export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixtureProfile>, previous?: Rig): Rig {
-  // Only keep what the user actually set; guesses are redone as definitions arrive.
-  const prev = new Map(previous?.fixtures.filter((f) => f.userSet).map((f) => [f.fixtureId, f]));
-  const byRole = new Map<Role, WsFixture[]>();
-  const roles = new Map<number, Role>();
-  for (const f of fixtures) {
-    const p = profiles.get(f.id);
-    const role = prev.get(f.id)?.role ?? (p ? guessRole(p) : "ignore");
-    roles.set(f.id, role);
-    byRole.set(role, [...(byRole.get(role) ?? []), f]);
-  }
-  const out: RigFixture[] = [];
-  for (const f of fixtures) {
-    const kept = prev.get(f.id);
-    if (kept) {
-      out.push({ ...kept, mount: kept.mount ?? guessMount(f) });
-      continue;
-    }
-    const role = roles.get(f.id)!;
-    const peers = byRole.get(role)!;
-    const idx = peers.indexOf(f);
-    const side: Side = peers.length === 1 ? "C" : idx < peers.length / 2 ? "SL" : "SR";
-    const rf: RigFixture = { fixtureId: f.id, role, side: peers.length % 2 === 1 && idx === (peers.length - 1) / 2 ? "C" : side, order: idx };
-    if (role === "mover") rf.home = { pan: 128, tilt: 128 };
-    rf.mount = guessMount(f);
-    rf.pos = defaultPosition(role, rf.side, idx, peers.length);
-    out.push(rf);
-  }
-  // Older projects (and kept fixtures) may not have a stage position yet.
-  for (const f of out) {
-    if (f.pos || f.role === "ignore") continue;
-    const peers = out.filter((p) => p.role === f.role).sort((a, b) => a.order - b.order);
-    f.pos = defaultPosition(f.role, f.side, peers.indexOf(f), peers.length);
-  }
-  return { fixtures: out };
+/** Bars and pixel strips: the lights that can stand on their end. */
+export function isBar(p: FixtureProfile | undefined): boolean {
+  if (!p) return false;
+  const type = p.def.type.toLowerCase();
+  return !p.isMover && (p.heads.length >= 4 || type.includes("bar") || type.includes("pixel"));
 }
 
 /**
- * Floor or truss, from QLC+'s 3D view: anything in the upper half of the
- * stage height is taken to be hung from a truss. Without a 3D layout, floor.
+ * The rig for a workspace. Where each light is comes from QLC+'s 3D view,
+ * unless it was moved in Lightsmith since the show was loaded. Its job is
+ * guessed until the user sets one. Lights with no 3D position get a tidy
+ * automatic place.
  */
-export function guessMount(f: Pick<WsFixture, "height">): Mount {
-  return f.height !== undefined && f.height > 0.5 ? "truss" : "floor";
+export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixtureProfile>, previous?: Rig, stage?: StageSize): Rig {
+  const before = new Map(previous?.fixtures.map((f) => [f.fixtureId, f]));
+  const out: RigFixture[] = [];
+  for (const f of fixtures) {
+    const old = before.get(f.id);
+    const p = profiles.get(f.id);
+    const kept = old?.userSet ? old : undefined;
+    const role = kept?.role ?? (p ? guessRole(p, f.place) : "ignore");
+    const rf: RigFixture = kept ? { ...kept } : { fixtureId: f.id, role, side: "C", order: 0 };
+    if (role === "mover") rf.home = rf.home ?? { pan: 128, tilt: 128 };
+    if (old?.moved) {
+      rf.pos = old.pos;
+      rf.height = old.height;
+      rf.upright = old.upright;
+      rf.moved = true;
+    } else if (f.place) {
+      rf.pos = { x: f.place.x, y: f.place.y };
+      rf.height = f.place.height;
+      rf.upright = isBar(p) ? f.place.upright : undefined;
+      delete rf.moved;
+    } else if (old?.pos) {
+      rf.pos = old.pos;
+      rf.height = old.height ?? (old.mount === "truss" ? 0.9 : undefined);
+      rf.upright = old.upright;
+    } else {
+      rf.pos = undefined;
+      rf.height = undefined;
+    }
+    if (rf.upright === undefined && isBar(p)) rf.upright = true;
+    delete rf.mount;
+    out.push(rf);
+  }
+  // Lights QLC+ hasn't placed: spread each job's lights across the stage.
+  const roles = new Set(out.map((f) => f.role));
+  for (const role of roles) {
+    if (role === "ignore") continue;
+    const unplaced = out.filter((f) => f.role === role && !f.pos);
+    unplaced.forEach((f, i) => (f.pos = defaultPosition(role, "C", i, unplaced.length)));
+  }
+  const rig = settleRig({ fixtures: out });
+  return stage ? { ...rig, stage: { width: stage.width, depth: stage.depth, height: stage.height, feet: stage.feet } } : rig;
 }
 
 export function fixturesWithRole(rig: Rig, role: Role): RigFixture[] {
@@ -119,7 +137,7 @@ export function settleRig(rig: Rig): Rig {
       .sort((a, b) => (b.pos?.x ?? -1) - (a.pos?.x ?? -1) || a.order - b.order)
       .forEach((f, i) => (f.order = i));
   }
-  return { fixtures };
+  return { ...rig, fixtures };
 }
 
 /** Stage left first, by plan position (then by order). */

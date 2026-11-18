@@ -138,6 +138,7 @@ export function useLightsmith() {
     }
   }, [workspace]);
   const fixtures: WsFixture[] = parsed && !("error" in parsed) ? parsed.fixtures : [];
+  const stage = parsed && !("error" in parsed) ? parsed.stage : undefined;
 
   const defMap = useMemo(() => new Map([...defs].map(([k, v]) => [k, v.def])), [defs]);
   const { profiles, missing } = useMemo(() => matchProfiles(fixtures, defMap), [fixtures, defMap]);
@@ -173,12 +174,12 @@ export function useLightsmith() {
     if (!fixtures.length) return;
     // Automatic, so it isn't an undo step of its own.
     change((p) => {
-      const next = guessRig(fixtures, profiles, p.rig);
+      const next = guessRig(fixtures, profiles, p.rig, stage);
       const same = JSON.stringify(next) === JSON.stringify(p.rig);
       return same ? p : { ...p, rig: next };
     }, false);
     // Re-run when the rig changes too, so a loaded project gets stage positions.
-  }, [fixtures, profiles, project.rig]);
+  }, [fixtures, profiles, project.rig, stage]);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     setError(null);
@@ -189,6 +190,9 @@ export function useLightsmith() {
         if (lower.endsWith(".qxw")) {
           parseWorkspace(text); // validate
           setWorkspace({ name: file.name, xml: text });
+          // A newly loaded show file is the truth about where lights are:
+          // forget positions changed here, so QLC+'s 3D view wins.
+          change((p) => (p.rig.fixtures.some((f) => f.moved) ? { ...p, rig: { ...p.rig, fixtures: p.rig.fixtures.map(({ moved: _moved, ...f }) => f) } } : p), false);
         } else if (lower.endsWith(".qxf")) {
           const def = parseFixtureDef(text);
           setDefs((prev) => new Map(prev).set(fixtureKey(def.manufacturer, def.model), { def, source: "added", xml: text }));

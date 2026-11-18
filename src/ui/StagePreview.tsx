@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, mountOf, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -71,7 +71,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const byRole = (role: string) => rig.fixtures.filter((f) => f.role === role && f.pos).sort((a, b) => a.pos!.x - b.pos!.x);
   const backFx = byRole("backdrop");
   // Only the backdrop lights the rig really has: a rig without any shows a bare wall.
-  const bars = backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId }));
+  const bars = backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId, upright: f.upright !== false, hung: mountOf(f) === "truss" }));
   const sides = byRole("side");
   const movers = byRole("mover");
   const fronts = byRole("front");
@@ -132,7 +132,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const BACK = 168; // where the back wall meets the floor
   const HANG_Y = 22; // where lights hung from the truss are clamped
   const LIP = 236; // front edge of the stage
-  const depthOf = (y: number) => Math.max(0, Math.min(1, (y - 0.14) / 0.76));
+  const depthOf = (y: number) => Math.max(0, Math.min(1, y));
   const floorY = (d: number) => BACK + d * (LIP - BACK);
   const xAt = (px: number, d: number) => {
     const left = 50 * (1 - d);
@@ -234,7 +234,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           ) : animate && onPattern ? (
             <animate attributeName="opacity" values="0.35;1;0.35" dur={`${cycle}s`} begin={`${-rnd(f.fixtureId * 7) * cycle}s`} repeatCount="indefinite" />
           ) : null;
-        if (f.mount === "truss") {
+        if (mountOf(f) === "truss") {
           // Hung from the truss: a cone down onto the stage and a pool where it lands.
           const hy = HANG_Y;
           return (
@@ -319,8 +319,12 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           const base = o.color ? { fill: o.color, anim: null } : fill(solidColor, 0);
           const backLevel = o.off ? 0 : (o.level ?? lv.backdrop.level);
           const floorLevel = o.off ? 0.04 : runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
+          // A bar lying flat is drawn turned on its side: along the truss when
+          // it's hung, along the foot of the wall when it's on the floor.
+          const midY = topY + (cells * cellH) / 2;
+          const flat = bar.upright ? undefined : `translate(0 ${(bar.hung ? HANG_Y + 12 : BACK - 10) - midY}) rotate(90 ${x + barW / 2} ${midY})`;
           return (
-            <g key={i}>
+            <g key={i} transform={flat}>
               <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
                 {base.anim}
               </ellipse>
@@ -328,7 +332,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                 {base.anim}
               </ellipse>
               <rect x={x - 1.5} y={topY - 1.5} width={barW + 3} height={cells * cellH + 3} rx="2" fill="#141217" stroke="#34303a" strokeWidth="0.6" />
-              <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />
+              {bar.upright && <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />}
               {Array.from({ length: cells }, (_, c) => {
                 const y = topY + c * cellH;
                 const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
@@ -397,7 +401,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         const rotateAnim = (cx: number, cy: number) =>
           animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
-        if (f.mount === "truss") {
+        if (mountOf(f) === "truss") {
           // Hung upside down: the beam points down at the stage and sweeps across it.
           const top = HANG_Y;
           const hh = top + 14 * sc;

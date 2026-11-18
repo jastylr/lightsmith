@@ -4,10 +4,12 @@
 import {
   childElements,
   childText,
+  el,
   firstChild,
   getAttr,
   parseXml,
   serializeXml,
+  setAttr,
   walk,
   type XmlDocument,
   type XmlElement,
@@ -27,6 +29,31 @@ export interface WsFixture {
    * 1 = top), from QLC+'s 3D view. Missing when the show has no 3D layout.
    */
   height?: number;
+  /** Where it is in QLC+'s 3D view. Missing when the show has no 3D layout. */
+  place?: Placement;
+}
+
+/**
+ * A fixture's place in QLC+'s 3D view, as shares of the stage: x runs from
+ * stage right to stage left (left to right, seen from the audience), y from
+ * the back wall to the front edge (past 1 is in front of the stage), and
+ * height from the floor to the top of the stage.
+ */
+export interface Placement {
+  x: number;
+  y: number;
+  height: number;
+  /** The fixture's long side stands up (a bar on its end), from its rotation. */
+  upright: boolean;
+}
+
+/** The stage size in QLC+'s 3D view, in metres. */
+export interface StageSize {
+  width: number;
+  depth: number;
+  height: number;
+  /** QLC+ shows this stage in feet. */
+  feet: boolean;
 }
 
 export interface WsFunction {
@@ -43,6 +70,8 @@ export interface Workspace {
   fixtures: WsFixture[];
   functions: WsFunction[];
   groups: { id: number; name: string }[];
+  /** The stage in QLC+'s 3D view; missing when the show has no 3D layout. */
+  stage?: StageSize;
 }
 
 export function parseWorkspace(xml: string): Workspace {
@@ -67,22 +96,8 @@ export function parseWorkspace(xml: string): Workspace {
     path: getAttr(f, "Path"),
   }));
   const groups = childElements(engine, "FixtureGroup").map((g) => ({ id: Number(getAttr(g, "ID")), name: childText(g, "Name") ?? "" }));
-  // QLC+ 5's 3D view: <Monitor><Grid Height=… Depth=… Units=…/><FxItem ID YPos …/>.
-  // YPos is the height in millimetres; the grid is in metres (Units 0) or feet (1).
-  // QLC+ 4's 2D view has no Depth, and its YPos means something else, so skip it.
-  const monitor = firstChild(engine, "Monitor") ?? firstChild(doc.root, "Monitor");
-  const grid = monitor ? firstChild(monitor, "Grid") : undefined;
-  if (monitor && grid && getAttr(grid, "Depth") !== undefined) {
-    const stageMm = Number(getAttr(grid, "Height") ?? 0) * (getAttr(grid, "Units") === "1" ? 304.8 : 1000);
-    if (stageMm > 0) {
-      const heights = new Map(childElements(monitor, "FxItem").map((it) => [Number(getAttr(it, "ID")), Number(getAttr(it, "YPos") ?? 0) / stageMm]));
-      for (const f of fixtures) {
-        const h = heights.get(f.id);
-        if (h !== undefined && Number.isFinite(h)) f.height = Math.max(0, Math.min(1, h));
-      }
-    }
-  }
-  return { doc, engine, virtualConsole: firstChild(doc.root, "VirtualConsole"), fixtures, functions, groups };
+  const stage = readStage(doc, fixtures);
+  return { doc, engine, virtualConsole: firstChild(doc.root, "VirtualConsole"), fixtures, functions, groups, stage };
 }
 
 export function serializeWorkspace(ws: Workspace): string {
@@ -129,5 +144,86 @@ export function removeWhere(root: XmlElement, pred: (e: XmlElement) => boolean):
     for (const c of e.children) if (typeof c !== "string") visit(c);
   };
   visit(root);
+  return n;
+}
+
+/** QLC+'s 3D view, where it has one: the <Monitor> element. */
+export function monitorOf(doc: XmlDocument): XmlElement | undefined {
+  const engine = firstChild(doc.root, "Engine");
+  return (engine && firstChild(engine, "Monitor")) ?? firstChild(doc.root, "Monitor");
+}
+
+/**
+ * Read QLC+ 5's 3D view: <Monitor><Grid Width Height Depth Units/><FxItem ID
+ * XPos YPos ZPos XRot YRot ZRot/>. Positions are in millimetres; the grid is
+ * in metres (Units 0) or feet (Units 1). Seen from the audience, X runs to
+ * stage left, Y is the height and Z comes forward from the back wall. QLC+ 4's
+ * 2D view has no Depth and means something else by its positions, so it's skipped.
+ */
+function readStage(doc: XmlDocument, fixtures: WsFixture[]): StageSize | undefined {
+  const monitor = monitorOf(doc);
+  const grid = monitor ? firstChild(monitor, "Grid") : undefined;
+  if (!monitor || !grid || getAttr(grid, "Depth") === undefined) return undefined;
+  const feet = getAttr(grid, "Units") === "1";
+  const unit = feet ? 0.3048 : 1;
+  const stage: StageSize = {
+    width: Number(getAttr(grid, "Width") ?? 5) * unit,
+    height: Number(getAttr(grid, "Height") ?? 3) * unit,
+    depth: Number(getAttr(grid, "Depth") ?? 5) * unit,
+    feet,
+  };
+  if (!(stage.width > 0 && stage.height > 0 && stage.depth > 0)) return undefined;
+  const num = (it: XmlElement, a: string) => {
+    const v = Number(getAttr(it, a) ?? 0);
+    return Number.isFinite(v) ? v : 0;
+  };
+  const items = new Map(childElements(monitor, "FxItem").map((it) => [Number(getAttr(it, "ID")), it]));
+  for (const f of fixtures) {
+    const it = items.get(f.id);
+    if (!it) continue;
+    const share = (mm: number, m: number) => mm / 1000 / m;
+    const height = Math.max(0, Math.min(1, share(num(it, "YPos"), stage.height)));
+    f.height = height;
+    f.place = {
+      x: Math.max(0, Math.min(1, share(num(it, "XPos"), stage.width))),
+      y: Math.max(0, Math.min(1.25, share(num(it, "ZPos"), stage.depth))),
+      height,
+      upright: standsUp(num(it, "YRot"), num(it, "ZRot")),
+    };
+  }
+  return stage;
+}
+
+/**
+ * Whether a fixture's long side (its width, along X in QLC+) points up after
+ * its rotation. QLC+ turns about X, then Y, then Z, so only the Y and Z turns
+ * can stand a bar on its end.
+ */
+export function standsUp(yRot: number, zRot: number): boolean {
+  const rad = Math.PI / 180;
+  return Math.abs(Math.cos(yRot * rad) * Math.sin(zRot * rad)) > 0.7;
+}
+
+/** Write fixtures' places back into QLC+'s 3D view, so both apps show the same stage. */
+export function writePlaces(ws: Workspace, places: Map<number, Omit<Placement, "upright"> & { upright?: boolean }>): number {
+  const monitor = monitorOf(ws.doc);
+  if (!monitor || !ws.stage || !places.size) return 0;
+  const items = new Map(childElements(monitor, "FxItem").map((it) => [Number(getAttr(it, "ID")), it]));
+  const mm = (share: number, m: number) => String(Math.round(share * m * 1000 * 100) / 100);
+  let n = 0;
+  for (const [id, p] of places) {
+    let it = items.get(id);
+    if (!it) {
+      it = el("FxItem", { ID: id });
+      insertChildren(monitor, [it], ["FxItem", "StageItem", "Grid"]);
+    }
+    setAttr(it, "XPos", mm(p.x, ws.stage.width));
+    setAttr(it, "YPos", mm(p.height, ws.stage.height));
+    setAttr(it, "ZPos", mm(p.y, ws.stage.depth));
+    // Stand a bar up, or lay it down, only when QLC+ has it the other way.
+    const yRot = Number(getAttr(it, "YRot") ?? 0);
+    if (p.upright !== undefined && standsUp(yRot, Number(getAttr(it, "ZRot") ?? 0)) !== p.upright) setAttr(it, "ZRot", p.upright ? 270 : 0);
+    n++;
+  }
   return n;
 }
