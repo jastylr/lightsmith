@@ -210,3 +210,32 @@ test("colors can be assigned per kind of light, and patterns and focus adapt to 
   const moverSide = noSides.fixtures.find((f) => f.role === "mover")!.side;
   assert.deepEqual(focusLights(noSides, moverSide), noSides.fixtures.filter((f) => f.role === "mover" && f.side === moverSide).map((f) => f.fixtureId));
 });
+
+test("the section buttons land where they can be seen, and stay where the user puts them", () => {
+  // A page mostly filled by one big console frame, like many real shows.
+  const big = WORKSPACE_QXW.replace(
+    '<Button Caption="Mine" ID="1">',
+    '<SoloFrame Caption="Console" ID="5"><WindowState Visible="True" X="15" Y="15" Width="1140" Height="843"/></SoloFrame><Button Caption="Mine" ID="1">',
+  ).replace('X="15" Y="15" Width="93" Height="93"', 'X="1170" Y="15" Width="93" Height="93"');
+  const ws = parseWorkspace(big);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const first = generateSong({ ws, profiles, rig, song: song() });
+  assert.match(first.buttonsWhere, /inside the frame “Console”/);
+  const xml = serializeWorkspace(ws);
+  const frame = xml.slice(xml.indexOf('<SoloFrame Caption="Console"'));
+  assert.ok(frame.indexOf(first.buttonsFrame) > 0 && frame.indexOf(first.buttonsFrame) < frame.indexOf("</SoloFrame>"));
+  const y = (x: string) => Number(/Caption="[^"]*\(Lightsmith\)" ID="\d+">\s*<WindowState Visible="True" X="\d+" Y="(\d+)"/.exec(x)![1]);
+  assert.ok(y(xml) + 136 <= 720, "frame is near the top of the page");
+
+  // Move it in "QLC+", export again: it stays put.
+  const moved = xml.replace(/(Caption="[^"]*\(Lightsmith\)" ID="\d+">\s*<WindowState Visible="True" X=")\d+(" Y=")\d+/, "$1300$2200");
+  const ws2 = parseWorkspace(moved);
+  generateSong({ ws: ws2, profiles, rig, song: song() });
+  assert.equal(y(serializeWorkspace(ws2)), 200);
+
+  // On a roomy page it goes in the top-left corner.
+  const plain = parseWorkspace(WORKSPACE_QXW);
+  const s3 = generateSong({ ws: plain, profiles, rig, song: song() });
+  assert.match(s3.buttonsWhere, /^on the first Virtual Console page/);
+});

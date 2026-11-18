@@ -169,6 +169,8 @@ export interface GenerateSummary {
   functions: number;
   removedPrevious: number;
   buttonsFrame: string;
+  /** Where the button frame was put, in words: "inside “CV Console” on the page “CV Show”". */
+  buttonsWhere: string;
   songChaserId: number;
 }
 
@@ -194,7 +196,19 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     const p = getAttr(e, "Path") ?? "";
     return p === songPath || p.startsWith(songPath + "/");
   });
+  // Remember where the previous button frame was, so a re-export (or a frame
+  // the user moved in QLC+) stays put.
+  let previousSpot: { parent: XmlElement; x: number; y: number } | undefined;
   if (ws.virtualConsole) {
+    const find = (parent: XmlElement): void => {
+      for (const c of childElements(parent)) {
+        if ((c.name === "Frame" || c.name === "SoloFrame") && getAttr(c, "Caption") === frameCaption) {
+          const st = firstChild(c, "WindowState");
+          if (!previousSpot) previousSpot = { parent, x: Number(getAttr(st!, "X") ?? 15), y: Number(getAttr(st!, "Y") ?? 15) };
+        } else find(c);
+      }
+    };
+    find(ws.virtualConsole);
     removed += removeWhere(ws.virtualConsole, (e) => (e.name === "Frame" || e.name === "SoloFrame") && getAttr(e, "Caption") === frameCaption);
   }
 
@@ -501,11 +515,6 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     page = el("Frame", { Caption: "", ID: nextWidgetId(vc) }, [el("WindowState", { Visible: "True", X: 0, Y: 0, Width: 1920, Height: 1080 })]);
     vc.children.push(page);
   }
-  let bottom = 15;
-  for (const c of childElements(page)) {
-    const wsEl = firstChild(c, "WindowState");
-    if (wsEl && c.name !== "WindowState") bottom = Math.max(bottom, Number(getAttr(wsEl, "Y") ?? 0) + Number(getAttr(wsEl, "Height") ?? 0) + 15);
-  }
   let wid = nextWidgetId(vc);
   const perRow = 10;
   const size = 80;
@@ -513,13 +522,9 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const rows = Math.ceil(song.sections.length / perRow);
   const width = Math.min(song.sections.length, perRow) * stepPx + 20;
   const height = rows * stepPx + 46;
-  // Make sure the page is tall enough to show the new frame.
-  const pageState = firstChild(page, "WindowState");
-  if (pageState && Number(getAttr(pageState, "Height") ?? 0) < bottom + height + 15) {
-    pageState.attrs = pageState.attrs.map(([k, v]) => [k, k === "Height" ? String(bottom + height + 15) : v]);
-  }
+  const spot = placeFrame(vc, page, width, height, previousSpot);
   const frame = el("SoloFrame", { Caption: frameCaption, ID: wid++ }, [
-    el("WindowState", { Visible: "True", X: 15, Y: bottom, Width: width, Height: height }),
+    el("WindowState", { Visible: "True", X: spot.x, Y: spot.y, Width: width, Height: height }),
     textEl("AllowResize", "True"),
     textEl("ShowHeader", "True"),
     textEl("ShowEnableButton", "True"),
@@ -535,8 +540,79 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       ]),
     );
   });
-  page.children.push(frame);
+  spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, songChaserId };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId };
+}
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const boxOf = (e: XmlElement): Box | undefined => {
+  const st = firstChild(e, "WindowState");
+  if (!st) return undefined;
+  return { x: Number(getAttr(st, "X") ?? 0), y: Number(getAttr(st, "Y") ?? 0), w: Number(getAttr(st, "Width") ?? 0), h: Number(getAttr(st, "Height") ?? 0) };
+};
+const widgetsIn = (e: XmlElement) => childElements(e).filter((c) => c.name !== "WindowState" && c.name !== "Appearance" && boxOf(c));
+const overlaps = (a: Box, b: Box, gap: number) => a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+
+/** The first free spot for a w × h box inside `area`, scanning top to bottom, left to right. */
+function freeSpot(taken: Box[], area: Box, w: number, h: number): { x: number; y: number } | undefined {
+  for (let y = area.y; y + h <= area.y + area.h; y += 15) {
+    for (let x = area.x; x + w <= area.x + area.w; x += 15) {
+      const box = { x, y, w, h };
+      if (!taken.some((t) => overlaps(box, t, 14))) return { x, y };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Where to put a song's button frame so it's easy to find on a laptop screen:
+ * where it was last time; else the first free spot near the top-left of the
+ * first page; else inside a big frame on that page that has room (a console
+ * frame many shows are built around); else under everything on the page.
+ */
+function placeFrame(vc: XmlElement, page: XmlElement, w: number, h: number, previous?: { parent: XmlElement; x: number; y: number }): { parent: XmlElement; x: number; y: number; where: string } {
+  const pageName = (getAttr(page, "Caption") ?? "").trim();
+  const onPage = pageName ? `on the Virtual Console page “${pageName}”` : "on the first Virtual Console page";
+  const inside = (f: XmlElement) => `inside the frame “${getAttr(f, "Caption") ?? ""}” ${onPage}`;
+  if (previous) {
+    const onTop = previous.parent === page;
+    // Version 0.2 tucked frames under everything on the page, often off screen;
+    // only keep a top-level spot that's actually in view.
+    const inView = previous.x + w <= 1280 && previous.y + h <= 720;
+    if ((onTop && inView) || (!onTop && containsEl(page, previous.parent))) return { ...previous, where: onTop ? onPage : inside(previous.parent) };
+  }
+  const pageBox = boxOf(page) ?? { x: 0, y: 0, w: 1920, h: 1080 };
+  const top = widgetsIn(page).map((c) => boxOf(c)!);
+  // A laptop-sized corner of the page first, so the frame is on screen.
+  const visible = { x: 15, y: 15, w: Math.min(pageBox.w, 1280) - 30, h: Math.min(pageBox.h, 720) - 30 };
+  const near = freeSpot(top, visible, w, h);
+  if (near) return { parent: page, ...near, where: onPage };
+  // Inside a container frame on the page, below what's already in it.
+  const containers = widgetsIn(page)
+    .filter((c) => c.name === "Frame" || c.name === "SoloFrame")
+    .map((c) => ({ c, box: boxOf(c)! }))
+    .sort((a, b) => b.box.w * b.box.h - a.box.w * a.box.h);
+  for (const { c, box } of containers) {
+    const kids = widgetsIn(c).map((k) => boxOf(k)!);
+    const spot = freeSpot(kids, { x: 15, y: 46, w: box.w - 30, h: Math.min(box.h, 720 - box.y) - 61 }, w, h);
+    if (spot) return { parent: c, ...spot, where: inside(c) };
+  }
+  // Anywhere else on the page, then under everything.
+  const any = freeSpot(top, { x: 15, y: 15, w: pageBox.w - 30, h: pageBox.h - 30 }, w, h);
+  if (any) return { parent: page, ...any, where: onPage };
+  const bottom = top.reduce((m, b) => Math.max(m, b.y + b.h + 15), 15);
+  const st = firstChild(page, "WindowState");
+  if (st && pageBox.h < bottom + h + 15) st.attrs = st.attrs.map(([k, v]) => [k, k === "Height" ? String(bottom + h + 15) : v]);
+  return { parent: page, x: 15, y: bottom, where: onPage };
+}
+
+function containsEl(root: XmlElement, target: XmlElement): boolean {
+  return childElements(root).some((c) => c === target || containsEl(c, target));
 }
 

@@ -87,7 +87,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
             <div>
               <h2>{errors.length ? "A few things need fixing" : `${result.songTitle} is ready`}</h2>
               <p>
-                {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and a Virtual Console frame named “{result.summary.buttonsFrame}”.
+                {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and and a frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}.
                 {result.summary.removedPrevious > 0 && " The earlier export of this song was replaced."}
               </p>
             </div>
@@ -102,7 +102,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
           <ol className="next-steps">
             <li>Close the show in QLC+ if it's open, then open the downloaded file.</li>
             <li>
-              In the Virtual Console, find the frame “{result.summary.buttonsFrame}”. Each button starts a section and stops the one before it.
+              In the Virtual Console, the buttons are in the frame “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}. Each button starts a section and stops the one before it. You can move the frame anywhere; exporting again keeps it where you put it.
             </li>
             <li>
               To step through the song with one footswitch, add a Cue List widget and pick the chaser “{result.songTitle} — song cues”. Then map your MIDI controller to it in QLC+.
