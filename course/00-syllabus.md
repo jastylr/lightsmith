@@ -284,6 +284,7 @@ flowchart LR
 - Presets as data tables: moods, colors, patterns, movements, effects, section types and song templates. Adding a choice without touching logic.
 - Defaults: `newSection`, `newSong`, `sectionsFromTemplate`, and the "works on any rig" principle.
 - Derived values as functions, not stored fields: `sectionMs`, `lengthLabel`, `colorLayoutOf`, `lightLevels`.
+- Where a light is mounted (`Mount`, `RigFixture.mount`): on the floor or hung from a truss. It changes how the light is drawn and set up, not its colors.
 - Layered settings, from general to specific: the mood and energy, then each kind of light (`colorLayout`, `brightness`), then individual lights (`lights`, `LightSetting`, `lightSetting`, `sitsOut`). The most specific setting wins, and anything left out stays automatic.
 - Versioning and migration: `version: 1`, `normalizeSection`, and the Rain-to-Drizzle migration as a worked example. *Coming from PHP: like a database migration that runs on every load against data you don't control.*
 - IDs: how they're made today and why that changes later.
@@ -353,6 +354,7 @@ flowchart LR
 - File input and drag-and-drop in the browser; reading files as text.
 - Telling file types apart and routing each to the right parser (`addFiles` in the store).
 - Reading a workspace: fixtures, functions and fixture groups (`parseWorkspace`).
+- Reading QLC+ 5's 3D view (`<Monitor>`, `<Grid>`, `<FxItem YPos>`) to learn how high each fixture hangs, converting feet and millimetres to a share of the stage height (`WsFixture.height`).
 - Reading a fixture definition and building a usable profile for the mode in use: master dimmer, color heads, pan/tilt, shutters (`parseFixtureDef`, `classifyChannel`, `buildProfile`). The "Colour" spelling trap.
 - The bundled QLC+ fixture library: a build-time sync script, an `index.json`, fetched on demand.
 - Status, empty and error states as first-class design.
@@ -377,6 +379,7 @@ flowchart LR
 **Concepts.**
 - The rig: each fixture's job (backdrop, moving head, side and floor, front, not used), side, order and position.
 - Guessing roles from fixture profiles (`guessRole`, `guessRig`) while keeping anything the user changed.
+- Guessing the mounting from height (`guessMount`): above half the stage height starts as hung from a truss.
 - Default positions and lanes (`ROLE_ROW`, `defaultPosition`); working out side and order from position (`settleRig`, `stageOrder`).
 - The sync effect that keeps the rig in step with the workspace.
 
@@ -395,7 +398,8 @@ flowchart LR
 - **Light glyphs.** Bars, moving heads, pars and front lights drawn in SVG, with labels.
 - **Dragging.** Moving a light along or between lanes.
 - **The tray.** Lights not in use.
-- **The inspector.** The selected light's details, job buttons, side, moving-head home pan/tilt, and the reverse switch.
+- **The inspector.** The selected light's details, job buttons, side, mounting (on the floor or hung from a truss), moving-head home pan/tilt, and the reverse switch.
+- **Hung lights** show a hanger on the plan, and hung moving heads are drawn upside down.
 
 **Concepts.**
 - Pointer events for dragging: start, track on `window`, end, and telling a click from a drag by distance.
@@ -469,6 +473,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Drawing the stage in SVG: geometry and perspective, filters for glow, masks for beams.
 - SMIL animation timed to tempo; a visual brightness mapping.
 - Mirroring the export's rules so the preview tells the truth.
+- Hung lights: bodies hanging from the truss, cones pointing down to pools on the floor, and moving-head beams that sweep from above.
 - Floating windows through portals, with a remembered position.
 - The settings-card pattern (`Group`) that every section below uses.
 
