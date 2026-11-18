@@ -1,6 +1,7 @@
 /* Lightsmith: a dark, warm "house lights down" palette with a tungsten accent.
    Colorful light belongs to the user's songs; the chrome stays quiet. */
 :root {
+  --cue-col: 290px;
   --house: #1a181d;
   --deck: #221f26;
   --raised: #2b2730;
@@ -1098,7 +1099,7 @@ li.bad .fx-source {
 .song-line {
   display: flex;
   align-items: center;
-  gap: 1rem 1.25rem;
+  gap: 1rem 1.5rem;
   flex-wrap: wrap;
 }
 .song-pick {
@@ -1186,7 +1187,9 @@ li.bad .fx-source {
 }
 .song-title-wrap {
   display: inline-grid;
-  min-width: 0;
+  /* At least as wide as the Sections column below, so the icons line up
+     with the section editor; longer titles grow the box. */
+  min-width: var(--cue-col);
   max-width: 100%;
 }
 .song-title-wrap::after {
@@ -1457,7 +1460,7 @@ body.is-resizing * {
 
 .songs-body {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-columns: var(--cue-col) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
