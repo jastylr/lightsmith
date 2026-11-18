@@ -341,3 +341,16 @@ test("undo history merges bursts, limits its length and supports redo", () => {
   for (let i = 0; i < 10; i++) h.record(i, 20000 + i * 5000);
   assert.equal(h.steps, 3);
 });
+
+test("a gesture is one undo step however long it takes", () => {
+  const h = new UndoHistory<number>(50, 1000);
+  h.record(0, 0); // an ordinary change just before
+  h.begin();
+  for (let i = 1; i <= 6; i++) h.record(i, 100 + i * 5000); // a slow drag
+  h.end();
+  h.record(7, 40000);
+  assert.equal(h.steps, 3);
+  assert.equal(h.undo(8), 7);
+  assert.equal(h.undo(7), 1); // back to the start of the drag in one step
+  assert.equal(h.undo(1), 0);
+});

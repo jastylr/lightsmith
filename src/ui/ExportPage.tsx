@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { checkWorkspace, generateSong, moodById, parseWorkspace, sectionMs, serializeWorkspace, songPathFor, type GenerateSummary, type Issue } from "../core";
 import { cssColor } from "./ColorPicker";
 import { Dropdown } from "./controls";
+import { askConfirm } from "./ConfirmDialog";
 import { Icon } from "./icons";
 import { download, type Store } from "./store";
 
@@ -122,7 +123,12 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
           <button
             className="ghost danger"
             onClick={() => {
-              if (confirm("Clear everything stored in this browser? Download a project file first if you want to keep it.")) store.resetAll();
+              void askConfirm({
+                title: "Clear everything?",
+                message: "Your show file, fixture definitions, stage and songs will be removed from this browser. This can't be undone, so download a project file first if you want to keep it.",
+                confirmLabel: "Clear everything",
+                danger: true,
+              }).then((ok) => ok && store.resetAll());
             }}
           >
             <Icon name="reset" size={16} /> Start over

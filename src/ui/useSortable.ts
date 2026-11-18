@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
  * because reordering moves the dragged element in the DOM, which would drop
  * the capture after the first swap.
  */
-export function useSortable(keys: string[], onMove: (from: number, to: number) => void, axis: "x" | "y" = "y") {
+export function useSortable(keys: string[], onMove: (from: number, to: number) => void, axis: "x" | "y" = "y", gesture?: { begin: () => void; end: () => void }) {
   const els = useRef(new Map<string, HTMLElement>());
   const [dragging, setDragging] = useState<string | null>(null);
   const latest = useRef({ keys, onMove });
@@ -30,6 +30,7 @@ export function useSortable(keys: string[], onMove: (from: number, to: number) =
       if (!moved && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return;
       if (!moved) {
         moved = true;
+        gesture?.begin();
         setDragging(key);
         document.body.classList.add("is-dragging");
       }
@@ -51,6 +52,7 @@ export function useSortable(keys: string[], onMove: (from: number, to: number) =
     };
     const end = () => {
       if (moved) {
+        gesture?.end();
         justDragged.current = true;
         setTimeout(() => (justDragged.current = false), 0);
       }

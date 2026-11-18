@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { REPO_URL } from "../config";
+import { ConfirmHost } from "./ConfirmDialog";
 import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
 import { useLightsmith } from "./store";
@@ -129,6 +130,7 @@ export function App() {
         {step === "songs" && <SongsPage store={store} songId={songId} setSongId={setSongId} onNext={() => setStep("export")} />}
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}
       </main>
+      <ConfirmHost />
     </div>
   );
 }

@@ -39,6 +39,7 @@ import {
 import { cssColor, PaletteEditor } from "./ColorPicker";
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
+import { askConfirm } from "./ConfirmDialog";
 import { LightPicker, type Light } from "./LightPicker";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
@@ -50,6 +51,8 @@ const fmt = (ms: number) => {
 };
 const paletteOf = (s: Section) => (s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor);
 const cssVars = (v: Record<string, string>) => v as CSSProperties;
+/** Start and end of a drag, so the whole drag is one undo step. */
+type Gesture = { begin: () => void; end: () => void };
 
 const PATTERN_GROUP: Record<string, string> = {
   solid: "Steady",
@@ -103,6 +106,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   }
 
   const set = (patch: Partial<Song>) => store.updateSong({ ...song, ...patch });
+  const gesture: Gesture = { begin: store.beginGesture, end: store.endGesture };
   const setSection = (id: string, patch: Partial<Section>) => set({ sections: song.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const move = (from: number, to: number) => set({ sections: moveItem(song.sections, from, to) });
   const add = (type: string) => {
@@ -117,8 +121,18 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     setSelected(copy.id);
   };
   /** Delete a section after asking, then select its neighbour. */
-  const remove = (s: Section) => {
-    if (!confirm(`Delete the section "${s.name}"? This can't be undone.`)) return;
+  const remove = async (s: Section) => {
+    const ok = await askConfirm({
+      title: "Delete this section?",
+      message: (
+        <>
+          <strong>{s.name}</strong> ({lengthLabel(s)}) will be removed from <strong>{song.title || "this song"}</strong>. You can bring it back with Undo.
+        </>
+      ),
+      confirmLabel: "Delete section",
+      danger: true,
+    });
+    if (!ok) return;
     const i = song.sections.findIndex((x) => x.id === s.id);
     const rest = song.sections.filter((x) => x.id !== s.id);
     set({ sections: rest });
@@ -152,8 +166,18 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               className="icon-button danger"
               aria-label={`Delete the song "${song.title || "Untitled song"}"`}
               title="Delete this song"
-              onClick={() => {
-                if (confirm(`Delete the song "${song.title || "Untitled song"}"? This can't be undone.`)) {
+              onClick={async () => {
+                const ok = await askConfirm({
+                  title: "Delete this song?",
+                  message: (
+                    <>
+                      <strong>{song.title || "Untitled song"}</strong> and its {song.sections.length} {song.sections.length === 1 ? "section" : "sections"} will be removed. You can bring it back with Undo.
+                    </>
+                  ),
+                  confirmLabel: "Delete song",
+                  danger: true,
+                });
+                if (ok) {
                   const next = songs.find((s) => s.id !== song.id);
                   store.deleteSong(song.id);
                   setSongId(next?.id ?? "");
@@ -198,14 +222,14 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} />
+          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
                 <h2>Sections</h2>
                 <span>Drag to reorder</span>
               </div>
-              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} />
+              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
               <LookEditor key={current.id} s={current} songBpm={song.bpm} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
@@ -317,6 +341,7 @@ function Timeline({
   onResize,
   onDelete,
   addButton,
+  gesture,
 }: {
   song: Song;
   selected: string | null;
@@ -325,9 +350,10 @@ function Timeline({
   onResize: (id: string, bars: number) => void;
   onDelete: (s: Section) => void;
   addButton: ReactNode;
+  gesture: Gesture;
 }) {
   const keys = song.sections.map((s) => s.id);
-  const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x");
+  const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x", gesture);
   const scroller = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(10); // pixels per second
@@ -431,6 +457,7 @@ function Timeline({
     e.stopPropagation();
     e.preventDefault();
     const block = (e.currentTarget as HTMLElement).parentElement!;
+    gesture.begin(); // the whole drag is one undo step
     const left = block.offsetLeft;
     let clientX = e.clientX;
     let fine = e.altKey;
@@ -476,6 +503,7 @@ function Timeline({
       update();
     };
     const end = () => {
+      gesture.end();
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
@@ -616,9 +644,9 @@ function Timeline({
   );
 }
 
-function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDuplicate: (s: Section) => void; onDelete: (s: Section) => void }) {
+function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete, gesture }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDuplicate: (s: Section) => void; onDelete: (s: Section) => void; gesture: Gesture }) {
   const keys = song.sections.map((s) => s.id);
-  const { dragging, itemRef, handle } = useSortable(keys, onMove, "y");
+  const { dragging, itemRef, handle } = useSortable(keys, onMove, "y", gesture);
   return (
     <ol className="cues" aria-label="Sections in order">
       {song.sections.map((s, i) => (

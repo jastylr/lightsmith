@@ -102,6 +102,9 @@ export function useLightsmith() {
     setHistoryTick((t) => t + 1);
   }, []);
   const undo = useCallback(() => step("undo"), [step]);
+  /** Wrap a drag in these so the whole drag is one undo step. */
+  const beginGesture = useCallback(() => history.current.begin(), []);
+  const endGesture = useCallback(() => history.current.end(), []);
   const redo = useCallback(() => step("redo"), [step]);
   const [workspace, setWorkspace] = useState<{ name: string; xml: string } | null>(() => load(KEY_WS, null));
   const [defs, setDefs] = useState<Map<string, LoadedDef>>(() => {
@@ -244,6 +247,8 @@ export function useLightsmith() {
     resetAll,
     undo,
     redo,
+    beginGesture,
+    endGesture,
     canUndo: history.current.canUndo,
     canRedo: history.current.canRedo,
   };

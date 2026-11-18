@@ -2523,3 +2523,96 @@ body.is-resizing * {
     order: 3;
   }
 }
+
+/* ------------------------------------------------------------- dialog */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 7, 10, 0.68);
+  backdrop-filter: blur(3px);
+  animation: dialog-fade 120ms ease-out;
+}
+.dialog {
+  width: min(440px, 100%);
+  display: flex;
+  gap: 1rem;
+  padding: 1.35rem 1.4rem 1.2rem;
+  border-radius: 16px;
+  background: #24212a;
+  border: 1px solid #4a4452;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55);
+  animation: dialog-rise 160ms ease-out;
+}
+.dialog-icon {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten);
+}
+.dialog-icon.danger {
+  background: rgba(230, 80, 62, 0.14);
+  color: #ff8a7a;
+}
+.dialog-body {
+  flex: 1;
+  min-width: 0;
+}
+.dialog h2 {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.12rem;
+  font-weight: 750;
+}
+.dialog-message {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.dialog-message strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+}
+.danger-solid {
+  border: 1px solid #c4473a;
+  background: #c4473a;
+  color: #fff;
+  font-weight: 650;
+}
+.danger-solid:hover {
+  background: #d65446;
+  border-color: #d65446;
+}
+.danger-solid:focus-visible {
+  outline: 2px solid #ff8a7a;
+  outline-offset: 2px;
+}
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dialog-backdrop,
+  .dialog {
+    animation: none;
+  }
+}
