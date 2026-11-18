@@ -3,7 +3,7 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { sideFromX, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import { sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
 import type { WsFixture } from "./workspace";
 
@@ -133,17 +133,18 @@ export function defaultEffectTargets(effect: EffectId, rig: Rig): number[] {
 }
 
 /** The lights a section's effect will use: the user's pick or the default, limited to lights in use. */
-export function effectTargets(section: Pick<Section, "effectTargets">, effect: EffectId, rig: Rig): number[] {
+export function effectTargets(section: Pick<Section, "effectTargets" | "lights">, effect: EffectId, rig: Rig): number[] {
   const inUse = new Set(rig.fixtures.filter((f) => f.role !== "ignore").map((f) => f.fixtureId));
   const ids = section.effectTargets?.[effect] ?? defaultEffectTargets(effect, rig);
-  return ids.filter((id) => inUse.has(id));
+  return ids.filter((id) => inUse.has(id) && !sitsOut(section, id, "effects"));
 }
 
 /** The lights a section's pattern runs on: the user's pick, or the backdrop. */
-export function patternTargets(section: Pick<Section, "patternTargets">, rig: Rig): number[] {
+export function patternTargets(section: Pick<Section, "patternTargets" | "lights">, rig: Rig): number[] {
   const inUse = new Set(rig.fixtures.filter((f) => f.role !== "ignore").map((f) => f.fixtureId));
   const ids = section.patternTargets ?? rig.fixtures.filter((f) => f.role === "backdrop").map((f) => f.fixtureId);
-  return ids.filter((id) => inUse.has(id));
+  // Lights that are off, or holding their own color, sit the pattern out.
+  return ids.filter((id) => inUse.has(id) && !sitsOut(section, id, "pattern"));
 }
 
 /**

@@ -200,8 +200,26 @@ function LightPopover({ anchor, title, set, custom, lights, needsRgb, onChange, 
 const SW = 400;
 const SH = 220;
 
-/** The user's stage plan in miniature, with each light clickable. */
-function MiniStage({ lights, set, usable, onToggle, onHover }: { lights: Light[]; set: Set<number>; usable: (l: Light) => boolean; onToggle: (l: Light) => void; onHover: (l: Light | null) => void }) {
+/**
+ * The user's stage plan in miniature, with each light clickable. `marks`
+ * puts a small dot on lights: a CSS color, "off" or "set" (a ring).
+ * `onToggle` gets `add: true` when Shift, Cmd or Ctrl was held.
+ */
+export function MiniStage({
+  lights,
+  set,
+  usable,
+  onToggle,
+  onHover,
+  marks,
+}: {
+  lights: Light[];
+  set: Set<number>;
+  usable: (l: Light) => boolean;
+  onToggle: (l: Light, add: boolean) => void;
+  onHover: (l: Light | null) => void;
+  marks?: Map<number, string>;
+}) {
   // Spread the lights over the whole mini stage, front to back.
   const ys = lights.map((l) => l.pos.y);
   const y0 = Math.min(...ys);
@@ -228,11 +246,11 @@ function MiniStage({ lights, set, usable, onToggle, onHover }: { lights: Light[]
             aria-disabled={!ok}
             aria-label={l.name}
             tabIndex={ok ? 0 : -1}
-            onClick={() => onToggle(l)}
+            onClick={(e) => onToggle(l, e.shiftKey || e.metaKey || e.ctrlKey)}
             onKeyDown={(e) => {
               if (e.key === " " || e.key === "Enter") {
                 e.preventDefault();
-                onToggle(l);
+                onToggle(l, e.shiftKey || e.metaKey || e.ctrlKey);
               }
             }}
             onPointerEnter={() => onHover(l)}
@@ -262,6 +280,15 @@ function MiniStage({ lights, set, usable, onToggle, onHover }: { lights: Light[]
             <text x={x} y={l.role === "backdrop" ? y + 33 : y + 25} textAnchor="middle" className="ms-label">
               {shortName(l)}
             </text>
+            {marks?.has(l.id) && (
+              <circle
+                cx={x + 12}
+                cy={l.role === "backdrop" ? y - 20 : y - 12}
+                r="4.5"
+                className={`ms-mark ${marks.get(l.id) === "off" ? "off" : marks.get(l.id) === "set" ? "set" : ""}`}
+                style={marks.get(l.id) !== "off" && marks.get(l.id) !== "set" ? { fill: marks.get(l.id) } : undefined}
+              />
+            )}
           </g>
         );
       })}

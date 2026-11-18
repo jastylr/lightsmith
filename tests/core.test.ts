@@ -12,6 +12,9 @@ import {
   MOVEMENTS,
   MOODS,
   lightLevels,
+  sitsOut,
+  patternTargets,
+  effectTargets,
   UndoHistory,
   colorById,
   colorLayoutOf,
@@ -387,4 +390,39 @@ test("first-guess positions never stack lights of the same job on top of each ot
     assert.ok(xs.every((x, i) => i === 0 || x < xs[i - 1]!));
     assert.ok(xs.every((x) => x > 0.05 && x < 0.95));
   }
+});
+
+test("individual lights can have their own color, brightness or be off, and sit out the pattern", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  // Fixtures 0–1 are pixel bars (backdrop), 2–3 pars (side), 4–5 movers.
+  const s = {
+    ...newSection("verse", 120),
+    mood: "dark",
+    pattern: "waves",
+    effects: { sparkle: true },
+    lights: { "0": { color: "amber", level: 0.5 }, "2": { color: "#00ff00" }, "3": { off: true }, "4": { level: 1 } },
+  };
+  assert.equal(sitsOut(s, 0, "pattern"), true);
+  assert.equal(sitsOut(s, 1, "pattern"), false);
+  assert.equal(sitsOut({ lights: { "0": { color: "amber", keepPattern: true } } }, 0, "pattern"), false);
+  assert.equal(sitsOut(s, 3, "effects"), true);
+  // Bar 0 holds its own color, so the pattern runs on bar 1 only; sparkle still uses both bars.
+  assert.deepEqual(patternTargets(s, rig), [1]);
+  assert.deepEqual(effectTargets(s, "sparkle", rig).sort(), [0, 1]);
+
+  generateSong({ ws, profiles, rig, song: { id: "i", title: "Own lights", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+  const fixtureVals = (scene: string, id: number) => {
+    const f = xml.slice(xml.indexOf(`Name="${scene}"`));
+    const m = new RegExp(`<FixtureVal ID="${id}">([^<]*)</FixtureVal>`).exec(f.slice(0, f.indexOf("</Function>")));
+    return new Map((m?.[1] ?? "").split(",").reduce<[number, number][]>((a, v, i, arr) => (i % 2 ? a : [...a, [Number(v), Number(arr[i + 1])]]), []));
+  };
+  // The par (fixture 2, 6ch: dimmer 0, strobe 1, R 2, G 3, B 4, W 5) is green; its partner (3) is dark.
+  const par = fixtureVals("Side lights", 2);
+  assert.equal(par.get(3), 255);
+  assert.equal(par.get(2), 0);
+  assert.equal(fixtureVals("Side lights", 3).get(0), 0);
 });

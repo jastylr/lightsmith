@@ -63,6 +63,8 @@ export interface Section {
   colorLayout?: Partial<Record<ColorJob, ColorTarget>>;
   /** Brightness (0–1) per kind of light; missing = automatic, from the mood and energy. */
   brightness?: Partial<Record<ColorJob, number>>;
+  /** Settings for individual lights, by fixture ID. They win over everything above. */
+  lights?: Record<string, LightSetting>;
   /** Lights the pattern runs on (fixture IDs). Missing = the backdrop. */
   patternTargets?: number[];
   /** Backdrop pattern id, or "mood". */
@@ -124,7 +126,7 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) } };
+  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
@@ -183,6 +185,35 @@ export function lightLevels(s: Pick<Section, "mood" | "energy" | "brightness">):
     out[job] = v === undefined ? { level: auto[job], auto: true } : { level: Math.max(0, Math.min(1, v)), auto: false };
   }
   return out;
+}
+
+/**
+ * One light's own settings for a section, on top of the mood, energy and the
+ * settings for its kind of light. Anything left out stays automatic.
+ */
+export interface LightSetting {
+  /** A color ID ("amber", "warmWhite") or a custom "#rrggbb". */
+  color?: string;
+  /** Brightness, 0–1. */
+  level?: number;
+  /** Dark for this section. */
+  off?: boolean;
+  /** Stay in the section's pattern even with its own color (normally it sits out). */
+  keepPattern?: boolean;
+}
+
+/** A light's own settings in a section, if it has any. */
+export function lightSetting(s: Pick<Section, "lights">, fixtureId: number): LightSetting | undefined {
+  const l = s.lights?.[String(fixtureId)];
+  return l && (l.color !== undefined || l.level !== undefined || l.off) ? l : undefined;
+}
+
+/** Lights that sit out of the pattern and effects: off ones, and (for the pattern) ones holding their own color. */
+export function sitsOut(s: Pick<Section, "lights">, fixtureId: number, what: "pattern" | "effects"): boolean {
+  const l = lightSetting(s, fixtureId);
+  if (!l) return false;
+  if (l.off) return true;
+  return what === "pattern" && l.color !== undefined && !l.keepPattern;
 }
 
 /** Which color each kind of light uses: the section's choices, else the mood's, else the defaults. */

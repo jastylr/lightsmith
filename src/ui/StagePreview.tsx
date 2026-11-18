@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, colorLayoutOf, lightLevels, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -81,6 +81,13 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
   const twinkles = (id: number) => sparkleOn.has(id);
+  /** A light's own settings for this section (they win over everything else). */
+  const ownOf = (id: number) => {
+    const l = lightSetting(section, id);
+    const rgb = l?.color !== undefined ? colorById(l.color).rgb : undefined;
+    return { color: rgb ? `rgb(${rgb.join(",")})` : undefined, level: l?.level, off: !!l?.off };
+  };
+  const DARK_LENS = "#2c2832";
   const WARM = "#ffd9a8";
 
   /** A fill that steps through the palette when colors change. */
@@ -192,13 +199,16 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const fy = floorY(d);
         const sc = scaleAt(d);
         const focused = focusSet.has(f.fixtureId);
-        const dimmed = focusing && !focused;
-        const color = focused ? WARM : colorFor("side", stageIndex(sides, i), 0);
+        const o = ownOf(f.fixtureId);
+        const dimmed = focusing && !focused && o.level === undefined && !o.color;
+        const color = o.color ?? (focused ? WARM : colorFor("side", stageIndex(sides, i), 0));
+        const steady = focused || !!o.color;
         const dir = fx < W / 2 ? 1 : -1;
         const tx = fx + dir * Math.min(110, Math.abs(W / 2 - fx) * 0.5 + 30);
         const c = fill(color, 0);
-        const paint = focused ? color : c.fill;
-        const anim = focused ? null : c.anim;
+        const paint = o.off ? DARK_LENS : steady ? color : c.fill;
+        const anim = steady || o.off ? null : c.anim;
+        const sideLevel = o.off ? 0 : (o.level ?? lv.side.level);
         // Beat pulse, or the pattern when it runs on this light (rigs without a backdrop).
         const onPattern = !!pattern.algorithm && family !== "solid" && patternOn.has(f.fixtureId);
         const pulse =
@@ -209,7 +219,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           ) : null;
         return (
           <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
-            <g opacity={0.25 + 0.7 * lv.side.level}>
+            <g opacity={o.off ? 0 : 0.25 + 0.7 * sideLevel}>
               {pulse}
               <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>
                 {anim}
@@ -240,12 +250,14 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       {fronts.map((f, i) => {
         const fx = xAt(f.pos!.x, 1);
         const focused = focusSet.has(f.fixtureId);
-        const color = focused ? WARM : colorFor("front", stageIndex(fronts, i), 0);
+        const o = ownOf(f.fixtureId);
+        const color = o.color ?? (focused ? WARM : colorFor("front", stageIndex(fronts, i), 0));
+        const frontLevel = o.off ? 0 : (o.level ?? lv.front.level);
         return (
-          <g key={f.fixtureId} opacity={focusing && !focused ? 0.35 : 1}>
-            <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * lv.front.level} filter={url("glow")} />
+          <g key={f.fixtureId} opacity={focusing && !focused && o.level === undefined && !o.color ? 0.35 : 1}>
+            {!o.off && <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * frontLevel} filter={url("glow")} />}
             <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
-            <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={color} />
+            <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={o.off ? DARK_LENS : color} />
           </g>
         );
       })}
@@ -256,10 +268,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           const x = xAt(bar.x, 0) - barW / 2;
           const k = backFx.length ? stageIndex(backFx, i) : i;
           const runsPattern = !!pattern.algorithm && patternOn.has(bar.id);
+          const o = ownOf(bar.id);
           const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
-          const base = fill(solidColor, 0);
-          const backLevel = lv.backdrop.level;
-          const floorLevel = runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
+          const base = o.color ? { fill: o.color, anim: null } : fill(solidColor, 0);
+          const backLevel = o.off ? 0 : (o.level ?? lv.backdrop.level);
+          const floorLevel = o.off ? 0.04 : runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
           return (
             <g key={i}>
               <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
@@ -322,7 +335,9 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const sc = scaleAt(d);
         const hy = fy - 12 * sc;
         const moverFocused = focusSet.has(f.fixtureId);
-        const c = moverFocused ? { fill: WARM, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
+        const o = ownOf(f.fixtureId);
+        const c = o.color ? { fill: o.color, anim: null } : moverFocused ? { fill: WARM, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
+        const moverLevel = o.off ? 0 : (o.level ?? lv.mover.level);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
         const mirror = f.reverse ? -1 : 1;
         const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;
@@ -332,12 +347,12 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         return (
-          <g key={f.fixtureId} opacity={focusing && !moverFocused ? 0.5 : 1}>
-            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={0.35 * vis(lv.mover.level)} filter={url("soft")}>
+          <g key={f.fixtureId} opacity={focusing && !moverFocused && o.level === undefined && !o.color ? 0.5 : 1}>
+            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={o.off ? 0 : 0.35 * vis(moverLevel)} filter={url("soft")}>
               {c.anim}
             </ellipse>
             <g transform={`rotate(${lean} ${fx} ${hy})`}>
-              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={0.2 + 0.75 * lv.mover.level} mask={url("beam")}>
+              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beam")}>
                 {c.anim}
               </path>
               {animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${fx} ${hy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />}
@@ -346,7 +361,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
               <rect x="-9" y="-4" width="18" height="4" rx="1" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
               <path d="M-7 -4 L-7 -14 M7 -4 L7 -14" stroke="#3d3844" strokeWidth="2" strokeLinecap="round" />
               <circle cx="0" cy="-12" r="5.5" fill="#2c2832" stroke="#3d3844" strokeWidth="0.6" />
-              <circle cx="0" cy="-12" r="2.8" fill={c.fill}>
+              <circle cx="0" cy="-12" r="2.8" fill={o.off ? DARK_LENS : c.fill}>
                 {c.anim}
               </circle>
             </g>

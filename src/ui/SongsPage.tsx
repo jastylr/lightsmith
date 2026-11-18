@@ -41,6 +41,7 @@ import { cssColor, PaletteEditor } from "./ColorPicker";
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
+import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { PreviewWindow } from "./PreviewWindow";
 import { StagePreview } from "./StagePreview";
@@ -123,6 +124,18 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     set({ sections: [...song.sections.slice(0, i + 1), copy, ...song.sections.slice(i + 1)] });
     setSelected(copy.id);
   };
+  /** Copy a section's individual light settings to every section of its type, or the whole song. */
+  const copyLights = (from: Section, scope: "type" | "song") => {
+    const own = from.lights ?? {};
+    set({
+      sections: song.sections.map((x) =>
+        x.id === from.id || (scope === "type" && x.type !== from.type) || isBlackout(x)
+          ? x
+          : { ...x, lights: { ...(x.lights ?? {}), ...Object.fromEntries(Object.entries(own).map(([k, v]) => [k, { ...v }])) } },
+      ),
+    });
+  };
+
   /** Delete a section after asking, then select its neighbour. */
   const remove = async (s: Section) => {
     const ok = await askConfirm({
@@ -235,7 +248,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -854,6 +867,7 @@ function LookEditor({
   popped,
   onPopOut,
   onPopIn,
+  onCopyLights,
 }: {
   s: Section;
   songBpm: number;
@@ -865,6 +879,7 @@ function LookEditor({
   popped: boolean;
   onPopOut: () => void;
   onPopIn: () => void;
+  onCopyLights: (scope: "type" | "song") => void;
 }) {
   const mood = moodById(s.mood);
   const moodPattern = patternById(mood.pattern);
@@ -973,6 +988,10 @@ function LookEditor({
               </Field>
               {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
+          </Group>
+
+          <Group icon="stage" title="Individual lights" description="Give particular lights their own color or brightness, or switch them off, for this section. Everything else keeps following the mood and the settings above.">
+            <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
           </Group>
 
           <Group icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">

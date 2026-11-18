@@ -11,7 +11,7 @@
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
-import { colorLayoutOf, lightLevels, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { colorLayoutOf, lightLevels, lightSetting, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -352,6 +352,12 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       if (typeof t === "number") return pal[t % pal.length]!;
       return pal[(k + mixOffset) % pal.length]!;
     };
+    /** A light's own settings: its color, brightness and whether it's off. */
+    const own = (r: RigFixture) => {
+      const l = lightSetting(s, r.fixtureId);
+      return { color: l?.color !== undefined ? colorById(l.color).rgb : undefined, level: l?.level, off: !!l?.off };
+    };
+    const BLACK: RGB = [0, 0, 0];
     const patternLights = (() => {
       const ids = new Set(patternTargets(s, rig));
       return usedLights.filter((r) => ids.has(r.fixtureId)).sort(stageOrder);
@@ -378,12 +384,14 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
         backdrop.forEach((r, i) => {
           const p = prof(r);
-          const sc = fixtureLevel(v, r.fixtureId, p, levels.backdrop.level);
-          const color = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!) : colorFor(pal, "backdrop", i, 0);
+          const o = own(r);
+          const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : (o.level ?? levels.backdrop.level));
+          const auto = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!) : colorFor(pal, "backdrop", i, 0);
+          const color = o.off ? BLACK : (o.color ?? auto);
           // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
           const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
           for (const h of p.heads) headColor(v, r.fixtureId, h, color, (underPattern ? pattern.floor : 1) * sc);
-          if (focusSet.has(r.fixtureId)) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
+          if (focusSet.has(r.fixtureId) && !o.color && !o.off) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
         });
         out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
       }
@@ -399,15 +407,17 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         const v: Vals = new Map();
         for (const [k, r] of rs.entries()) {
           const p = prof(r);
+          const o = own(r);
           const focused = focusSet.has(r.fixtureId);
           const isHot = hot === null || r.side === hot || r.side === "C";
           const base = levels[job].level;
-          const lv = focused ? 1 : focusing ? base * 0.35 : isHot ? base : base * 0.35;
+          // A light's own brightness wins over focus and side-to-side swaps.
+          const lv = o.off ? 0 : (o.level ?? (focused ? 1 : focusing ? base * 0.35 : isHot ? base : base * 0.35));
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
-          const color = focused ? WARM_WHITE : colorFor(pal, job, k, isHot ? 0 : 1);
+          const color = o.off ? BLACK : (o.color ?? (focused ? WARM_WHITE : colorFor(pal, job, k, isHot ? 0 : 1)));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
-            if (whiteOnly) setVal(v, r.fixtureId, h.white, focused ? 255 : 0);
+            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : o.color || o.level !== undefined ? 255 * lv : focused ? 255 : 0);
             else headColor(v, r.fixtureId, h, color, sc);
           }
         }
@@ -429,9 +439,10 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         const v: Vals = new Map();
         for (const [k, r] of movers.entries()) {
           const p = prof(r);
+          const o = own(r);
           const focused = focusSet.has(r.fixtureId);
-          const sc = fixtureLevel(v, r.fixtureId, p, focused ? 1 : focusing ? levels.mover.level * 0.5 : levels.mover.level);
-          for (const h of p.heads) headColor(v, r.fixtureId, h, focused ? WARM_WHITE : colorFor(pal, "mover", k, 1), sc);
+          const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : (o.level ?? (focused ? 1 : focusing ? levels.mover.level * 0.5 : levels.mover.level)));
+          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : (o.color ?? (focused ? WARM_WHITE : colorFor(pal, "mover", k, 1))), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {
             const home = r.home ?? { pan: 128, tilt: 128 };
