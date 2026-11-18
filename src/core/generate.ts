@@ -525,7 +525,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const rows = Math.ceil(song.sections.length / perRow);
   const width = Math.min(song.sections.length, perRow) * stepPx + 20;
   const height = rows * stepPx + 46;
-  const spot = placeFrame(vc, page, width, height, previousSpot);
+  const spot = placeFrame(page, width, height, previousSpot);
   const frame = el("SoloFrame", { Caption: frameCaption, ID: wid++ }, [
     el("WindowState", { Visible: "True", X: spot.x, Y: spot.y, Width: width, Height: height }),
     textEl("AllowResize", "True"),
@@ -579,7 +579,7 @@ function freeSpot(taken: Box[], area: Box, w: number, h: number): { x: number; y
  * first page; else inside a big frame on that page that has room (a console
  * frame many shows are built around); else under everything on the page.
  */
-function placeFrame(vc: XmlElement, page: XmlElement, w: number, h: number, previous?: { parent: XmlElement; x: number; y: number }): { parent: XmlElement; x: number; y: number; where: string } {
+function placeFrame(page: XmlElement, w: number, h: number, previous?: { parent: XmlElement; x: number; y: number }): { parent: XmlElement; x: number; y: number; where: string } {
   const pageName = (getAttr(page, "Caption") ?? "").trim();
   const onPage = pageName ? `on the Virtual Console page “${pageName}”` : "on the first Virtual Console page";
   const inside = (f: XmlElement) => `inside the frame “${getAttr(f, "Caption") ?? ""}” ${onPage}`;

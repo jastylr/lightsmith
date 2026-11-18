@@ -28,7 +28,6 @@ import {
   type ColorJob,
   type ColorTarget,
   type Side,
-  type Role,
   type EffectId,
   type Focus,
   type MoverSpread,
