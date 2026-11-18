@@ -354,7 +354,7 @@ flowchart LR
 - File input and drag-and-drop in the browser; reading files as text.
 - Telling file types apart and routing each to the right parser (`addFiles` in the store).
 - Reading a workspace: fixtures, functions and fixture groups (`parseWorkspace`).
-- Reading QLC+ 5's 3D view (`<Monitor>`, `<Grid>`, `<FxItem XPos YPos ZPos XRot YRot ZRot>`): the stage size, and where each fixture is across, back to front and up, converted from feet and millimetres to shares of the stage (`StageSize`, `Placement`, `readStage`). Working out from three rotations whether a bar stands on its end (`standsUp`). Why QLC+ 4's 2D view is skipped.
+- Reading QLC+ 5's 3D view (`<Monitor>`, `<Grid>`, `<FxItem XPos YPos ZPos XRot YRot ZRot>`): the stage size, and where each fixture is across, back to front and up, converted from feet and millimetres to shares of the stage (`StageSize`, `Placement`, `readStage`). Working out from three rotations whether a bar stands on its end (`standsUp`), and reading a moving head turned to face the back from QLC+'s Invert pan (`Placement.facesBack`). Why QLC+ 4's 2D view is skipped.
 - Reading a fixture definition and building a usable profile for the mode in use: master dimmer, color heads, pan/tilt, shutters (`parseFixtureDef`, `classifyChannel`, `buildProfile`). The "Colour" spelling trap.
 - The bundled QLC+ fixture library: a build-time sync script, an `index.json`, fetched on demand.
 - Status, empty and error states as first-class design.
@@ -398,7 +398,7 @@ flowchart LR
 - **Light glyphs.** Bars (standing up or lying flat), moving heads, pars and front lights drawn in SVG, each with a colored ring for its job, and a legend.
 - **Dragging.** Moving a light changes only where it is, never its job.
 - **The tray.** Lights not in use.
-- **The inspector.** The selected light's details, job buttons, where it is in metres or feet, "Put it back where QLC+ has it", mounting, which way a bar stands, moving-head home pan/tilt, and the reverse switch.
+- **The inspector.** The selected light's details, job buttons, where it is in metres or feet, "Put it back where QLC+ has it", mounting, which way a bar stands, which way a moving head faces (with an arrow on the plan), moving-head home pan/tilt, and the reverse switch.
 - **Hung lights** show a hanger from above and hang from the truss from the audience; hung moving heads are drawn upside down.
 - **Writing back.** On export, lights moved here are moved in QLC+'s 3D view too (`writePlaces`).
 
@@ -477,6 +477,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Mirroring the export's rules so the preview tells the truth.
 - Hung lights: bodies hanging from the truss, cones pointing down to pools on the floor, and moving-head beams that sweep from above.
 - Drawing each light at its real depth, and bars lying flat on their side.
+- Aiming a resting moving head from its home pan and tilt, and mirroring one that faces the back: why the same DMX values make an X when two heads face opposite ways.
 - Floating windows through portals, with a remembered position.
 - The settings-card pattern (`Group`) that every section below uses.
 
