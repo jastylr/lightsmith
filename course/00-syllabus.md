@@ -70,7 +70,7 @@ flowchart LR
 | 10. Store | Sequence: a click → `change()` → undo history → save; state diagram of undo with gestures |
 | 11. XML toolkit | XML text → token stream → element tree → text again |
 | 12. Show file | Annotated page screenshot; flowchart of `addFiles` routing each file type; how a fixture becomes a profile |
-| 13–14. Stage | Annotated page screenshot; how lanes and positions become roles, sides and order; sequence of a drag |
+| 13–14. Stage | Annotated page screenshot; how QLC+'s 3D view becomes positions, sides and order; job versus place; sequence of a drag |
 | 15–21. Songs | Annotated screenshot for each section; component tree of the Songs page; timeline resize and playback sequences; how a section's settings flow into the preview |
 | 22. Export | Annotated page screenshot; flowchart of `generateSong`; which QLC+ functions one section becomes; where the Virtual Console frame is placed |
 | 23. Deploying | The GitHub Actions pipeline, from push to live site |
@@ -284,7 +284,7 @@ flowchart LR
 - Presets as data tables: moods, colors, patterns, movements, effects, section types and song templates. Adding a choice without touching logic.
 - Defaults: `newSection`, `newSong`, `sectionsFromTemplate`, and the "works on any rig" principle.
 - Derived values as functions, not stored fields: `sectionMs`, `lengthLabel`, `colorLayoutOf`, `lightLevels`.
-- Where a light is mounted (`Mount`, `RigFixture.mount`): on the floor or hung from a truss. It changes how the light is drawn and set up, not its colors.
+- Where a light is, kept apart from what it does: `RigFixture.pos`, `height` and `upright`, and `mountOf` (on the floor, or hung from a truss when it's in the top half of the stage). The `moved` flag records a change made in Lightsmith. Position changes how a light is drawn and set up, never its colors.
 - Layered settings, from general to specific: the mood and energy, then each kind of light (`colorLayout`, `brightness`), then individual lights (`lights`, `LightSetting`, `lightSetting`, `sitsOut`). The most specific setting wins, and anything left out stays automatic.
 - Versioning and migration: `version: 1`, `normalizeSection`, and the Rain-to-Drizzle migration as a worked example. *Coming from PHP: like a database migration that runs on every load against data you don't control.*
 - IDs: how they're made today and why that changes later.
@@ -354,7 +354,7 @@ flowchart LR
 - File input and drag-and-drop in the browser; reading files as text.
 - Telling file types apart and routing each to the right parser (`addFiles` in the store).
 - Reading a workspace: fixtures, functions and fixture groups (`parseWorkspace`).
-- Reading QLC+ 5's 3D view (`<Monitor>`, `<Grid>`, `<FxItem YPos>`) to learn how high each fixture hangs, converting feet and millimetres to a share of the stage height (`WsFixture.height`).
+- Reading QLC+ 5's 3D view (`<Monitor>`, `<Grid>`, `<FxItem XPos YPos ZPos XRot YRot ZRot>`): the stage size, and where each fixture is across, back to front and up, converted from feet and millimetres to shares of the stage (`StageSize`, `Placement`, `readStage`). Working out from three rotations whether a bar stands on its end (`standsUp`). Why QLC+ 4's 2D view is skipped.
 - Reading a fixture definition and building a usable profile for the mode in use: master dimmer, color heads, pan/tilt, shutters (`parseFixtureDef`, `classifyChannel`, `buildProfile`). The "Colour" spelling trap.
 - The bundled QLC+ fixture library: a build-time sync script, an `index.json`, fetched on demand.
 - Status, empty and error states as first-class design.
@@ -372,15 +372,15 @@ flowchart LR
 
 ### Chapter 13. The Stage page: rig model and automatic layout
 
-**Goals.** Model what each light does on stage, and make a good first guess for any rig.
+**Goals.** Model where each light is and what it does, as two separate things, and make a good first guess for any rig.
 
-**On screen.** The stage plan as the page first shows it, with lights already placed in lanes.
+**On screen.** The stage as the page first shows it: every light where QLC+'s 3D view has it, each with a job already guessed.
 
 **Concepts.**
-- The rig: each fixture's job (backdrop, moving head, side and floor, front, not used), side, order and position.
-- Guessing roles from fixture profiles (`guessRole`, `guessRig`) while keeping anything the user changed.
-- Guessing the mounting from height (`guessMount`): above half the stage height starts as hung from a truss.
-- Default positions and lanes (`ROLE_ROW`, `defaultPosition`); working out side and order from position (`settleRig`, `stageOrder`).
+- The rig: each fixture's job (backdrop, moving head, wash light, front, not used), and separately its place, side and order.
+- Which source wins for a light's place: a move made in Lightsmith, then QLC+'s 3D view, then an automatic layout (`guessRig`). Loading a show file again clears the moves, so QLC+ is the source of truth.
+- Guessing jobs from what a fixture can do and where it is (`guessRole`, `isBar`): a moving head is a moving head anywhere; a light in front of the stage starts as a front light.
+- The automatic layout for shows with no 3D view (`ROLE_ROW`, `defaultPosition`); working out side and order from position (`settleRig`, `stageOrder`).
 - The sync effect that keeps the rig in step with the workspace.
 
 **Files.** `src/core/rig.ts`, `src/ui/store.ts` (rig sync effect).
@@ -391,19 +391,21 @@ flowchart LR
 
 ### Chapter 14. The Stage page: the plan, dragging and the inspector
 
-**Goals.** Build an interactive stage plan users can arrange by dragging.
+**Goals.** Build an interactive stage users can check against the real thing and adjust by dragging.
 
 **On screen.**
-- **The lanes.** Backdrop, Moving heads, Side and floor, Front.
-- **Light glyphs.** Bars, moving heads, pars and front lights drawn in SVG, with labels.
-- **Dragging.** Moving a light along or between lanes.
+- **Two views.** From above (across and back to front, at QLC+'s stage size, with a metre grid) and from the audience (across and up, with the truss).
+- **Light glyphs.** Bars (standing up or lying flat), moving heads, pars and front lights drawn in SVG, each with a colored ring for its job, and a legend.
+- **Dragging.** Moving a light changes only where it is, never its job.
 - **The tray.** Lights not in use.
-- **The inspector.** The selected light's details, job buttons, side, mounting (on the floor or hung from a truss), moving-head home pan/tilt, and the reverse switch.
-- **Hung lights** show a hanger on the plan, and hung moving heads are drawn upside down.
+- **The inspector.** The selected light's details, job buttons, where it is in metres or feet, "Put it back where QLC+ has it", mounting, which way a bar stands, moving-head home pan/tilt, and the reverse switch.
+- **Hung lights** show a hanger from above and hang from the truss from the audience; hung moving heads are drawn upside down.
+- **Writing back.** On export, lights moved here are moved in QLC+'s 3D view too (`writePlaces`).
 
 **Concepts.**
 - Pointer events for dragging: start, track on `window`, end, and telling a click from a drag by distance.
-- SVG in React: coordinates, groups and responsive sizing.
+- SVG in React: coordinates, groups and responsive sizing; mapping between stage shares and screen points in two different views.
+- Separating identity ("what it does") from geometry ("where it is") in a UI, and why mixing them confused real users.
 - Selection state and an inspector panel.
 - Saving only on release, so a drag is one undo step.
 
@@ -474,6 +476,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - SMIL animation timed to tempo; a visual brightness mapping.
 - Mirroring the export's rules so the preview tells the truth.
 - Hung lights: bodies hanging from the truss, cones pointing down to pools on the floor, and moving-head beams that sweep from above.
+- Drawing each light at its real depth, and bars lying flat on their side.
 - Floating windows through portals, with a remembered position.
 - The settings-card pattern (`Group`) that every section below uses.
 

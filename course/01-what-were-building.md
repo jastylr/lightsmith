@@ -88,7 +88,7 @@ This matters more than it sounds. It's why Lightsmith's effects are set to *add*
 | Fixture | Count | Mode | Job in Lightsmith |
 |---|---|---|---|
 | Amazon Wash Light Bar | 4 | 114 channels, many heads | **Backdrop:** a vertical wall of light behind the band |
-| OPPSK HYT-027 LED panel | 2 | 16 channels | **Side and floor:** washes on the players (stage left on the rhythm guitarist, stage right on the lead) |
+| OPPSK HYT-027 LED panel | 2 | 16 channels | **Wash light:** washes on the players (stage left on the rhythm guitarist, stage right on the lead) |
 | JCYW Flody moving head | 2 | 58 channels | **Moving heads:** beams that sweep and point |
 
 Lightsmith never assumes this rig. Another band might have no backdrop, eight pars and a single moving head. Every feature has to work out what it can do from whatever lights are there, a principle you'll see in the rig code (Chapters 13 and 14).
@@ -167,11 +167,11 @@ Lightsmith has four steps, shown in the left menu, and you go through them in or
 
 ![The Stage page](images/ch01-stage.png)
 
-1. **The stage plan,** seen from above, with lanes for each job: Backdrop, Moving heads, Side and floor, and Front light. Lightsmith makes a first guess; the user drags lights to fix it. The lane decides a light's job, and its position decides which side of the stage it's on.
+1. **The stage,** seen from above or from the audience, with every light where QLC+'s 3D view has it. Each light has a job (Backdrop, Moving head, Wash light or Front light), shown as a colored ring. Lightsmith guesses the jobs; the user can change them, and can drag a light to move it. Where a light is decides which side of the stage it's on, but never its job.
 2. **The tray** for lights that aren't used.
 3. **The inspector.** Details of the selected light, its job, moving-head home positions and more. With nothing selected, it shows a summary of the rig.
 
-**Takes in:** the light profiles. **Produces:** the **rig**: each light's job, side, order and position.
+**Takes in:** the light profiles and QLC+'s 3D view. **Produces:** the **rig**: each light's job, and its position, height, side and order.
 
 ### Page 3: Songs
 

@@ -227,10 +227,10 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
                   <text className="plan-note" x={VW / 2} y={TOP + DH + (DH * APRON) / 2 + 5}>
                     In front of the stage
                   </text>
-                  <text className="plan-side" x={MX + 10} y={TOP + DH - 12}>
+                  <text className="plan-side" x={MX + 10} y={TOP + DH + 22}>
                     Stage right
                   </text>
-                  <text className="plan-side" x={MX + DW - 10} y={TOP + DH - 12} textAnchor="end">
+                  <text className="plan-side" x={MX + DW - 10} y={TOP + DH + 22} textAnchor="end">
                     Stage left
                   </text>
                   <text className="plan-audience" x={VW / 2} y={ABOVE_VH - 8}>
