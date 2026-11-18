@@ -11,7 +11,7 @@
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
-import { DEFAULT_COLOR_LAYOUT, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { colorLayoutOf, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -344,7 +344,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     // Focus: these lights go warm white at full; the other side and floor lights dim.
     const focusSet = new Set(s.focus === "all" ? [] : focusLights({ fixtures: usedLights }, s.focus));
     const focusing = focusSet.size > 0;
-    const layout = { ...DEFAULT_COLOR_LAYOUT, ...(s.colorLayout ?? {}) };
+    const layout = colorLayoutOf(s);
     /** The color for the k-th light (stage left first) of a kind, given the palette arrangement. */
     const colorFor = (pal: RGB[], job: ColorJob, k: number, mixOffset: number): RGB => {
       const t = layout[job];

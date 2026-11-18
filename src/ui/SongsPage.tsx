@@ -25,7 +25,7 @@ import {
   focusLights,
   patternTargets,
   colorById,
-  DEFAULT_COLOR_LAYOUT,
+  colorLayoutOf,
   type ColorJob,
   type ColorTarget,
   type Side,
@@ -690,7 +690,7 @@ const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Side 
 function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; onChange: (p: Partial<Section>) => void }) {
   const jobs = (["backdrop", "side", "mover", "front"] as ColorJob[]).filter((j) => rig.fixtures.some((f) => f.role === j));
   if (!jobs.length) return null;
-  const layout = { ...DEFAULT_COLOR_LAYOUT, ...(s.colorLayout ?? {}) };
+  const layout = colorLayoutOf(s);
   const set = (job: ColorJob, t: ColorTarget) => onChange({ colorLayout: { ...(s.colorLayout ?? {}), [job]: t } });
   return (
     <div className="color-layout">
@@ -734,7 +734,7 @@ function LookEditor({ s, songBpm, rig, lights, index, onChange, onDuplicate, onR
   const palette = s.colors.length ? s.colors : mood.colors;
   const pattern = patternById(s.pattern === "mood" ? mood.pattern : s.pattern);
 
-  const moodOptions: Option<string>[] = MOODS.map((m) => ({ value: m.id, label: m.label, description: m.description, swatches: m.colors.map(cssColor) }));
+  const moodOptions: Option<string>[] = MOODS.map((m) => ({ value: m.id, label: m.label, description: m.description, swatches: m.colors.map(cssColor), group: m.group ?? "Moods" }));
   const patternOptions: Option<string>[] = [
     { value: "mood", label: `Follow the mood (${moodPattern.label})`, description: moodPattern.description },
     ...PATTERNS.map((p) => ({ value: p.id, label: p.label, description: p.description, group: PATTERN_GROUP[p.id] ?? "More" })),

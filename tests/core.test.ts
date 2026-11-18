@@ -9,6 +9,9 @@ import {
   guessRig,
   matchProfiles,
   MOVEMENTS,
+  MOODS,
+  colorById,
+  colorLayoutOf,
   newSection,
   newSong,
   normalizeSection,
@@ -298,4 +301,21 @@ test("blackout sections turn every light off, with a cut or a fade to black", ()
   assert.ok(verseScenes.some((c) => /FadeOut="2000"/.test(c.slice(0, 200))));
   const chorusScenes = xml.split('Path="Lightsmith/Dark/3. Chorus"').slice(1);
   assert.ok(chorusScenes.every((c) => !/FadeOut="[1-9]/.test(c.slice(0, 200))));
+});
+
+test("eerie moods put their accent color on the moving heads", () => {
+  for (const id of ["twilight", "mist", "dread", "ember"]) {
+    const m = MOODS.find((x) => x.id === id)!;
+    assert.ok(m, id);
+    for (const c of m.colors) assert.notEqual(colorById(c).label, colorById("nope").label, `${id}: unknown color ${c}`);
+  }
+  const s = { ...newSection("verse", 120), mood: "twilight" };
+  assert.deepEqual(colorLayoutOf(s), { backdrop: 0, side: 0, mover: 1, front: "white" });
+  // The section's own choice still wins.
+  assert.equal(colorLayoutOf({ ...s, colorLayout: { mover: "mix" } }).mover, "mix");
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "e", title: "Eerie", bpm: 90, sections: ["twilight", "mist", "dread", "ember"].map((mood) => ({ ...newSection("verse", 90), mood })) } });
+  assert.deepEqual(checkWorkspace(parseWorkspace(serializeWorkspace(ws)), profiles), []);
 });

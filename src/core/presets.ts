@@ -30,6 +30,14 @@ export const COLORS: ColorPreset[] = [
   { id: "violet", label: "Violet", rgb: [140, 0, 255] },
   { id: "magenta", label: "Magenta", rgb: [255, 0, 180] },
   { id: "pink", label: "Pink", rgb: [255, 70, 140] },
+  { id: "midnight", label: "Midnight blue", rgb: [20, 15, 120] },
+  { id: "lavender", label: "Lavender", rgb: [170, 130, 255] },
+  { id: "plum", label: "Plum", rgb: [110, 15, 120] },
+  { id: "steelBlue", label: "Steel blue", rgb: [60, 100, 190] },
+  { id: "iceBlue", label: "Ice blue", rgb: [150, 225, 255] },
+  { id: "deepTeal", label: "Deep teal", rgb: [0, 110, 110] },
+  { id: "sicklyAmber", label: "Sickly amber", rgb: [200, 150, 25] },
+  { id: "lime", label: "Lime", rgb: [150, 200, 40] },
   { id: "warmWhite", label: "Warm white", rgb: [255, 190, 120] },
   { id: "white", label: "White", rgb: [255, 255, 255] },
 ];
@@ -180,7 +188,14 @@ export interface MoodPreset {
   side: SideStyle;
   movement: MovementId;
   colorChange: ColorChange;
+  /** Which palette color each kind of light starts with (index, "mix" or "white"). */
+  layout?: Partial<Record<"backdrop" | "side" | "mover" | "front", "mix" | "white" | number>>;
+  /** Heading the mood is listed under. */
+  group?: string;
 }
+
+/** Washes (backdrop, side lights) in the first color; spots and beams in the second. */
+const WASH_AND_ACCENT = { backdrop: 0, side: 0, mover: 1 } as const;
 
 export const MOODS: MoodPreset[] = [
   { id: "dark", label: "Dark", description: "Low light, deep blues, almost no motion", colors: ["indigo", "blue"], intensity: 0.35, pattern: "drift", side: "static", movement: "static", colorChange: "hold" },
@@ -193,6 +208,11 @@ export const MOODS: MoodPreset[] = [
   { id: "energetic", label: "Energetic", description: "Driving reds and ambers, lots of motion", colors: ["red", "amber", "white"], intensity: 0.95, pattern: "stripes", side: "swapBeat", movement: "figure8", colorChange: "2bars" },
   { id: "aggressive", label: "Aggressive", description: "Hard red and white, fast and punchy", colors: ["red", "white"], intensity: 1, pattern: "strobe", side: "swapBeat", movement: "ballyhoo", colorChange: "hold" },
   { id: "celebration", label: "Celebration", description: "Big, bright and joyful", colors: ["yellow", "magenta", "cyan", "green"], intensity: 1, pattern: "fireworks", side: "swapBeat", movement: "circle", colorChange: "bar" },
+  // Eerie and melancholy: a wash color with an accent on the beams.
+  { id: "twilight", group: "Eerie and melancholy", label: "Bruised twilight", description: "Midnight blue washes, pale lavender beams. Heavy, dreamlike sadness", colors: ["midnight", "lavender"], intensity: 0.4, pattern: "drift", side: "static", movement: "sweep", colorChange: "hold", layout: WASH_AND_ACCENT },
+  { id: "mist", group: "Eerie and melancholy", label: "Haunted mist", description: "Steel blue washes, ice blue beams. Cold, isolated and ghostly", colors: ["steelBlue", "iceBlue"], intensity: 0.45, pattern: "drift", side: "static", movement: "leaf", colorChange: "hold", layout: WASH_AND_ACCENT },
+  { id: "dread", group: "Eerie and melancholy", label: "Decay and dread", description: "Deep teal washes, sickly amber and lime beams. Unsettling tension", colors: ["deepTeal", "sicklyAmber", "lime"], intensity: 0.5, pattern: "plasma", side: "static", movement: "leaf", colorChange: "hold", layout: { backdrop: 0, side: 0, mover: "mix" } },
+  { id: "ember", group: "Eerie and melancholy", label: "Fading ember", description: "Plum washes, a dim warm-white spotlight. Nostalgic and lonely", colors: ["plum", "warmWhite"], intensity: 0.4, pattern: "solid", side: "static", movement: "static", colorChange: "hold", layout: WASH_AND_ACCENT },
 ];
 
 export function moodById(id: string): MoodPreset {

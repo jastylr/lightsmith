@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, DEFAULT_COLOR_LAYOUT, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, colorLayoutOf, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -97,7 +97,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const cellH = 10.5;
   const focusSet = new Set(section.focus === "all" ? [] : focusLights({ fixtures: rig.fixtures.filter((f) => f.role !== "ignore") }, section.focus));
   const focusing = focusSet.size > 0;
-  const layout = { ...DEFAULT_COLOR_LAYOUT, ...(section.colorLayout ?? {}) };
+  const layout = colorLayoutOf(section);
   /** Same rules as the export: mix spreads the palette; a number picks one color; "white" is warm white. */
   const colorFor = (job: ColorJob, k: number, offset: number) => {
     const t = layout[job];

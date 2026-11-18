@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
+import { moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -163,6 +163,11 @@ export function sectionsFromTemplate(templateId: string, bpm: number): Section[]
     if ((totals[type] ?? 0) > 1) s.name = `${s.name} ${count[type]}`;
     return s;
   });
+}
+
+/** Which color each kind of light uses: the section's choices, else the mood's, else the defaults. */
+export function colorLayoutOf(s: Pick<Section, "mood" | "colorLayout">): Record<ColorJob, ColorTarget> {
+  return { ...DEFAULT_COLOR_LAYOUT, ...(moodById(s.mood).layout ?? {}), ...(s.colorLayout ?? {}) };
 }
 
 /** A Blackout section: every light off, for a gap, a pause or a dramatic stop. */
