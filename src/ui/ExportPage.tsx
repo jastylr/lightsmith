@@ -88,7 +88,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
             <div>
               <h2>{errors.length ? "A few things need fixing" : `${result.songTitle} is ready`}</h2>
               <p>
-                {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and and a frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}.
+                {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and a frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}.
                 {result.summary.removedPrevious > 0 && " The earlier export of this song was replaced."}
               </p>
             </div>
