@@ -15,6 +15,7 @@ import {
   patternById,
   sectionMs,
   sectionBeats,
+  isBlackout,
   lengthLabel,
   sectionTypeById,
   sectionsFromTemplate,
@@ -263,18 +264,21 @@ function AddSectionMenu({ onAdd }: { onAdd: (type: string) => void }) {
             <button
               key={t.id}
               role="menuitem"
+              className={t.id === "blackout" ? "menu-blackout" : undefined}
               onClick={() => {
                 onAdd(t.id);
                 setOpen(false);
               }}
             >
               <span className="swatch-row">
-                {moodById(t.mood).colors.map((c) => (
-                  <i key={c} style={{ background: cssColor(c) }} />
-                ))}
+                {t.id === "blackout" ? (
+                  <i className="hatch" />
+                ) : (
+                  moodById(t.mood).colors.map((c) => <i key={c} style={{ background: cssColor(c) }} />)
+                )}
               </span>
               {t.label}
-              <small>{moodById(t.mood).label}</small>
+              <small>{t.id === "blackout" ? "All lights off" : moodById(t.mood).label}</small>
             </button>
           ))}
         </div>
@@ -322,6 +326,12 @@ function Timeline({
     setScale(Math.max(2, Math.min(40, w / Math.max(totalSec, 10))));
   };
   useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the selected section in view (for example one just added at the end).
+  useEffect(() => {
+    const el = selected ? scroller.current?.querySelector<HTMLElement>(`[data-id="${selected}"]`) : null;
+    el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [selected, song.sections.length]);
 
   const startResize = (e: ReactPointerEvent<HTMLElement>, id: string) => {
     if (e.button !== 0) return;
@@ -405,7 +415,7 @@ function Timeline({
     <div className="timeline-wrap">
       <div className="timeline-row">
         <div className="timeline" ref={scroller}>
-          <div className="timeline-track" ref={track} style={{ width: width + 2 }}>
+          <div className="timeline-track" ref={track} style={{ width: width + 16 }}>
             <div className="ruler" aria-hidden="true">
               {Array.from({ length: Math.floor(totalSec / step) + 1 }, (_, i) => (
                 <span key={i} style={{ left: i * step * scale }}>
@@ -423,8 +433,9 @@ function Timeline({
                   <div
                     key={s.id}
                     role="listitem"
+                    data-id={s.id}
                     ref={itemRef(s.id)}
-                    className={`block${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
+                    className={`block${isBlackout(s) ? " blackout" : ""}${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
                     style={{ width: w, ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
                     tabIndex={0}
                     aria-label={`${s.name}, ${lengthLabel(s)}, ${fmt(ms)}. Enter to edit, Alt and arrows to move, Shift and arrows to change the length.`}
@@ -502,14 +513,12 @@ function CueList({ song, selected, onSelect, onMove }: { song: Song; selected: s
           <button className="cue-main" onClick={() => onSelect(s.id)} aria-pressed={selected === s.id}>
             <span className="cue-num">{i + 1}</span>
             <span className="swatch-row">
-              {paletteOf(s).map((c, k) => (
-                <i key={k} style={{ background: c }} />
-              ))}
+              {isBlackout(s) ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}
             </span>
             <span className="cue-text">
               <strong>{s.name}</strong>
               <small>
-                {moodById(s.mood).label}, {fmt(sectionMs(s))}
+                {isBlackout(s) ? "All lights off" : moodById(s.mood).label}, {fmt(sectionMs(s))}
               </small>
             </span>
             <Icon name="chevronRight" size={16} className="cue-chevron" />
@@ -626,6 +635,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
   const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
   const sideName: Record<Side, string> = { SL: "Stage left", C: "Center", SR: "Stage right" };
+  const blackout = isBlackout(s);
 
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
@@ -645,8 +655,16 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
       <div className="editor-grid">
         <div className="editor-preview">
           <figure className="preview-figure">
-            <StagePreview section={s} rig={rig} />
-            <figcaption className="hint">A sketch of this section on your stage, at its tempo.</figcaption>
+            {blackout ? (
+              <div className="blackout-preview">
+                <Icon name="moon" size={26} />
+                <strong>All lights off</strong>
+                <span>{s.transition === "snap" ? "The lights cut to black" : "The lights fade to black over one bar"} for {lengthLabel(s)}.</span>
+              </div>
+            ) : (
+              <StagePreview section={s} rig={rig} />
+            )}
+            <figcaption className="hint">{blackout ? "A blackout: a gap, a pause or a dramatic stop with no lights." : "A sketch of this section on your stage, at its tempo."}</figcaption>
           </figure>
           <div className="timing-row">
             <Field label="Section type">
@@ -674,6 +692,8 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
         </div>
 
         <div className="editor-controls">
+          {!blackout && (
+            <>
           <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors, a pattern and movement; energy sets brightness and speed.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
@@ -781,25 +801,40 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
             </div>
           </Group>
 
+            </>
+          )}
+
           <Group icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
             <span className="light-picker-label">When this section starts, the lights…</span>
-            <ChoiceCards
-              label="How the lights change when this section starts"
-              value={s.transition}
-              onChange={(transition: Transition) => onChange({ transition })}
-              options={[
-                { value: "snap", title: "Change instantly", text: "Best for hard hits, like a chorus that kicks in." },
-                { value: "fade", title: "Fade over one beat", text: "A quick, smooth change." },
-                { value: "build", title: "Build up gradually", text: "Ramps in over up to 4 bars, for a slow rise into the section." },
-              ]}
-            />
+            {blackout ? (
+              <ChoiceCards
+                label="How the lights go out"
+                value={s.transition === "snap" ? "snap" : "fade"}
+                onChange={(transition: Transition) => onChange({ transition })}
+                options={[
+                  { value: "snap", title: "Cut to black", text: "Every light goes out at once. Best for a hard stop." },
+                  { value: "fade", title: "Fade to black", text: "The previous look fades out over one bar." },
+                ]}
+              />
+            ) : (
+              <ChoiceCards
+                label="How the lights change when this section starts"
+                value={s.transition}
+                onChange={(transition: Transition) => onChange({ transition })}
+                options={[
+                  { value: "snap", title: "Change instantly", text: "Best for hard hits, like a chorus that kicks in." },
+                  { value: "fade", title: "Fade over one beat", text: "A quick, smooth change." },
+                  { value: "build", title: "Build up gradually", text: "Ramps in over up to 4 bars, for a slow rise into the section." },
+                ]}
+              />
+            )}
             <span className="light-picker-label">When this section ends…</span>
             <ChoiceCards
               label="What happens when this section ends"
               value={s.autoAdvance ? "auto" : "cue"}
               onChange={(v) => onChange({ autoAdvance: v === "auto" })}
               options={[
-                { value: "cue", title: "Wait for my cue", text: "The look holds until you press the next button or footswitch. Best when the band doesn't play to a click." },
+                { value: "cue", title: "Wait for my cue", text: blackout ? "The lights stay off until you press the next button or footswitch." : "The look holds until you press the next button or footswitch. Best when the band doesn't play to a click." },
                 { value: "auto", title: `Move on after ${lengthLabel(s)}`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
               ]}
             />

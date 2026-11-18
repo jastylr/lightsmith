@@ -15,6 +15,7 @@ const PATHS = {
   x: "M6 6l12 12M18 6L6 18",
   plus: "M12 5v14M5 12h14",
   minus: "M5 12h14",
+  moon: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z",
   grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
   copy: "M9 9h11v11H9zM5 15V4h11",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",

@@ -12,7 +12,7 @@
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
 import { DEFAULT_COLOR_LAYOUT, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
-import { sectionMs } from "./model";
+import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
@@ -100,9 +100,9 @@ class Builder {
    * runs on those lights (QLC+ writes this as BlendMode="Additive"); without
    * it the matrix replaces their colors.
    */
-  matrix(name: string, path: string, opts: { algorithm: string; colors: RGB[]; stepMs: number; group: number; direction?: string; order?: string; props?: Record<string, string | number>; blend?: "Additive" }): number {
+  matrix(name: string, path: string, opts: { algorithm: string; colors: RGB[]; stepMs: number; group: number; direction?: string; order?: string; props?: Record<string, string | number>; blend?: "Additive"; fadeOut?: number }): number {
     const kids: XmlElement[] = [
-      el("Speed", { FadeIn: 0, FadeOut: 0, Duration: Math.max(20, Math.round(opts.stepMs)) }),
+      el("Speed", { FadeIn: 0, FadeOut: Math.round(opts.fadeOut ?? 0), Duration: Math.max(20, Math.round(opts.stepMs)) }),
       textEl("Direction", opts.direction ?? "Forward"),
       textEl("RunOrder", opts.order ?? "Loop"),
       textEl("Algorithm", opts.algorithm, { Type: "Script" }),
@@ -316,6 +316,15 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   song.sections.forEach((s, idx) => {
     const label = `${idx + 1}. ${safeName(s.name)}`;
     const path = `${songPath}/${label}`;
+    // A blackout is just an empty look: starting it stops the section before
+    // (in the solo frame and the song cue list), so every light goes out.
+    if (isBlackout(s)) {
+      sectionIds.push(b.collection(label, path, [blank()]));
+      return;
+    }
+    // Going into a blackout: cut (no fade-out) or fade to black over one of its bars.
+    const next = song.sections[idx + 1];
+    const toBlack = next && isBlackout(next) ? (next.transition === "snap" ? 0 : (60000 / next.bpm) * next.beatsPerBar) : undefined;
     const mood = moodById(s.mood);
     const en = energyOf(s.energy);
     const palette: RGB[] = (s.colors.length ? s.colors : mood.colors).map((c) => colorById(c).rgb);
@@ -354,7 +363,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       const out: number[] = [];
       const named = (n: string) => (tag ? `${n} ${tag}` : n);
       const fi = withFades ? fade : 0;
-      const fo = withFades ? beat : 0;
+      const fo = toBlack ?? (withFades ? beat : 0);
       const p0 = pal[0]!;
       const fixed = typeof layout.backdrop === "number" ? layout.backdrop : null;
       // The pattern's color: the one after the backdrop's chosen color, or the second color.
@@ -380,7 +389,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         const single = pattern.whiten ? mix(pattern.floor > 0 ? accent : main, WHITE, pattern.whiten) : pattern.floor > 0 ? accent : main;
         const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [main, accent] : pal.slice(0, 5);
         const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
-        out.push(b.matrix(named(`Pattern: ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: patternGroup, direction: pattern.direction, order: pattern.order, props: pattern.props }));
+        out.push(b.matrix(named(`Pattern: ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: patternGroup, direction: pattern.direction, order: pattern.order, props: pattern.props, fadeOut: toBlack }));
       }
 
       /** Side and front lights; `hot` is the side that's bright in a side-to-side swap. */

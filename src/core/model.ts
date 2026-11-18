@@ -165,6 +165,9 @@ export function sectionsFromTemplate(templateId: string, bpm: number): Section[]
   });
 }
 
+/** A Blackout section: every light off, for a gap, a pause or a dramatic stop. */
+export const isBlackout = (s: Pick<Section, "type">) => s.type === "blackout";
+
 /** A section's length in beats (bars can include part of a bar). */
 export const sectionBeats = (s: Pick<Section, "bars" | "beatsPerBar">) => Math.max(1, Math.round(s.bars * s.beatsPerBar));
 

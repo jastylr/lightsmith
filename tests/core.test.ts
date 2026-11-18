@@ -276,3 +276,26 @@ test("sections can end part-way through a bar", () => {
   generateSong({ ws, profiles, rig, song: { id: "p", title: "Part bar", bpm: 120, sections: [{ ...s, autoAdvance: true }] } });
   assert.deepEqual(checkWorkspace(parseWorkspace(serializeWorkspace(ws)), profiles), []);
 });
+
+test("blackout sections turn every light off, with a cut or a fade to black", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const verse = { ...newSection("verse", 120), transition: "fade" as const };
+  const fadeOut = { ...newSection("blackout", 120), transition: "fade" as const, autoAdvance: true };
+  const chorus = newSection("chorus", 120);
+  const cut = newSection("blackout", 120);
+  assert.equal(fadeOut.name, "Blackout");
+  generateSong({ ws, profiles, rig, song: { id: "b", title: "Dark", bpm: 120, sections: [verse, fadeOut, chorus, cut] } });
+  const xml = serializeWorkspace(ws);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+  // The blackout's look is just the blank spacer.
+  const blackout = xml.slice(xml.indexOf('Name="2. Blackout"'));
+  assert.match(blackout.slice(0, blackout.indexOf("</Function>")), /<Step Number="0">\d+<\/Step>/);
+  // The verse fades out over one bar (2 s at 120 BPM) into the fade-to-black;
+  // the chorus cuts straight to black.
+  const verseScenes = xml.split('Path="Lightsmith/Dark/1. Verse"').slice(1);
+  assert.ok(verseScenes.some((c) => /FadeOut="2000"/.test(c.slice(0, 200))));
+  const chorusScenes = xml.split('Path="Lightsmith/Dark/3. Chorus"').slice(1);
+  assert.ok(chorusScenes.every((c) => !/FadeOut="[1-9]/.test(c.slice(0, 200))));
+});

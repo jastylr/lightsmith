@@ -219,6 +219,7 @@ export const SECTION_TYPES: SectionTypePreset[] = [
   { id: "solo", label: "Solo", mood: "colorful", energy: 5, bars: 16, transition: "snap" },
   { id: "breakdown", label: "Breakdown", mood: "dark", energy: 1, bars: 8, transition: "fade" },
   { id: "outro", label: "Outro", mood: "dark", energy: 2, bars: 8, transition: "fade" },
+  { id: "blackout", label: "Blackout", mood: "dark", energy: 1, bars: 4, transition: "snap" },
   { id: "custom", label: "Custom", mood: "moody", energy: 3, bars: 8, transition: "fade" },
 ];
 
