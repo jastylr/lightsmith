@@ -37,6 +37,7 @@ import {
 import { cssColor, PaletteEditor } from "./ColorPicker";
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
+import { LightPicker, type Light } from "./LightPicker";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
 import { moveItem, useSortable } from "./useSortable";
@@ -118,7 +119,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const lights: Light[] = store.project.rig.fixtures
     .filter((f) => f.role !== "ignore" && store.profiles.has(f.fixtureId))
     .sort(stageOrder)
-    .map((f) => ({ id: f.fixtureId, name: names.get(f.fixtureId) ?? `Fixture ${f.fixtureId}`, role: f.role, hasRgb: store.profiles.get(f.fixtureId)!.hasRgb }));
+    .map((f) => ({ id: f.fixtureId, name: names.get(f.fixtureId) ?? `Fixture ${f.fixtureId}`, role: f.role, hasRgb: store.profiles.get(f.fixtureId)!.hasRgb, pos: f.pos ?? { x: 0.5, y: 0.5 } }));
   const current = song.sections.find((s) => s.id === selected);
 
   return (
@@ -351,84 +352,6 @@ function CueList({ song, selected, onSelect, onMove }: { song: Song; selected: s
   );
 }
 
-interface Light {
-  id: number;
-  name: string;
-  role: Role;
-  hasRgb: boolean;
-}
-const ROLE_LABEL: Record<Role, string> = { backdrop: "Backdrop", mover: "Moving heads", side: "Side and floor", front: "Front", ignore: "Not used" };
-
-/** Names a set of lights briefly: "Backdrop (4)", "Backdrop, Side and floor (6)" or "3 lights". */
-function describeLights(ids: Set<number>, lights: Light[], custom: boolean): string {
-  if (ids.size === 0) return "No lights chosen";
-  if (custom) return `${ids.size} ${ids.size === 1 ? "light" : "lights"}`;
-  const roles = [...new Set(lights.filter((l) => ids.has(l.id)).map((l) => ROLE_LABEL[l.role]))];
-  return `${roles.join(", ")} (${ids.size})`;
-}
-
-/**
- * A button that says which lights something runs on, opening a checklist of
- * every light grouped by job. Used for the pattern and for each effect.
- */
-function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { label: string; chosen: number[]; custom: boolean; lights: Light[]; needsRgb: boolean; onChange: (ids: number[] | undefined) => void }) {
-  const [open, setOpen] = useState(false);
-  const set = new Set(chosen.filter((id) => lights.some((l) => l.id === id && (!needsRgb || l.hasRgb))));
-  const roles = [...new Set(lights.map((l) => l.role))];
-  const toggle = (id: number) => {
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    onChange([...next]);
-  };
-  return (
-    <div className="light-picker">
-      <span className="light-picker-label">{label}</span>
-      <button type="button" className={set.size ? "picker-button" : "picker-button empty"} onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Choose which lights to use">
-        <Icon name="stage" size={15} />
-        <span className="picker-summary">{describeLights(set, lights, custom)}</span>
-        <span className="picker-action">{open ? "Done" : "Choose lights"}</span>
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={14} />
-      </button>
-      {open && (
-        <div className="lights-panel" role="group" aria-label={label} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
-          <p className="hint">Tick the lights to use.{needsRgb ? " Lights without color channels can't show this." : ""}</p>
-          <div className="lights-groups">
-          {roles.map((role) => (
-            <fieldset key={role}>
-              <legend>{ROLE_LABEL[role]}</legend>
-              {lights
-                .filter((l) => l.role === role)
-                .map((l) => {
-                  const blocked = needsRgb && !l.hasRgb;
-                  return (
-                    <label key={l.id} className={blocked ? "check blocked" : "check"} title={blocked ? "This light has no color channels for this" : undefined}>
-                      <input type="checkbox" checked={set.has(l.id)} disabled={blocked} onChange={() => toggle(l.id)} />
-                      {l.name}
-                    </label>
-                  );
-                })}
-            </fieldset>
-          ))}
-          </div>
-          <div className="lights-foot">
-            {custom ? (
-              <button type="button" className="link small" onClick={() => onChange(undefined)}>
-                Go back to the usual lights
-              </button>
-            ) : (
-              <span className="hint">Using the usual lights.</span>
-            )}
-            <button type="button" className="ghost small" onClick={() => setOpen(false)}>
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** A titled block of settings with a one-line explanation. */
 function Group({ icon, title, description, children, aside }: { icon: IconName; title: string; description: string; children: ReactNode; aside?: ReactNode }) {
   return (
@@ -602,7 +525,10 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
           <Group icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
             {pattern.algorithm && (
-              <LightPicker label="Runs on" chosen={patternTargets(s, rig)} custom={!!s.patternTargets} lights={lights} needsRgb onChange={(ids) => onChange({ patternTargets: ids })} />
+              <div className="runs-on">
+                <span>Runs on</span>
+                <LightPicker title="Pattern runs on" chosen={patternTargets(s, rig)} custom={!!s.patternTargets} lights={lights} needsRgb onChange={(ids) => onChange({ patternTargets: ids })} />
+              </div>
             )}
             {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
           </Group>
@@ -637,7 +563,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
             </p>
           </Group>
 
-          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look. Each one runs on its usual lights; use Choose lights to change that.">
+          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look. Each runs on its usual lights; click the lights chip on an effect to choose others.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
@@ -656,7 +582,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
                     {on && (
                       <div className="effect-extra">
                         <LightPicker
-                          label="Runs on"
+                          title={`${e.label} runs on`}
                           chosen={effectTargets(s, e.id, rig)}
                           custom={!!s.effectTargets?.[e.id]}
                           lights={lights}
@@ -669,8 +595,8 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
                           }}
                         />
                         {e.id === "lightning" && (
-                          <label className="inline-field">
-                            Starts after
+                          <label className="inline-field compact">
+                            After
                             <NumberInput label="Lightning delay in seconds" value={s.effects.lightningDelaySec ?? 0} min={0} max={600} step={0.5} suffix="s" onChange={(v) => onChange({ effects: { ...s.effects, lightningDelaySec: v } })} />
                           </label>
                         )}
