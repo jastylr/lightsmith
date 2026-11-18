@@ -10,6 +10,7 @@ import {
   matchProfiles,
   MOVEMENTS,
   MOODS,
+  UndoHistory,
   colorById,
   colorLayoutOf,
   newSection,
@@ -318,4 +319,25 @@ test("eerie moods put their accent color on the moving heads", () => {
   const rig = guessRig(ws.fixtures, profiles);
   generateSong({ ws, profiles, rig, song: { id: "e", title: "Eerie", bpm: 90, sections: ["twilight", "mist", "dread", "ember"].map((mood) => ({ ...newSection("verse", 90), mood })) } });
   assert.deepEqual(checkWorkspace(parseWorkspace(serializeWorkspace(ws)), profiles), []);
+});
+
+test("undo history merges bursts, limits its length and supports redo", () => {
+  const h = new UndoHistory<number>(3, 1000);
+  h.record(0, 0); // 0 -> 1
+  h.record(1, 500); // 1 -> 2, within the burst: merged
+  h.record(2, 3000); // 2 -> 3, a new step
+  assert.equal(h.steps, 2);
+  assert.equal(h.undo(3), 2);
+  assert.equal(h.undo(2), 0);
+  assert.equal(h.undo(0), undefined);
+  assert.equal(h.redo(0), 2);
+  assert.equal(h.redo(2), 3);
+  assert.equal(h.canRedo, false);
+  // A new change clears redo.
+  h.undo(3);
+  h.record(2, 10000);
+  assert.equal(h.canRedo, false);
+  // Only the last 3 steps are kept.
+  for (let i = 0; i < 10; i++) h.record(i, 20000 + i * 5000);
+  assert.equal(h.steps, 3);
 });

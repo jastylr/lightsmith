@@ -2,7 +2,7 @@
  * App state: the loaded workspace, fixture definitions and the saved project.
  * Everything is kept in the browser (localStorage); nothing is uploaded.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fixtureKey,
   guessRig,
@@ -11,6 +11,7 @@ import {
   normalizeProject,
   parseFixtureDef,
   parseWorkspace,
+  UndoHistory,
   type FixtureDef,
   type Project,
   type Rig,
@@ -77,7 +78,31 @@ async function fetchLibraryDef(f: WsFixture): Promise<LoadedDef | null> {
 // ---------------------------------------------------------------- hook
 
 export function useLightsmith() {
-  const [project, setProject] = useState<Project>(() => normalizeProject(load(KEY_PROJECT, emptyProject())));
+  const [project, setProjectState] = useState<Project>(() => normalizeProject(load(KEY_PROJECT, emptyProject())));
+  // Every project change goes through change(), which keeps the undo history.
+  const current = useRef(project);
+  const history = useRef(new UndoHistory<Project>(50));
+  const [, setHistoryTick] = useState(0);
+  const change = useCallback((fn: (p: Project) => Project, record = true) => {
+    const before = current.current;
+    const next = fn(before);
+    if (next === before) return;
+    if (record) history.current.record(before);
+    current.current = next;
+    setProjectState(next);
+    if (record) setHistoryTick((t) => t + 1);
+  }, []);
+  const setProject = useCallback((p: Project) => change(() => p), [change]);
+  const step = useCallback((dir: "undo" | "redo") => {
+    const h = history.current;
+    const target = dir === "undo" ? h.undo(current.current) : h.redo(current.current);
+    if (!target) return;
+    current.current = target;
+    setProjectState(target);
+    setHistoryTick((t) => t + 1);
+  }, []);
+  const undo = useCallback(() => step("undo"), [step]);
+  const redo = useCallback(() => step("redo"), [step]);
   const [workspace, setWorkspace] = useState<{ name: string; xml: string } | null>(() => load(KEY_WS, null));
   const [defs, setDefs] = useState<Map<string, LoadedDef>>(() => {
     const m = new Map<string, LoadedDef>();
@@ -143,11 +168,12 @@ export function useLightsmith() {
   // Keep the rig in step with the workspace's fixtures.
   useEffect(() => {
     if (!fixtures.length) return;
-    setProject((p) => {
+    // Automatic, so it isn't an undo step of its own.
+    change((p) => {
       const next = guessRig(fixtures, profiles, p.rig);
       const same = JSON.stringify(next) === JSON.stringify(p.rig);
       return same ? p : { ...p, rig: next };
-    });
+    }, false);
     // Re-run when the rig changes too, so a loaded project gets stage positions.
   }, [fixtures, profiles, project.rig]);
 
@@ -184,14 +210,14 @@ export function useLightsmith() {
     });
   }, []);
 
-  const setRig = useCallback((rig: Rig) => setProject((p) => ({ ...p, rig })), []);
-  const updateSong = useCallback((song: Song) => setProject((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), []);
+  const setRig = useCallback((rig: Rig) => change((p) => ({ ...p, rig })), [change]);
+  const updateSong = useCallback((song: Song) => change((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), [change]);
   const addSong = useCallback(() => {
     const s = newSong("Untitled song", 120);
-    setProject((p) => ({ ...p, songs: [...p.songs, s] }));
+    change((p) => ({ ...p, songs: [...p.songs, s] }));
     return s.id;
-  }, []);
-  const deleteSong = useCallback((id: string) => setProject((p) => ({ ...p, songs: p.songs.filter((s) => s.id !== id) })), []);
+  }, [change]);
+  const deleteSong = useCallback((id: string) => change((p) => ({ ...p, songs: p.songs.filter((s) => s.id !== id) })), [change]);
   const resetAll = useCallback(() => {
     setProject(emptyProject());
     setWorkspace(null);
@@ -216,6 +242,10 @@ export function useLightsmith() {
     addSong,
     deleteSong,
     resetAll,
+    undo,
+    redo,
+    canUndo: history.current.canUndo,
+    canRedo: history.current.canRedo,
   };
 }
 

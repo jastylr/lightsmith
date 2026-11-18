@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { REPO_URL } from "../config";
 import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
@@ -16,6 +16,26 @@ export function App() {
   const ready = store.fixtures.length > 0;
   const [step, setStep] = useState<StepId>(ready ? "songs" : "import");
   const [songId, setSongId] = useState<string>(store.project.songs[0]?.id ?? "");
+
+  // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes.
+  const { undo, redo } = store;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || (k === "y" && e.ctrlKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [undo, redo]);
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  const mod = mac ? "⌘" : "Ctrl+";
 
   const placed = store.project.rig.fixtures.filter((f) => f.role !== "ignore").length;
   const steps: { id: StepId; label: string; icon: IconName; status: string }[] = [
@@ -35,6 +55,14 @@ export function App() {
       <aside className="rail">
         <Logo />
         <p className="rail-tag">Light shows for QLC+, one song at a time</p>
+        <div className="undo-bar" role="group" aria-label="Undo and redo">
+          <button type="button" className="undo-button" onClick={undo} disabled={!store.canUndo} title={`Undo (${mod}Z)`}>
+            <Icon name="undo" size={15} /> Undo
+          </button>
+          <button type="button" className="undo-button" onClick={redo} disabled={!store.canRedo} title={`Redo (${mac ? "⇧⌘Z" : "Ctrl+Y"})`}>
+            <Icon name="redo" size={15} /> Redo
+          </button>
+        </div>
         <nav aria-label="Steps">
           <ol className="rail-steps">
             {steps.map((s, i) => (

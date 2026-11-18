@@ -6,3 +6,4 @@ export * from "./model";
 export * from "./rig";
 export * from "./generate";
 export * from "./checks";
+export * from "./history";

@@ -2488,3 +2488,38 @@ body.is-resizing * {
 .cue-main .cue-text {
   padding-right: 4.4rem;
 }
+
+/* ------------------------------------------------------------- undo */
+.undo-bar {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: -0.4rem;
+}
+.undo-button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--deck);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+.undo-button:hover:not(:disabled) {
+  border-color: var(--tungsten);
+}
+.undo-button:disabled {
+  color: var(--faint);
+  background: transparent;
+  border-color: var(--line-soft);
+}
+@media (max-width: 980px) {
+  .undo-bar {
+    margin: 0 0 0 auto;
+    order: 3;
+  }
+}
