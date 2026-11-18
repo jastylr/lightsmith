@@ -66,7 +66,7 @@ flowchart LR
 | 4–5. TypeScript | Compile time vs runtime: where types exist and where they're gone; how Lightsmith's main types relate |
 | 6–7. React | The component tree; one render cycle (state change → re-render → screen); how a controlled input works; effect lifecycle and cleanup |
 | 8. App shell | Component tree of the shell; annotated screenshot of the menu and layout |
-| 9. Data model | Class diagram of `Project`, `Rig`, `Song`, `Section`; how a value is resolved (section → mood → default) |
+| 9. Data model | Class diagram of `Project`, `Rig`, `Song`, `Section`; how a light's color and brightness are resolved (mood and energy → kind of light → individual light) |
 | 10. Store | Sequence: a click → `change()` → undo history → save; state diagram of undo with gestures |
 | 11. XML toolkit | XML text → token stream → element tree → text again |
 | 12. Show file | Annotated page screenshot; flowchart of `addFiles` routing each file type; how a fixture becomes a profile |
@@ -284,6 +284,7 @@ flowchart LR
 - Presets as data tables: moods, colors, patterns, movements, effects, section types and song templates. Adding a choice without touching logic.
 - Defaults: `newSection`, `newSong`, `sectionsFromTemplate`, and the "works on any rig" principle.
 - Derived values as functions, not stored fields: `sectionMs`, `lengthLabel`, `colorLayoutOf`, `lightLevels`.
+- Layered settings, from general to specific: the mood and energy, then each kind of light (`colorLayout`, `brightness`), then individual lights (`lights`, `LightSetting`, `lightSetting`, `sitsOut`). The most specific setting wins, and anything left out stays automatic.
 - Versioning and migration: `version: 1`, `normalizeSection`, and the Rain-to-Drizzle migration as a worked example. *Coming from PHP: like a database migration that runs on every load against data you don't control.*
 - IDs: how they're made today and why that changes later.
 
@@ -475,15 +476,27 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 ---
 
-### Chapter 19. Songs: Mood and energy, and Colors
+### Chapter 19. Songs: Mood and energy, Colors, and Individual lights
 
 **On screen.**
 - **Mood and energy:** the mood dropdown with groups, the energy meter, and per-kind **Brightness** sliders (Auto and Reset).
 - **Colors:** the palette chips; adding a gel or a custom color (the color wheel); "Which lights get which color" (Mix, single colors, warm white); switching between colors.
+- **Individual lights:**
+  - A mini stage for picking lights: click, Shift-click, or "All moving heads"; dots mark lights with their own settings.
+  - Settings for the selected lights: color (Auto, palette colors, warm white, any gel or a custom color), brightness, and "Off for this section".
+  - "Keep in pattern" for a light that should stay in the pattern despite having its own color.
+  - Resetting, and copying settings to every section of the same type or the whole song.
 
-**Concepts.** Defaults that layer (section → mood → app default); a generic `Dropdown` with swatches and groups; HSV color math for the wheel; range inputs styled to match; designing explanations into the interface.
+**Concepts.**
+- Settings that layer from general to specific (mood → kind of light → individual light), and showing "Auto" honestly.
+- A generic `Dropdown` with swatches and groups; HSV color math for the wheel; range inputs styled to match.
+- Selection state, including multi-select with modifier keys, and showing "Mixed" when the selected lights differ.
+- Updating a map of settings without leaving empty entries behind.
+- Copying settings across sections as a single undo step.
+- Reusing a component (the mini stage) in a second place by adding optional props.
+- Designing explanations into the interface.
 
-**Files.** `src/ui/SongsPage.tsx` (`BrightnessEditor`, `ColorLayoutEditor`), `src/ui/ColorPicker.tsx` (`ColorWheel`, `PaletteEditor`), `src/core/model.ts` (`colorLayoutOf`, `lightLevels`), `src/core/presets.ts` (`MOODS`, `COLORS`, `COLOR_CHANGES`).
+**Files.** `src/ui/SongsPage.tsx` (`BrightnessEditor`, `ColorLayoutEditor`, `copyLights`), `src/ui/IndividualLights.tsx`, `src/ui/LightPicker.tsx` (`MiniStage`), `src/ui/ColorPicker.tsx` (`ColorWheel`, `PaletteEditor`), `src/core/model.ts` (`colorLayoutOf`, `lightLevels`, `LightSetting`, `sitsOut`), `src/core/presets.ts` (`MOODS`, `COLORS`, `COLOR_CHANGES`).
 
 ---
 
@@ -526,6 +539,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Concepts.**
 - The generator, step by step: the `Builder` pattern, removing a previous export, fixture groups, building each section's look (scenes, matrices, EFX, chasers), effects and blend modes, blackouts and fade-to-black, the song cue list, and Virtual Console buttons placed where they can be seen.
+- How each light's final color and brightness is decided: the mood and energy, then its kind of light, then its own settings, which win over everything including Focus; and which lights sit out the pattern and effects.
 - Making exports repeatable: exporting twice gives one copy and keeps a frame the user moved.
 - Domain rules in code: the shutter trap, HTP vs LTP channels.
 - Validation before download (`checkWorkspace`).

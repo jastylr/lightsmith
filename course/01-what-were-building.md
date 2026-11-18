@@ -32,7 +32,7 @@ Three decisions shape everything that follows:
 
 1. **Lightsmith writes files; it never talks to the lights.** QLC+ already does the hard, hardware-specific work (talking to DMX interfaces, fixture definitions, MIDI controllers, the visualizer). Lightsmith's job is to produce correct QLC+ files, and nothing more. That keeps the app small and safe: it can't send a strobe to the wrong light in the middle of a show.
 2. **It works on the user's existing show.** Bands have already patched their fixtures in QLC+, and may have hand-built scenes they love. Lightsmith adds to a *copy* of that show and never touches anything it didn't create.
-3. **It's preset-driven, not a full lighting console.** Users pick from moods, patterns and effects designed to look good on any rig. Advanced users can still fine-tune in QLC+ afterwards.
+3. **It starts from presets, and lets you fine-tune.** Users pick from moods, patterns and effects designed to look good on any rig, and get a good look in seconds. Where they want something specific, they can override it: a color for one kind of light, or a particular light's color and brightness. The long-term aim is for all the programming to happen in Lightsmith, with QLC+ handling the fixtures and DMX output.
 
 ---
 
@@ -182,7 +182,7 @@ Lightsmith has four steps, shown in the left menu, and you go through them in or
 3. **The timeline.** One block per section, sized by length, with taller blocks for more energy. Drag to reorder, drag a block's edge to resize it, and use Play to watch the song.
 4. **The section list.** The same sections as numbered tiles, with duplicate and delete buttons.
 5. **The selected section's stage preview** and its basic settings (type, tempo, length, beats per bar). The preview is an animated sketch on the user's own rig, and can pop out into a floating window.
-6. **The section's settings cards,** below the preview: Mood and energy, Colors, Pattern, Moving heads, Focus, Effects, and Start and end.
+6. **The section's settings cards,** below the preview: Mood and energy, Colors, Individual lights, Pattern, Moving heads, Focus, Effects, and Start and end.
 
 **Takes in:** the rig. **Produces:** **songs**, each a list of **sections** with all their settings.
 
