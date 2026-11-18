@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { COLOR_CHANGES, colorById, DEFAULT_COLOR_LAYOUT, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-const W = 400;
-const H = 225;
+const W = 640;
+const H = 250;
 const css = (id: string) => {
   const [r, g, b] = colorById(id).rgb;
   return `rgb(${r},${g},${b})`;
@@ -92,9 +92,9 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const family = FAMILY[pattern.id] ?? "random";
   const cells = 9;
   const cycle = Math.max(0.6, (beat * 4) / en.speed);
-  const barW = 14;
-  const topY = 18;
-  const cellH = 11;
+  const barW = 8;
+  const topY = 52;
+  const cellH = 10.5;
   const focusSet = new Set(section.focus === "all" ? [] : focusLights({ fixtures: rig.fixtures.filter((f) => f.role !== "ignore") }, section.focus));
   const focusing = focusSet.size > 0;
   const layout = { ...DEFAULT_COLOR_LAYOUT, ...(section.colorLayout ?? {}) };
@@ -110,46 +110,91 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const accent = fixedBack !== null ? pal[(fixedBack + 1) % pal.length]! : p1;
   const patternOn = new Set(patternTargets(section, rig));
 
+  // ---- stage geometry (audience view, gentle perspective)
+  const BACK = 168; // where the back wall meets the floor
+  const LIP = 236; // front edge of the stage
+  const depthOf = (y: number) => Math.max(0, Math.min(1, (y - 0.14) / 0.76));
+  const floorY = (d: number) => BACK + d * (LIP - BACK);
+  const xAt = (px: number, d: number) => {
+    const left = 50 * (1 - d);
+    return left + (0.07 + 0.86 * px) * (W - 2 * left);
+  };
+  const scaleAt = (d: number) => 0.85 + 0.3 * d;
+  const ids = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const u = (name: string) => `pv${ids}-${name}`;
+  const url = (name: string) => `url(#${u(name)})`;
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact" : "preview"} role="img" aria-label={`Preview of ${section.name}`}>
       <defs>
-        <radialGradient id="pv-haze" cx="50%" cy="15%" r="80%">
-          <stop offset="0" stopColor={p0} stopOpacity={0.28 * level} />
+        <linearGradient id={u("wall")} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#0e0c11" />
+          <stop offset="1" stopColor="#1a171e" />
+        </linearGradient>
+        <linearGradient id={u("floor")} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#1c1920" />
+          <stop offset="1" stopColor="#25212a" />
+        </linearGradient>
+        <radialGradient id={u("haze")} cx="50%" cy="35%" r="65%">
+          <stop offset="0" stopColor={p0} stopOpacity={0.16 * level} />
           <stop offset="1" stopColor={p0} stopOpacity="0" />
         </radialGradient>
-        <linearGradient id="pv-floor" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2a262e" />
-          <stop offset="1" stopColor="#141216" />
-        </linearGradient>
-        <linearGradient id="pv-beam" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
+        <linearGradient id={u("fade")} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
           <stop offset="1" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
-        <mask id="pv-beam-mask" maskContentUnits="objectBoundingBox">
-          <rect width="1" height="1" fill="url(#pv-beam)" />
+        <mask id={u("beam")} maskContentUnits="objectBoundingBox">
+          <rect width="1" height="1" fill={url("fade")} />
         </mask>
+        <filter id={u("soft")} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" />
+        </filter>
+        <filter id={u("glow")} x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="16" />
+        </filter>
       </defs>
 
-      <rect width={W} height={H} fill="#121014" />
-      <rect width={W} height={H} fill="url(#pv-haze)">
-        {animate && rotating && <animate attributeName="opacity" values="1;0.8;1" dur={`${period}s`} repeatCount="indefinite" />}
+      {/* The room: back wall, truss, floor and the front of the stage */}
+      <rect width={W} height={BACK} fill={url("wall")} />
+      <rect width={W} height={H} fill={url("haze")}>
+        {animate && rotating && <animate attributeName="opacity" values="1;0.75;1" dur={`${period}s`} repeatCount="indefinite" />}
       </rect>
-      <path d={`M0 ${H * 0.62} L${W} ${H * 0.62} L${W} ${H} L0 ${H} Z`} fill="url(#pv-floor)" />
+      <g stroke="#2b2731" strokeWidth="1" fill="none">
+        <line x1="0" y1="10" x2={W} y2="10" />
+        <line x1="0" y1="20" x2={W} y2="20" />
+        <path d={Array.from({ length: 32 }, (_, k) => `M${k * 20} 10 L${k * 20 + 10} 20 L${k * 20 + 20} 10`).join(" ")} strokeWidth="0.7" />
+      </g>
+      <rect y={BACK} width={W} height={LIP - BACK} fill={url("floor")} />
+      <g stroke="#fff" strokeOpacity="0.035" strokeWidth="1">
+        {Array.from({ length: 9 }, (_, k) => (
+          <line key={k} x1={50 + (k * (W - 100)) / 8} y1={BACK} x2={(k * W) / 8} y2={LIP} />
+        ))}
+      </g>
+      <line x1="0" y1={BACK} x2={W} y2={BACK} stroke="#2e2a33" strokeWidth="1" />
+      <rect y={LIP} width={W} height={H - LIP} fill="#0b0a0d" />
+      <line x1="0" y1={LIP + 0.5} x2={W} y2={LIP + 0.5} stroke="#3a3540" strokeWidth="1" />
 
-      {/* Backdrop bars */}
+      {/* Backdrop bars, with the glow they throw on the wall and floor */}
       <g>
         {bars.map((bar, i) => {
-          const x = 40 + bar.x * (W - 80) - barW / 2;
+          const x = xAt(bar.x, 0) - barW / 2;
           const k = backFx.length ? stageIndex(backFx, i) : i;
           const runsPattern = !!pattern.algorithm && (bar.id === -1 ? patternOn.size === 0 && backFx.length === 0 : patternOn.has(bar.id));
           const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
           const base = fill(solidColor, 0);
+          const floorLevel = runsPattern ? Math.max(0.12, pattern.floor) * level : level;
           return (
             <g key={i}>
-              <rect x={x - 3} y={topY - 3} width={barW + 6} height={cells * cellH + 6} rx="3" fill="#0b0a0c" />
+              <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
+                {base.anim}
+              </ellipse>
+              <ellipse cx={x + barW / 2} cy={BACK + 4} rx="20" ry="4" fill={base.fill} opacity={0.4 * floorLevel} filter={url("soft")}>
+                {base.anim}
+              </ellipse>
+              <rect x={x - 1.5} y={topY - 1.5} width={barW + 3} height={cells * cellH + 3} rx="2" fill="#141217" stroke="#34303a" strokeWidth="0.6" />
+              <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />
               {Array.from({ length: cells }, (_, c) => {
                 const y = topY + c * cellH;
-                const floor = runsPattern ? Math.max(0.12, pattern.floor) * level : level;
                 const over = fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
                 let begin = 0;
                 if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
@@ -158,11 +203,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                 const showOver = family !== "solid" && runsPattern;
                 return (
                   <g key={c}>
-                    <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={base.fill} opacity={floor}>
+                    <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={base.fill} opacity={floorLevel}>
                       {base.anim}
                     </rect>
                     {showOver && (
-                      <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={pattern.id === "rainbow" ? `hsl(${(c * 40 + i * 25) % 360} 90% 55%)` : over.fill} opacity={animate ? 0 : 0.6 * level}>
+                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={pattern.id === "rainbow" ? `hsl(${(c * 40 + i * 25) % 360} 90% 55%)` : over.fill} opacity={animate ? 0 : 0.6 * level}>
                         {pattern.id !== "rainbow" && over.anim}
                         {animate && (
                           <animate
@@ -177,8 +222,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                       </rect>
                     )}
                     {twinkles(bar.id) && animate && (
-                      <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={sparkleOn.has(bar.id) || (bar.id === -1 && section.effects.sparkle) ? "#fff" : "#cfe3ff"} opacity="0">
-                        <animate attributeName="opacity" values="0;0.85;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
+                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={sparkleOn.has(bar.id) || (bar.id === -1 && section.effects.sparkle) ? "#fff" : "#cfe3ff"} opacity="0">
+                        <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
                       </rect>
                     )}
                   </g>
@@ -189,27 +234,43 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         })}
       </g>
 
-      {/* Side / floor lights: cones towards center stage */}
+      {/* Side and floor lights: soft washes up onto the wall */}
       {sides.map((f, i) => {
-        const fx = 40 + f.pos!.x * (W - 80);
-        const fy = H * 0.62 + f.pos!.y * (H * 0.36);
+        const d = depthOf(f.pos!.y);
+        const fx = xAt(f.pos!.x, d);
+        const fy = floorY(d);
+        const sc = scaleAt(d);
         const focused = focusSet.has(f.fixtureId);
         const dimmed = focusing && !focused;
         const color = focused ? WARM : colorFor("side", stageIndex(sides, i), 0);
-        const toX = fx < W / 2 ? fx + 70 : fx - 70;
+        const dir = fx < W / 2 ? 1 : -1;
+        const tx = fx + dir * Math.min(110, Math.abs(W / 2 - fx) * 0.5 + 30);
         const c = fill(color, 0);
+        const paint = focused ? color : c.fill;
+        const anim = focused ? null : c.anim;
+        const pulse = animate && section.effects.beatPulse ? <animate attributeName="opacity" values="1;0.35;0.35" keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" /> : null;
         return (
           <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
-            <path d={`M${fx} ${fy} L${toX - 22} ${fy - 95} L${toX + 22} ${fy - 95} Z`} fill={focused ? color : c.fill} opacity={0.35 + 0.35 * level} mask="url(#pv-beam-mask)">
-              {!focused && c.anim}
-              {animate && section.effects.beatPulse && <animate attributeName="opacity" values={`${0.6 * level};${0.2 * level};${0.2 * level}`} keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" />}
-            </path>
-            <rect x={fx - 7} y={fy - 4} width="14" height="8" rx="2" fill="#3b3640" />
-            <circle cx={fx} cy={fy - 4} r="3.2" fill={focused ? color : c.fill}>
-              {!focused && c.anim}
-            </circle>
+            <g opacity={0.45 + 0.45 * level}>
+              {pulse}
+              <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>
+                {anim}
+              </ellipse>
+              <path d={`M${fx - 4 * sc} ${fy - 6 * sc} L${tx - 85} 30 L${tx + 85} 30 L${fx + 4 * sc} ${fy - 6 * sc} Z`} fill={paint} opacity="0.42" mask={url("beam")} filter={url("soft")}>
+                {anim}
+              </path>
+              <ellipse cx={fx} cy={fy + 1} rx={28 * sc} ry={6 * sc} fill={paint} opacity="0.45" filter={url("soft")}>
+                {anim}
+              </ellipse>
+            </g>
+            <g transform={`translate(${fx} ${fy}) scale(${sc})`}>
+              <path d="M-7 0 L-5.5 -7 L5.5 -7 L7 0 Z" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+              <ellipse cx="0" cy="-7" rx="5.5" ry="1.8" fill={paint}>
+                {anim}
+              </ellipse>
+            </g>
             {twinkles(f.fixtureId) && animate && (
-              <circle cx={fx} cy={fy - 4} r="6" fill="#fff" opacity="0">
+              <circle cx={fx} cy={fy - 7 * sc} r="6" fill="#fff" opacity="0">
                 <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.7 + rnd(f.fixtureId) * 0.9}s`} repeatCount="indefinite" />
               </circle>
             )}
@@ -217,10 +278,13 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         );
       })}
 
-      {/* Moving heads: beams that follow the chosen movement */}
+      {/* Moving heads: crisp beams that follow the chosen movement */}
       {movers.map((f, i) => {
-        const fx = 40 + f.pos!.x * (W - 80);
-        const fy = H * 0.5 + f.pos!.y * 40;
+        const d = depthOf(f.pos!.y);
+        const fx = xAt(f.pos!.x, d);
+        const fy = floorY(d);
+        const sc = scaleAt(d);
+        const hy = fy - 12 * sc;
         const moverFocused = focusSet.has(f.fixtureId);
         const c = moverFocused ? { fill: WARM, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
@@ -232,23 +296,41 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
         return (
-          <g key={f.fixtureId}>
-            <g transform={`rotate(${lean} ${fx} ${fy})`}>
-              <path d={`M${fx - 2} ${fy} L${fx - 20} ${fy - 175} L${fx + 20} ${fy - 175} L${fx + 2} ${fy} Z`} fill={c.fill} opacity={0.5 + 0.35 * level} mask="url(#pv-beam-mask)">
+          <g key={f.fixtureId} opacity={focusing && !moverFocused ? 0.5 : 1}>
+            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={0.35 * level} filter={url("soft")}>
+              {c.anim}
+            </ellipse>
+            <g transform={`rotate(${lean} ${fx} ${hy})`}>
+              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={0.55 + 0.35 * level} mask={url("beam")}>
                 {c.anim}
               </path>
-              {animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${fx} ${fy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />}
+              {animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${fx} ${hy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />}
             </g>
-            <rect x={fx - 9} y={fy - 2} width="18" height="10" rx="3" fill="#3b3640" />
-            <circle cx={fx} cy={fy} r="4.5" fill={c.fill}>
-              {c.anim}
-            </circle>
+            <g transform={`translate(${fx} ${fy}) scale(${sc})`}>
+              <rect x="-9" y="-4" width="18" height="4" rx="1" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+              <path d="M-7 -4 L-7 -14 M7 -4 L7 -14" stroke="#3d3844" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="0" cy="-12" r="5.5" fill="#2c2832" stroke="#3d3844" strokeWidth="0.6" />
+              <circle cx="0" cy="-12" r="2.8" fill={c.fill}>
+                {c.anim}
+              </circle>
+            </g>
           </g>
         );
       })}
 
-      {/* Front wash */}
-      {fronts.length > 0 && <rect x="0" y={H * 0.78} width={W} height={H * 0.22} fill={colorFor("front", 0, 0)} opacity={0.08 + 0.12 * level} />}
+      {/* Front lights: a broad wash over the front of the stage */}
+      {fronts.map((f, i) => {
+        const fx = xAt(f.pos!.x, 1);
+        const focused = focusSet.has(f.fixtureId);
+        const color = focused ? WARM : colorFor("front", stageIndex(fronts, i), 0);
+        return (
+          <g key={f.fixtureId} opacity={focusing && !focused ? 0.35 : 1}>
+            <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.12 + 0.14 * level} filter={url("glow")} />
+            <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+            <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={color} />
+          </g>
+        );
+      })}
 
       {/* Lightning / blinder: a white flash */}
       {animate && (section.effects.lightning || section.effects.blinder) && (
@@ -257,7 +339,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         </rect>
       )}
       {animate && section.effects.strobe && (
-        <rect width={W} height={H * 0.6} fill="#fff" opacity="0" pointerEvents="none">
+        <rect width={W} height={BACK} fill="#fff" opacity="0" pointerEvents="none">
           <animate attributeName="opacity" values="0;0.35;0;0" keyTimes="0;0.05;0.12;1" dur={`${beat / 2}s`} repeatCount="indefinite" />
         </rect>
       )}

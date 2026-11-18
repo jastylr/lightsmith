@@ -130,39 +130,42 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             <Icon name="plus" size={15} /> New song
           </button>
         </div>
-        <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" />
-        <div className="song-meta">
-          <Field label="Tempo">
-            <NumberInput
-              label="Song tempo in BPM"
-              value={song.bpm}
-              min={30}
-              max={300}
-              suffix="BPM"
-              onChange={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })}
-            />
-          </Field>
-          <div className="stat">
-            <span>Length</span>
-            <strong>{fmt(total)}</strong>
+        <div className="song-line">
+          <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" />
+          <div className="song-meta">
+            <label className="stat stat-input">
+              <span>Tempo</span>
+              <NumberInput
+                label="Song tempo in BPM"
+                value={song.bpm}
+                min={30}
+                max={300}
+                suffix="BPM"
+                onChange={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })}
+              />
+            </label>
+            <div className="stat">
+              <span>Length</span>
+              <strong>{fmt(total)}</strong>
+            </div>
+            <div className="stat">
+              <span>Sections</span>
+              <strong>{song.sections.length}</strong>
+            </div>
+            {songs.length > 1 && (
+              <button
+                className="ghost small danger"
+                onClick={() => {
+                  if (confirm(`Delete "${song.title}"? This can't be undone.`)) {
+                    store.deleteSong(song.id);
+                    setSongId(songs.find((s) => s.id !== song.id)!.id);
+                  }
+                }}
+              >
+                <Icon name="trash" size={15} /> Delete song
+              </button>
+            )}
           </div>
-          <div className="stat">
-            <span>Sections</span>
-            <strong>{song.sections.length}</strong>
-          </div>
-          {songs.length > 1 && (
-            <button
-              className="ghost small danger"
-              onClick={() => {
-                if (confirm(`Delete "${song.title}"? This can't be undone.`)) {
-                  store.deleteSong(song.id);
-                  setSongId(songs.find((s) => s.id !== song.id)!.id);
-                }
-              }}
-            >
-              <Icon name="trash" size={15} /> Delete song
-            </button>
-          )}
         </div>
       </header>
 
@@ -179,7 +182,13 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         <>
           <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onAdd={add} />
           <div className="songs-body">
-            <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
+            <div className="cue-panel">
+              <div className="cue-panel-head">
+                <h2>Sections</h2>
+                <span>Drag to reorder</span>
+              </div>
+              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
+            </div>
             {current && (
               <LookEditor key={current.id} s={current} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
             )}
@@ -541,8 +550,10 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
 
       <div className="editor-grid">
         <div className="editor-preview">
-          <StagePreview section={s} rig={rig} />
-          <p className="hint center">A sketch of this section on your stage, at its tempo.</p>
+          <figure className="preview-figure">
+            <StagePreview section={s} rig={rig} />
+            <figcaption className="hint">A sketch of this section on your stage, at its tempo.</figcaption>
+          </figure>
           <div className="timing-row">
             <Field label="Section type">
               <Dropdown
