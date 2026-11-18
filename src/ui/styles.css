@@ -1139,6 +1139,13 @@ li.bad .fx-source {
 .stat-input .number {
   height: 2.1rem;
 }
+.stat-input .number input {
+  width: 4rem;
+  padding: 0 0.35rem;
+  font-size: 1.2rem;
+  font-weight: 750;
+  color: var(--text);
+}
 .stat span {
   color: var(--muted);
   font-size: 0.8rem;
