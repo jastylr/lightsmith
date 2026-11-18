@@ -73,7 +73,7 @@ function ColorWheel({ value, onChange }: { value: RGB; onChange: (rgb: RGB) => v
   );
 }
 
-/** The section's palette: gels or custom colours, with a picker to add more. */
+/** The section's palette: gels or custom colors, with a picker to add more. */
 export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]; fallback: string[]; onChange: (c: string[]) => void }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"gels" | "custom">("gels");
@@ -83,7 +83,7 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
   useDismiss(open, () => setOpen(false), pop);
   const using = colors.length ? colors : fallback;
   const add = (id: string) => {
-    // Adding to the mood's colours starts from them, so nothing disappears.
+    // Adding to the mood's colors starts from them, so nothing disappears.
     const base = colors.length ? colors : fallback;
     if (base.includes(id) || base.length >= MAX_COLORS) return;
     onChange([...base, id]);
@@ -120,16 +120,16 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
         ))}
         <div className="popover-anchor" ref={pop}>
           <button type="button" className="ghost small" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={colors.length >= MAX_COLORS}>
-            <Icon name="plus" size={14} /> Add colour
+            <Icon name="plus" size={14} /> Add color
           </button>
           {open && (
-            <div className="popover color-popover" role="dialog" aria-label="Add a colour">
+            <div className="popover color-popover" role="dialog" aria-label="Add a color">
               <div className="tabs">
                 <button type="button" className={tab === "gels" ? "on" : ""} onClick={() => setTab("gels")}>
                   <Icon name="palette" size={15} /> Gels
                 </button>
                 <button type="button" className={tab === "custom" ? "on" : ""} onClick={() => setTab("custom")}>
-                  <Icon name="wheel" size={15} /> Colour wheel
+                  <Icon name="wheel" size={15} /> Color wheel
                 </button>
               </div>
               {tab === "gels" ? (
@@ -156,7 +156,7 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
                   <div className="custom-row">
                     <span className="custom-preview" style={{ background: rgbToHex(custom) }} />
                     <input
-                      aria-label="Hex colour"
+                      aria-label="Hex color"
                       value={hex}
                       onChange={(e) => {
                         setHex(e.target.value);
@@ -171,13 +171,13 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
                   </div>
                 </div>
               )}
-              <p className="popover-foot">Up to {MAX_COLORS} colours. The first is the main colour; the others are used for contrast and colour changes.</p>
+              <p className="popover-foot">Up to {MAX_COLORS} colors. They're spread across your lights; to cycle them over time, choose how often to switch below.</p>
             </div>
           )}
         </div>
         {colors.length > 0 && (
           <button type="button" className="link small" onClick={() => onChange([])}>
-            Use the mood's colours
+            Use the mood's colors
           </button>
         )}
       </div>

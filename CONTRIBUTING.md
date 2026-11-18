@@ -24,7 +24,7 @@ npm run dev
 
 ## Good first contributions
 
-- **Presets** in `src/core/presets.ts`: moods, colours, movements, section types. Keep existing
+- **Presets** in `src/core/presets.ts`: moods, colors, movements, section types. Keep existing
   `id`s unchanged; saved songs refer to them.
 - **Checks** in `src/core/checks.ts`: anything that would make a look go dark or confuse QLC+.
 - **Fixture quirks**: if a fixture from the QLC+ library behaves oddly, open an issue with the

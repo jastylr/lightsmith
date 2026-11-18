@@ -53,7 +53,7 @@ test("xml round trip keeps content and escapes", () => {
   assert.equal(doc.doctype, "<!DOCTYPE Workspace>");
 });
 
-test("fixture profiles find dimmer, colour, pan/tilt and shutters", () => {
+test("fixture profiles find dimmer, color, pan/tilt and shutters", () => {
   const par = buildProfile(parseFixtureDef(PAR_QXF), "6ch");
   assert.equal(par.masterDimmer, 0);
   assert.deepEqual(par.heads, [{ red: 2, green: 3, blue: 4, white: 5 }]);
@@ -111,7 +111,7 @@ test("missing definitions are reported, not guessed", () => {
   assert.equal(missing.length, 2);
 });
 
-test("patterns, colour changes, custom colours and effects all export cleanly", () => {
+test("patterns, color changes, custom colors and effects all export cleanly", () => {
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles);
@@ -131,9 +131,9 @@ test("patterns, colour changes, custom colours and effects all export cleanly", 
   const xml = serializeWorkspace(ws);
   assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
   for (const p of PATTERNS) if (p.algorithm) assert.ok(xml.includes(`>${p.algorithm}</Algorithm>`), p.algorithm);
-  assert.match(xml, /Colour changes/);
+  assert.match(xml, /Color changes/);
   assert.match(xml, /<PropagationMode>Serial<\/PropagationMode>/);
-  // The custom hex colour reached a scene (0x12ab34 on a pixel bar head: 18,171,52).
+  // The custom hex color reached a scene (0x12ab34 on a pixel bar head: 18,171,52).
   assert.match(xml, /,18,\d+,171,\d+,52/);
 });
 
@@ -152,4 +152,38 @@ test("new songs start empty, and templates number repeated sections", () => {
   assert.deepEqual(s.map((x) => x.name), ["Intro", "Verse 1", "Chorus 1", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"]);
   assert.ok(s.every((x) => x.bpm === 100));
   assert.equal(sectionsFromTemplate("nope", 100).length, 0);
+});
+
+test("effects go on the lights chosen for them", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s1 = { ...newSection("verse", 120), name: "Default", effects: { rain: true, blinder: true } };
+  const s2 = { ...newSection("verse", 120), name: "Pars only", effects: { rain: true, blinder: true }, effectTargets: { rain: [2, 3], blinder: [2] } };
+  generateSong({ ws, profiles, rig, song: { id: "t", title: "Targets", bpm: 120, sections: [s1, s2] } });
+  const xml = serializeWorkspace(ws);
+  const reread = parseWorkspace(xml);
+  assert.deepEqual(checkWorkspace(reread, profiles), []);
+  // Default rain uses the backdrop group; the second section gets a group of the two pars.
+  assert.ok(reread.groups.some((g) => g.name === "Lightsmith Backdrop"));
+  assert.ok(reread.groups.some((g) => g.name === "Lightsmith: RGBW Par 2 + RGBW Par 3"));
+  // The second blinder only touches fixture 2.
+  const blinders = xml.split('Name="Blinder flash"').slice(1).map((chunk) => chunk.slice(0, chunk.indexOf("</Function>")));
+  assert.equal(blinders.length, 2);
+  assert.ok(blinders.some((c) => c.includes('<FixtureVal ID="2">') && !c.includes('<FixtureVal ID="0">')));
+
+  // Re-exporting without the pars-only rain removes its group again.
+  generateSong({ ws: reread, profiles, rig, song: { id: "t", title: "Targets", bpm: 120, sections: [s1] } });
+  assert.ok(!parseWorkspace(serializeWorkspace(reread)).groups.some((g) => g.name.startsWith("Lightsmith: ")));
+});
+
+test("extra palette colors are spread across the lights", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("verse", 120), colors: ["red", "blue", "#00ff00"], pattern: "solid", colorChange: "hold" as const };
+  generateSong({ ws, profiles, rig, song: { id: "c", title: "Colors", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  // The third color (green, 0,255,0) reaches at least one scene.
+  assert.match(xml, /,0,\d+,255,\d+,0[,<]/);
 });

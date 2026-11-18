@@ -1,11 +1,11 @@
 # QLC+ notes
 
-Things about QLC+ files and behaviour the generator relies on. Add to this when you learn
+Things about QLC+ files and behavior the generator relies on. Add to this when you learn
 something the hard way.
 
-## Light needs a dimmer and a colour
+## Light needs a dimmer and a color
 
-A fixture with a master dimmer shows nothing unless the dimmer is up *and* a colour channel has a
+A fixture with a master dimmer shows nothing unless the dimmer is up *and* a color channel has a
 value. Every look Lightsmith writes sets both.
 
 ## Don't write shutter values the definition doesn't explain
@@ -15,17 +15,17 @@ writing that value (even 0) can make QLC+'s 3D visualizer treat the shutter as c
 fixture looks dark although the real fixture may be fine. Lightsmith never writes shutter channels
 for normal looks, and `checks.ts` warns when a scene does.
 
-## RGB matrices only drive colour
+## RGB matrices only drive color
 
 An RGB Matrix in RGB mode sets the red/green/blue channels of the heads in its fixture group. It
 does not touch the dimmer, so each section also runs a scene that holds the dimmer. Intensity
-channels merge highest-takes-precedence, so a dim base colour plus a matrix layers nicely.
+channels merge highest-takes-precedence, so a dim base color plus a matrix layers nicely.
 
 ## Extra heads can break moving heads
 
 Adding heads to a moving head definition (for example, one per LED ring) can stop QLC+ linking the
 pan/tilt and master dimmer channels to head 1, which also breaks EFX and the visualizer. Lightsmith
-uses whatever heads the definition declares and only drives colour on them.
+uses whatever heads the definition declares and only drives color on them.
 
 ## Chasers
 

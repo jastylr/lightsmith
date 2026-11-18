@@ -16,6 +16,10 @@ import {
   sectionMs,
   sectionTypeById,
   sectionsFromTemplate,
+  effectTargets,
+  MATRIX_EFFECTS,
+  stageOrder,
+  type Role,
   type EffectId,
   type Focus,
   type MoverSpread,
@@ -103,6 +107,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   };
   const remove = (s: Section) => set({ sections: song.sections.filter((x) => x.id !== s.id) });
   const total = song.sections.reduce((t, s) => t + sectionMs(s), 0);
+  const names = new Map(store.fixtures.map((f) => [f.id, f.name]));
+  const lights: Light[] = store.project.rig.fixtures
+    .filter((f) => f.role !== "ignore" && store.profiles.has(f.fixtureId))
+    .sort(stageOrder)
+    .map((f) => ({ id: f.fixtureId, name: names.get(f.fixtureId) ?? `Fixture ${f.fixtureId}`, role: f.role, hasRgb: store.profiles.get(f.fixtureId)!.hasRgb }));
   const current = song.sections.find((s) => s.id === selected);
 
   return (
@@ -165,7 +174,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           <div className="songs-body">
             <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} />
             {current && (
-              <LookEditor key={current.id} s={current} rig={store.project.rig} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} s={current} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
             )}
           </div>
         </>
@@ -261,6 +270,7 @@ function Timeline({ song, selected, onSelect, onMove, onAdd }: { song: Song; sel
   const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x");
   return (
     <div className="timeline-wrap">
+      <div className="timeline-row">
       <div className="timeline" role="list" aria-label="Song timeline. Drag sections to reorder.">
         {song.sections.map((s) => {
           const pal = paletteOf(s);
@@ -285,7 +295,9 @@ function Timeline({ song, selected, onSelect, onMove, onAdd }: { song: Song; sel
             </div>
           );
         })}
-        <AddSectionMenu onAdd={onAdd} />
+      </div>
+      {/* Outside the scrolling strip, so its menu isn't clipped. */}
+      <AddSectionMenu onAdd={onAdd} />
       </div>
       <p className="hint">Drag blocks to reorder. Taller blocks have more energy.</p>
     </div>
@@ -323,7 +335,75 @@ function CueList({ song, selected, onSelect, onMove }: { song: Song; selected: s
   );
 }
 
-function LookEditor({ s, rig, index, onChange, onDuplicate, onRemove }: { s: Section; rig: Store["project"]["rig"]; index: number; onChange: (p: Partial<Section>) => void; onDuplicate: () => void; onRemove: () => void }) {
+interface Light {
+  id: number;
+  name: string;
+  role: Role;
+  hasRgb: boolean;
+}
+const ROLE_LABEL: Record<Role, string> = { backdrop: "Backdrop", mover: "Moving heads", side: "Side and floor", front: "Front", ignore: "Not used" };
+
+/** "On: Backdrop (4)" with a checklist to choose exactly which lights an effect uses. */
+function EffectLights({ effect, s, rig, lights, onChange }: { effect: EffectId; s: Section; rig: Store["project"]["rig"]; lights: Light[]; onChange: (p: Partial<Section>) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, () => setOpen(false), ref);
+  const matrix = MATRIX_EFFECTS.includes(effect);
+  const custom = s.effectTargets?.[effect];
+  const chosen = new Set(effectTargets(s, effect, rig).filter((id) => lights.some((l) => l.id === id && (!matrix || l.hasRgb))));
+  const roles = [...new Set(lights.map((l) => l.role))];
+  const summary = chosen.size === 0 ? "No lights" : custom ? `${chosen.size} ${chosen.size === 1 ? "light" : "lights"}` : `${[...new Set(lights.filter((l) => chosen.has(l.id)).map((l) => ROLE_LABEL[l.role]))].join(", ")} (${chosen.size})`;
+  const setTargets = (ids: number[] | undefined) => {
+    const next = { ...(s.effectTargets ?? {}) };
+    if (ids) next[effect] = ids;
+    else delete next[effect];
+    onChange({ effectTargets: next });
+  };
+  const toggle = (id: number) => {
+    const next = new Set(chosen);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setTargets([...next]);
+  };
+  return (
+    <div className="effect-extra popover-anchor" ref={ref}>
+      <button type="button" className={chosen.size ? "link small" : "link small warn-text"} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        On: {summary}
+      </button>
+      {open && (
+        <div className="popover lights-popover" role="dialog" aria-label="Lights for this effect">
+          {roles.map((role) => (
+            <fieldset key={role}>
+              <legend>{ROLE_LABEL[role]}</legend>
+              {lights
+                .filter((l) => l.role === role)
+                .map((l) => {
+                  const blocked = matrix && !l.hasRgb;
+                  return (
+                    <label key={l.id} className={blocked ? "check blocked" : "check"} title={blocked ? "This light has no color channels for this effect" : undefined}>
+                      <input type="checkbox" checked={chosen.has(l.id)} disabled={blocked} onChange={() => toggle(l.id)} />
+                      {l.name}
+                    </label>
+                  );
+                })}
+            </fieldset>
+          ))}
+          <div className="lights-foot">
+            {custom ? (
+              <button type="button" className="link small" onClick={() => setTargets(undefined)}>
+                Use the usual lights
+              </button>
+            ) : (
+              <span className="hint">Using the usual lights for this effect.</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: { s: Section; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void; onDuplicate: () => void; onRemove: () => void }) {
   const mood = moodById(s.mood);
   const moodPattern = patternById(mood.pattern);
   const moodMove = MOVEMENTS.find((m) => m.id === mood.movement)!;
@@ -399,13 +479,13 @@ function LookEditor({ s, rig, index, onChange, onDuplicate, onRemove }: { s: Sec
           </section>
 
           <section className="group">
-            <h3>Colours</h3>
+            <h3>Colors</h3>
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={(colors) => onChange({ colors })} />
             <div className="row">
-              <Field label="Switch between colours">
-                <Dropdown label="Colour changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
+              <Field label="Switch between colors">
+                <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
               </Field>
-              {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next colour" />}
+              {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
           </section>
 
@@ -414,11 +494,16 @@ function LookEditor({ s, rig, index, onChange, onDuplicate, onRemove }: { s: Sec
             <Dropdown label="Backdrop pattern" value={s.pattern} options={patternOptions} onChange={(pattern) => onChange({ pattern })} className="wide" />
           </section>
 
-          <section className={hasMovers ? "group" : "group muted-group"}>
+          <section className="group">
             <h3>Moving heads</h3>
-            <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
-            {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
-            {!hasMovers && <p className="hint">No moving heads on your stage yet.</p>}
+            {hasMovers ? (
+              <>
+                <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
+                {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
+              </>
+            ) : (
+              <p className="hint">No moving heads on your stage. Put a light in the Moving heads lane on the Stage step to use these settings.</p>
+            )}
           </section>
 
           <section className="group">
@@ -430,7 +515,7 @@ function LookEditor({ s, rig, index, onChange, onDuplicate, onRemove }: { s: Sec
               options={[
                 { value: "all", label: "Whole stage" },
                 { value: "SL", label: "Stage left" },
-                { value: "C", label: "Centre" },
+                { value: "C", label: "Center" },
                 { value: "SR", label: "Stage right" },
               ]}
             />
@@ -442,15 +527,17 @@ function LookEditor({ s, rig, index, onChange, onDuplicate, onRemove }: { s: Sec
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
+                const possible = lights.filter((l) => !MATRIX_EFFECTS.includes(e.id) || l.hasRgb);
                 return (
                   <div key={e.id} className={on ? "effect on" : "effect"}>
-                    <button type="button" aria-pressed={on} onClick={() => onChange({ effects: { ...s.effects, [e.id]: !on } })}>
+                    <button type="button" aria-pressed={on} disabled={!possible.length} title={possible.length ? undefined : "None of your lights can show this effect"} onClick={() => onChange({ effects: { ...s.effects, [e.id]: !on } })}>
                       <Icon name={EFFECT_ICON[e.id]} size={20} />
                       <span>
                         <strong>{e.label}</strong>
                         <small>{e.description}</small>
                       </span>
                     </button>
+                    {on && <EffectLights effect={e.id} s={s} rig={rig} lights={lights} onChange={onChange} />}
                     {e.id === "lightning" && on && (
                       <label className="effect-extra">
                         Starts after

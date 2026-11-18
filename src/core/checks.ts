@@ -83,9 +83,9 @@ export function checkWorkspace(ws: Workspace, profiles: Map<number, FixtureProfi
           });
         }
       }
-      const colourSet = p.heads.some((h) => [h.red, h.green, h.blue, h.white].some((c) => c !== undefined && (seen.get(c) ?? 0) > 0));
-      if (colourSet && p.masterDimmer !== undefined && seen.has(p.masterDimmer) && seen.get(p.masterDimmer) === 0) {
-        issues.push({ level: "warning", message: `"${name}" sets a colour on fixture ${fid} but its dimmer is at 0`, functionName: name });
+      const colorSet = p.heads.some((h) => [h.red, h.green, h.blue, h.white].some((c) => c !== undefined && (seen.get(c) ?? 0) > 0));
+      if (colorSet && p.masterDimmer !== undefined && seen.has(p.masterDimmer) && seen.get(p.masterDimmer) === 0) {
+        issues.push({ level: "warning", message: `"${name}" sets a color on fixture ${fid} but its dimmer is at 0`, functionName: name });
       }
     }
   }

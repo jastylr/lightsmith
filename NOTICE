@@ -7,6 +7,6 @@ The deployed app includes fixture definitions from the QLC+ fixture library
 (https://github.com/mcallegari/qlcplus, resources/fixtures), copyright the QLC+
 project and its contributors, licensed under the Apache License, Version 2.0.
 They are copied unmodified by scripts/sync-fixtures.mjs, and a copy of their
-licence is published alongside them as fixtures/LICENSE-QLCPLUS.txt.
+license is published alongside them as fixtures/LICENSE-QLCPLUS.txt.
 
 QLC+ is a separate project; Lightsmith is not affiliated with or endorsed by it.

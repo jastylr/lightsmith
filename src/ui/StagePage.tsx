@@ -55,7 +55,7 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
     let role: Role = lane.role;
     if (!canBe(id, role)) {
       const name = byId.get(id)?.name ?? "That light";
-      setNotice(role === "mover" ? `${name} can't pan or tilt, so it can't go in the moving heads lane.` : `${name} has no colour or white channels Lightsmith can use there.`);
+      setNotice(role === "mover" ? `${name} can't pan or tilt, so it can't go in the moving heads lane.` : `${name} has no color or white channels Lightsmith can use there.`);
       role = f.role !== "ignore" && canBe(id, f.role) ? f.role : "ignore";
       if (role === "ignore") return update(id, { role, pos: undefined });
     } else setNotice(null);
@@ -306,7 +306,7 @@ function FixtureGlyph({
       transform={`translate(${x} ${y})`}
       tabIndex={0}
       role="button"
-      aria-label={`${name}, ${ROLE_INFO[rf.role].label}, ${rf.side === "SL" ? "stage left" : rf.side === "SR" ? "stage right" : "centre"}`}
+      aria-label={`${name}, ${ROLE_INFO[rf.role].label}, ${rf.side === "SL" ? "stage left" : rf.side === "SR" ? "stage right" : "center"}`}
       onPointerDown={onPointerDown}
       onClick={onSelect}
       onKeyDown={(e) => {
@@ -331,7 +331,7 @@ function FixtureGlyph({
 
 function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: WsFixture; canBe: (r: Role) => boolean; onChange: (p: Partial<RigFixture>) => void }) {
   const roles: Role[] = ["backdrop", "mover", "side", "front", "ignore"];
-  const sideLabel = rf.side === "SL" ? "Stage left" : rf.side === "SR" ? "Stage right" : "Centre";
+  const sideLabel = rf.side === "SL" ? "Stage left" : rf.side === "SR" ? "Stage right" : "Center";
   return (
     <div className="inspector-body">
       <h2>{fixture.name}</h2>
@@ -369,7 +369,7 @@ function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: 
       {rf.role === "mover" && (
         <div className="mover-box">
           <h3>Home position</h3>
-          <p className="hint">Where the head points when still, and the centre of every movement. Find good values in QLC+'s Simple Desk.</p>
+          <p className="hint">Where the head points when still, and the center of every movement. Find good values in QLC+'s Simple Desk.</p>
           {(["pan", "tilt"] as const).map((axis) => (
             <div key={axis} className="slider-row">
               <span>{axis === "pan" ? "Pan" : "Tilt"}</span>

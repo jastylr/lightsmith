@@ -1,7 +1,7 @@
 import { APP_NAME } from "../config";
 
 /**
- * The Lightsmith mark: an anvil throwing three beams of coloured light.
+ * The Lightsmith mark: an anvil throwing three beams of colored light.
  * Light is what gets forged here.
  */
 export function LogoMark({ size = 32 }: { size?: number }) {

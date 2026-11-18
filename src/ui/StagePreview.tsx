@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, effectTargets, energyOf, moodById, MOVEMENTS, patternById, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -36,7 +36,7 @@ const FAMILY: Record<string, Family> = {
 /**
  * An impression of a section's look on the user's stage: backdrop, side
  * lights, moving-head beams and front light, animated at the song's tempo.
- * It's a sketch to judge colour and energy, not a simulation.
+ * It's a sketch to judge color and energy, not a simulation.
  */
 export function StagePreview({ section, rig, compact = false }: { section: Section; rig: Rig; compact?: boolean }) {
   const view = useMemo(() => {
@@ -62,13 +62,21 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
 
   // Fixtures from the rig, placed by their stage-plan position (audience view).
   const byRole = (role: string) => rig.fixtures.filter((f) => f.role === role && f.pos).sort((a, b) => a.pos!.x - b.pos!.x);
-  let bars = byRole("backdrop").map((f) => f.pos!.x);
-  if (!bars.length) bars = [0.2, 0.4, 0.6, 0.8];
+  const backFx = byRole("backdrop");
+  // With no backdrop on the plan, sketch four generic bars (id -1).
+  const bars = backFx.length ? backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId })) : [0.2, 0.4, 0.6, 0.8].map((x) => ({ x, id: -1 }));
   const sides = byRole("side");
   const movers = byRole("mover");
   const fronts = byRole("front");
+  // Colors are handed out stage left first, the same way the export does it.
+  const stageIndex = (list: { pos?: { x: number } }[], i: number) =>
+    [...list.keys()].sort((a, b) => (list[b]!.pos?.x ?? 0) - (list[a]!.pos?.x ?? 0)).indexOf(i);
+  const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
+  const rainOn = new Set(section.effects.rain ? effectTargets(section, "rain", rig) : []);
+  const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
+  const twinkles = (id: number) => (id === -1 ? !!(section.effects.rain || section.effects.sparkle) : rainOn.has(id) || sparkleOn.has(id));
 
-  /** A fill that steps through the palette when colours change. */
+  /** A fill that steps through the palette when colors change. */
   const fill = (base: string, offset: number) => {
     if (!rotating || !animate) return { fill: base, anim: null };
     const k = pal.indexOf(base);
@@ -116,9 +124,10 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
 
       {/* Backdrop bars */}
       <g>
-        {bars.map((bx, i) => {
-          const x = 40 + bx * (W - 80) - barW / 2;
-          const solidColor = pattern.id === "solid" ? pal[i % pal.length]! : p0;
+        {bars.map((bar, i) => {
+          const x = 40 + bar.x * (W - 80) - barW / 2;
+          const k = backFx.length ? stageIndex(backFx, i) : i;
+          const solidColor = pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!;
           const base = fill(solidColor, 0);
           return (
             <g key={i}>
@@ -152,8 +161,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                         )}
                       </rect>
                     )}
-                    {(section.effects.rain || section.effects.sparkle) && animate && (
-                      <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={section.effects.sparkle ? "#fff" : "#cfe3ff"} opacity="0">
+                    {twinkles(bar.id) && animate && (
+                      <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={sparkleOn.has(bar.id) || (bar.id === -1 && section.effects.sparkle) ? "#fff" : "#cfe3ff"} opacity="0">
                         <animate attributeName="opacity" values="0;0.85;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
                       </rect>
                     )}
@@ -165,15 +174,15 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         })}
       </g>
 
-      {/* Side / floor lights: cones towards centre stage */}
+      {/* Side / floor lights: cones towards center stage */}
       {sides.map((f, i) => {
         const fx = 40 + f.pos!.x * (W - 80);
         const fy = H * 0.62 + f.pos!.y * (H * 0.36);
         const focused = focusSide !== "all" && f.side === focusSide;
         const dimmed = focusSide !== "all" && !focused;
-        const color = focused ? "#ffd9a8" : i % 2 ? p1 : p0;
+        const color = focused ? "#ffd9a8" : pal[stageIndex(sides, i) % pal.length]!;
         const toX = fx < W / 2 ? fx + 70 : fx - 70;
-        const c = fill(color, i % 2);
+        const c = fill(color, 0);
         return (
           <g key={f.fixtureId} opacity={dimmed ? 0.35 : 1}>
             <path d={`M${fx} ${fy} L${toX - 22} ${fy - 95} L${toX + 22} ${fy - 95} Z`} fill={focused ? color : c.fill} opacity={0.35 + 0.35 * level} mask="url(#pv-beam-mask)">
@@ -184,6 +193,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             <circle cx={fx} cy={fy - 4} r="3.2" fill={focused ? color : c.fill}>
               {!focused && c.anim}
             </circle>
+            {twinkles(f.fixtureId) && animate && (
+              <circle cx={fx} cy={fy - 4} r="6" fill="#fff" opacity="0">
+                <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.7 + rnd(f.fixtureId) * 0.9}s`} repeatCount="indefinite" />
+              </circle>
+            )}
           </g>
         );
       })}
@@ -192,7 +206,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       {movers.map((f, i) => {
         const fx = 40 + f.pos!.x * (W - 80);
         const fy = H * 0.5 + f.pos!.y * 40;
-        const c = fill(p1, 0);
+        const c = fill(pal[(stageIndex(movers, i) + 1) % pal.length]!, 0);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
         const mirror = f.reverse ? -1 : 1;
         const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;

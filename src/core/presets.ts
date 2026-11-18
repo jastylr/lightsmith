@@ -1,6 +1,6 @@
 /**
  * Everything a user picks from. Contributors: this is the file to edit to add
- * colours, moods, patterns, movements, effects or section types. Keep ids
+ * colors, moods, patterns, movements, effects or section types. Keep ids
  * stable once released, because saved songs refer to them.
  *
  * RGB matrix patterns only use scripts that ship with both QLC+ 4.14 and
@@ -16,7 +16,7 @@ export interface ColorPreset {
   rgb: RGB;
 }
 
-/** Named "gels". Custom colours are stored as "#rrggbb" strings instead of ids. */
+/** Named "gels". Custom colors are stored as "#rrggbb" strings instead of ids. */
 export const COLORS: ColorPreset[] = [
   { id: "red", label: "Red", rgb: [255, 0, 0] },
   { id: "orange", label: "Orange", rgb: [255, 80, 0] },
@@ -45,7 +45,7 @@ export function rgbToHex([r, g, b]: RGB): string {
   return "#" + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
 }
 
-/** A colour id ("amber") or a custom "#rrggbb". */
+/** A color id ("amber") or a custom "#rrggbb". */
 export function colorById(id: string): ColorPreset {
   const named = COLORS.find((c) => c.id === id);
   if (named) return named;
@@ -60,43 +60,43 @@ export interface PatternPreset {
   id: string;
   label: string;
   description: string;
-  /** QLC+ RGB script name; none = a plain colour scene. */
+  /** QLC+ RGB script name; none = a plain color scene. */
   algorithm?: string;
-  /** How many palette colours the script takes (0 = it makes its own). */
+  /** How many palette colors the script takes (0 = it makes its own). */
   colors: 0 | 1 | 2 | 5;
   /** Step length in beats at energy 3 (or fixed ms when `stepMs` is set). */
   stepBeats?: number;
   stepMs?: number;
-  /** Brightness of the plain base colour under the pattern (0..1). */
+  /** Brightness of the plain base color under the pattern (0..1). */
   floor: number;
   order?: "Loop" | "PingPong";
   direction?: "Forward" | "Backward";
   props?: Record<string, string | number>;
-  /** Lighten the pattern colour towards white (rain, snow). */
+  /** Lighten the pattern color towards white (rain, snow). */
   whiten?: number;
 }
 
 export const PATTERNS: PatternPreset[] = [
-  { id: "solid", label: "Solid wash", description: "Even colour across the backdrop", colors: 1, floor: 1 },
+  { id: "solid", label: "Solid wash", description: "Even color across the backdrop", colors: 1, floor: 1 },
   { id: "drift", label: "Drift", description: "Soft random twinkle", algorithm: "Noise", colors: 1, stepMs: 140, floor: 0.25, direction: "Backward", props: { noisePercentage: "Medium" } },
   { id: "slowWaves", label: "Slow waves", description: "Gentle waves rolling out from the middle", algorithm: "Waves", colors: 1, stepBeats: 0.5, floor: 0.25, order: "PingPong", props: { direction: "Out", orientation: "Vertical", tailfade: "Yes", taillength: 10 } },
   { id: "waves", label: "Waves", description: "Waves on the beat", algorithm: "Waves", colors: 1, stepBeats: 0.25, floor: 0.25, order: "PingPong", props: { direction: "Out", orientation: "Vertical", tailfade: "Yes", taillength: 10 } },
   { id: "stripes", label: "Stripes", description: "Bands bouncing up and down", algorithm: "Stripes", colors: 1, stepBeats: 0.25, floor: 0.25, order: "PingPong", props: { orientation: "Horizontal" } },
-  { id: "sineWave", label: "Sine wave", description: "A two-colour wave snaking along", algorithm: "Sine Wave", colors: 2, stepBeats: 0.25, floor: 0, props: { orientation: "Horizontal", amplitude: 100, frequency: 100 } },
+  { id: "sineWave", label: "Sine wave", description: "A two-color wave snaking along", algorithm: "Sine Wave", colors: 2, stepBeats: 0.25, floor: 0, props: { orientation: "Horizontal", amplitude: 100, frequency: 100 } },
   { id: "fillUp", label: "Fill and empty", description: "Bars fill up, then empty", algorithm: "Fill Unfill", colors: 1, stepBeats: 0.25, floor: 0.15, order: "PingPong", props: { orientation: "Vertical" } },
-  { id: "fillCenter", label: "Fill from centre", description: "Light grows out from the middle", algorithm: "Fill From Center", colors: 1, stepBeats: 0.25, floor: 0.15, order: "PingPong", props: { orientation: "Vertical" } },
+  { id: "fillCenter", label: "Fill from center", description: "Light grows out from the middle", algorithm: "Fill From Center", colors: 1, stepBeats: 0.25, floor: 0.15, order: "PingPong", props: { orientation: "Vertical" } },
   { id: "circles", label: "Pulsing circles", description: "Rings that pulse in and out", algorithm: "Circles", colors: 2, stepBeats: 0.25, floor: 0, props: { circlesAmount: 3, circlesSize: 0, fadeMode: "Pulse", fillCircles: "No" } },
-  { id: "alternate", label: "Alternate", description: "Two colours trading places", algorithm: "Alternate", colors: 2, stepBeats: 1, floor: 0 },
+  { id: "alternate", label: "Alternate", description: "Two colors trading places", algorithm: "Alternate", colors: 2, stepBeats: 1, floor: 0 },
   { id: "marquee", label: "Marquee", description: "Chasing lights around the edge", algorithm: "Marquee", colors: 2, stepBeats: 0.25, floor: 0 },
-  { id: "balls", label: "Bouncing balls", description: "Balls of colour bouncing around", algorithm: "Balls", colors: 5, stepMs: 60, floor: 0.1 },
-  { id: "plasma", label: "Plasma", description: "Liquid, shifting colour", algorithm: "Plasma", colors: 5, stepMs: 60, floor: 0 },
+  { id: "balls", label: "Bouncing balls", description: "Balls of color bouncing around", algorithm: "Balls", colors: 5, stepMs: 60, floor: 0.1 },
+  { id: "plasma", label: "Plasma", description: "Liquid, shifting color", algorithm: "Plasma", colors: 5, stepMs: 60, floor: 0 },
   { id: "sparkle", label: "Sparkle", description: "Random single pixels", algorithm: "Random Single", colors: 1, stepBeats: 0.125, floor: 0.2 },
   { id: "rainfall", label: "Falling rain", description: "Streaks falling down the bars", algorithm: "Vertical fall", colors: 1, stepMs: 90, floor: 0.2, whiten: 0.4 },
   { id: "snow", label: "Snow", description: "Flakes drifting down", algorithm: "Snow or Bubbles", colors: 1, stepMs: 120, floor: 0.15, whiten: 0.6, props: { presetflakes: 40, windchill: "No", reverse: "No", multiColor: "No" } },
   { id: "bubbles", label: "Bubbles", description: "Bubbles rising up", algorithm: "Snow or Bubbles", colors: 1, stepMs: 120, floor: 0.15, props: { presetflakes: 30, windchill: "No", reverse: "Yes", multiColor: "No" } },
   { id: "starfield", label: "Starfield", description: "Flying through stars", algorithm: "3D Starfield", colors: 1, stepMs: 100, floor: 0.1, props: { StarsAmount: 60, MultiColor: "No", InvertBrightness: "Dim->Bright" } },
   { id: "fireworks", label: "Fireworks", description: "Rockets bursting", algorithm: "Fireworks", colors: 1, stepMs: 60, floor: 0, props: { rocketCount: 3, randomColor: "No", particleCount: 11, particleSteps: 15 } },
-  { id: "rainbow", label: "Rainbow", description: "A rolling rainbow (ignores your colours)", algorithm: "Gradient", colors: 0, stepMs: 80, floor: 0, props: { presetIndex: "Rainbow", presetSize: 5, orientation: "Vertical" } },
+  { id: "rainbow", label: "Rainbow", description: "A rolling rainbow (ignores your colors)", algorithm: "Gradient", colors: 0, stepMs: 80, floor: 0, props: { presetIndex: "Rainbow", presetSize: 5, orientation: "Vertical" } },
   { id: "strobe", label: "Strobe", description: "Hard flashing", algorithm: "Strobe", colors: 1, stepBeats: 0.25, floor: 0.3, props: { frequency: 2 } },
 ];
 
@@ -153,11 +153,11 @@ export const EFFECTS: { id: EffectId; label: string; description: string }[] = [
   { id: "strobe", label: "Strobe hits", description: "White strobing on the backdrop" },
 ];
 
-// ---------------------------------------------------------------- colour changes
+// ---------------------------------------------------------------- color changes
 
 export type ColorChange = "hold" | "beat" | "2beats" | "bar" | "2bars" | "4bars";
 export const COLOR_CHANGES: { id: ColorChange; label: string; beats: number }[] = [
-  { id: "hold", label: "Keep colours steady", beats: 0 },
+  { id: "hold", label: "Keep colors steady", beats: 0 },
   { id: "beat", label: "Every beat", beats: 1 },
   { id: "2beats", label: "Every 2 beats", beats: 2 },
   { id: "bar", label: "Every bar", beats: -1 },
@@ -174,7 +174,7 @@ export interface MoodPreset {
   id: string;
   label: string;
   description: string;
-  colors: string[]; // default palette (colour ids)
+  colors: string[]; // default palette (color ids)
   intensity: number; // 0..1 overall level at energy 3
   pattern: string; // PATTERNS id
   side: SideStyle;
@@ -189,7 +189,7 @@ export const MOODS: MoodPreset[] = [
   { id: "warm", label: "Warm", description: "Amber, orange and red with gentle motion", colors: ["amber", "orange", "red"], intensity: 0.65, pattern: "slowWaves", side: "swapBar", movement: "sweep", colorChange: "hold" },
   { id: "dreamy", label: "Dreamy", description: "Pastel pinks and teals that float", colors: ["pink", "violet", "teal"], intensity: 0.55, pattern: "circles", side: "static", movement: "leaf", colorChange: "4bars" },
   { id: "lively", label: "Lively", description: "Upbeat cyan and magenta, medium movement", colors: ["cyan", "magenta"], intensity: 0.8, pattern: "waves", side: "swapBar", movement: "circle", colorChange: "hold" },
-  { id: "colorful", label: "Colorful", description: "Colours change every bar", colors: ["magenta", "cyan", "amber", "blue"], intensity: 0.9, pattern: "waves", side: "swapBar", movement: "circle", colorChange: "bar" },
+  { id: "colorful", label: "Colorful", description: "Colors change every bar", colors: ["magenta", "cyan", "amber", "blue"], intensity: 0.9, pattern: "waves", side: "swapBar", movement: "circle", colorChange: "bar" },
   { id: "energetic", label: "Energetic", description: "Driving reds and ambers, lots of motion", colors: ["red", "amber", "white"], intensity: 0.95, pattern: "stripes", side: "swapBeat", movement: "figure8", colorChange: "2bars" },
   { id: "aggressive", label: "Aggressive", description: "Hard red and white, fast and punchy", colors: ["red", "white"], intensity: 1, pattern: "strobe", side: "swapBeat", movement: "ballyhoo", colorChange: "hold" },
   { id: "celebration", label: "Celebration", description: "Big, bright and joyful", colors: ["yellow", "magenta", "cyan", "green"], intensity: 1, pattern: "fireworks", side: "swapBeat", movement: "circle", colorChange: "bar" },

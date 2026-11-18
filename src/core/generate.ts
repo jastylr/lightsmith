@@ -6,15 +6,15 @@
  * Rules learned the hard way (see docs/qlc-notes.md):
  *  - Never write a shutter/strobe channel unless the definition says the value
  *    opens the shutter or is a strobe. "No function" values can read as closed.
- *  - Light needs the master dimmer up AND a colour. Every look sets both.
- *  - RGB matrices only drive colour, so a scene must hold the dimmer.
+ *  - Light needs the master dimmer up AND a color. Every look sets both.
+ *  - RGB matrices only drive color, so a scene must hold the dimmer.
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
 import type { Rig, RigFixture, Song } from "./model";
 import { sectionMs } from "./model";
-import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type RGB } from "./presets";
-import { fixturesWithRole } from "./rig";
+import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
+import { effectTargets, fixturesWithRole, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, type Workspace } from "./workspace";
 
@@ -39,7 +39,7 @@ function setVal(vals: Vals, fixture: number, channel: number | undefined, value:
   m.set(channel, clamp(value));
 }
 
-/** Put a colour on one head. RGBW heads take the white part on the white LED. */
+/** Put a color on one head. RGBW heads take the white part on the white LED. */
 function headColor(vals: Vals, fid: number, head: HeadProfile, rgb: RGB, scale = 1) {
   let [r, g, b] = rgb.map((x) => x * scale) as [number, number, number];
   let w = 0;
@@ -66,7 +66,7 @@ function fixtureLevel(vals: Vals, fid: number, p: FixtureProfile, level: number)
     setVal(vals, fid, p.masterDimmer, level * 255);
     return 1;
   }
-  return level; // no dimmer: scale the colour instead
+  return level; // no dimmer: scale the color instead
 }
 
 function mix(a: RGB, b: RGB, t: number): RGB {
@@ -205,27 +205,42 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const movers = fixturesWithRole(rig, "mover").filter(usable);
   const prof = (r: RigFixture) => profiles.get(r.fixtureId)!;
 
-  // 2. A pixel group for the backdrop (shared by all songs; rebuilt each export).
-  let backdropGroup: number | undefined;
-  const rgbBackdrop = backdrop.filter((r) => prof(r).hasRgb);
-  if (rgbBackdrop.length) {
-    const groupName = "Lightsmith Backdrop";
-    const existing = childElements(engine, "FixtureGroup").find((g) => textOf(firstChild(g, "Name")).trim() === groupName);
-    backdropGroup = existing ? Number(getAttr(existing, "ID")) : nextGroupId(engine);
-    const maxHeads = Math.max(...rgbBackdrop.map((r) => prof(r).heads.filter((h) => h.red !== undefined).length));
+  // 2. Fixture groups for RGB matrices: "Lightsmith Backdrop", plus one per
+  //    other set of lights an effect is aimed at. Rebuilt on each export.
+  const fixtureName = new Map(ws.fixtures.map((f) => [f.id, f.name]));
+  const groupCache = new Map<string, number>();
+  const ensureGroup = (name: string, rs: RigFixture[]): number => {
+    const cached = groupCache.get(name);
+    if (cached !== undefined) return cached;
+    const existing = childElements(engine, "FixtureGroup").find((g) => textOf(firstChild(g, "Name")).trim() === name);
+    const id = existing ? Number(getAttr(existing, "ID")) : nextGroupId(engine);
+    const maxHeads = Math.max(1, ...rs.map((r) => prof(r).heads.filter((h) => h.red !== undefined).length));
     const heads: XmlElement[] = [];
-    rgbBackdrop.forEach((r, x) => {
-      const p = prof(r);
-      const rgbHeads = p.heads.map((h, i) => ({ h, i })).filter(({ h }) => h.red !== undefined);
+    rs.forEach((r, x) => {
+      const rgbHeads = prof(r).heads.map((h, i) => ({ h, i })).filter(({ h }) => h.red !== undefined);
       rgbHeads.forEach(({ i }, y) => heads.push(textEl("Head", i, { X: x, Y: y, Fixture: r.fixtureId })));
     });
-    const group = el("FixtureGroup", { ID: backdropGroup }, [textEl("Name", groupName), el("Size", { X: rgbBackdrop.length, Y: maxHeads }), ...heads]);
-    if (existing) {
-      existing.children = group.children;
-    } else {
-      insertChildren(engine, [group], ["FixtureGroup", "Fixture"]);
-    }
-  }
+    const group = el("FixtureGroup", { ID: id }, [textEl("Name", name), el("Size", { X: rs.length, Y: maxHeads }), ...heads]);
+    if (existing) existing.children = group.children;
+    else insertChildren(engine, [group], ["FixtureGroup", "Fixture"]);
+    groupCache.set(name, id);
+    return id;
+  };
+  const idsKey = (rs: RigFixture[]) => rs.map((r) => r.fixtureId).sort((a, b) => a - b).join(",");
+  const rgbBackdrop = backdrop.filter((r) => prof(r).hasRgb);
+  const backdropGroup = rgbBackdrop.length ? ensureGroup("Lightsmith Backdrop", rgbBackdrop) : undefined;
+  /** A matrix group for any set of lights (only those with RGB can show a matrix). */
+  const groupFor = (rs: RigFixture[]): number | undefined => {
+    const rgb = rs.filter((r) => prof(r).hasRgb);
+    if (!rgb.length) return undefined;
+    if (backdropGroup !== undefined && idsKey(rgb) === idsKey(rgbBackdrop)) return backdropGroup;
+    return ensureGroup(`Lightsmith: ${rgb.map((r) => fixtureName.get(r.fixtureId) ?? `Fixture ${r.fixtureId}`).join(" + ")}`, rgb);
+  };
+  const usedLights = rig.fixtures.filter((r) => r.role !== "ignore" && usable(r));
+  const targetsFor = (s: Song["sections"][number], e: EffectId): RigFixture[] => {
+    const ids = new Set(effectTargets(s, e, rig));
+    return usedLights.filter((r) => ids.has(r.fixtureId)).sort(stageOrder);
+  };
 
   const b = new Builder(nextFunctionId(engine));
   const sharedPath = `${songPath}/Shared`;
@@ -233,24 +248,30 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   // Shared: a blank spacer and lightning strikes (created on first use).
   let blankId: number | undefined;
   const blank = () => (blankId ??= b.scene("Blank (spacer)", sharedPath, new Map()));
-  let strikesId: number | undefined;
-  let strikesMs = 0;
-  const strikes = () => {
-    if (strikesId !== undefined) return strikesId;
-    const lp = `${sharedPath}/Lightning`;
-    const flash = (rs: RigFixture[]) => {
-      const v: Vals = new Map();
-      for (const r of rs) {
-        const p = prof(r);
-        const s = fixtureLevel(v, r.fixtureId, p, 1);
-        for (const h of p.heads) headColor(v, r.fixtureId, h, WHITE, s);
-      }
-      return v;
-    };
-    const all = b.scene("Strike all", lp, flash([...backdrop, ...sides, ...fronts, ...movers]));
-    const each = [...backdrop, ...sides].map((r, i) => b.scene(`Strike ${i + 1}`, lp, flash([r])));
-    const moverFlash = movers.length ? b.scene("Strike movers", lp, flash(movers)) : all;
-    const pick = (i: number) => each.length ? each[i % each.length]! : all;
+  const flash = (rs: RigFixture[], color: RGB) => {
+    const v: Vals = new Map();
+    for (const r of rs) {
+      const p = prof(r);
+      const sc = fixtureLevel(v, r.fixtureId, p, 1);
+      for (const h of p.heads) headColor(v, r.fixtureId, h, color, sc);
+    }
+    return v;
+  };
+  // Lightning strikes, blinder flashes and beat pulses are shared by every
+  // section that aims them at the same lights.
+  const strikeCache = new Map<string, { id: number; ms: number }>();
+  const strikes = (targets: RigFixture[]) => {
+    const key = idsKey(targets);
+    const hit = strikeCache.get(key);
+    if (hit) return hit;
+    const n = strikeCache.size + 1;
+    const lp = `${sharedPath}/Lightning${n > 1 ? ` ${n}` : ""}`;
+    const all = b.scene("Strike all", lp, flash(targets, WHITE));
+    const still = targets.filter((r) => r.role !== "mover");
+    const moving = targets.filter((r) => r.role === "mover");
+    const each = still.map((r, i) => b.scene(`Strike ${i + 1}`, lp, flash([r], WHITE)));
+    const moverFlash = moving.length ? b.scene("Strike movers", lp, flash(moving, WHITE)) : all;
+    const pick = (i: number) => (each.length ? each[i % each.length]! : all);
     const pattern: Step[] = [
       { id: all, hold: 200 }, { id: blank(), hold: 60 }, { id: pick(0), hold: 100 }, { id: pick(2), hold: 80 },
       { id: moverFlash, hold: 120 }, { id: pick(1), hold: 100 }, { id: pick(3), hold: 80 }, { id: blank(), hold: 40 },
@@ -258,33 +279,18 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       { id: pick(5), hold: 30 }, { id: all, hold: 60 }, { id: moverFlash, fadeIn: 40, hold: 40 }, { id: blank(), hold: 40 },
       { id: pick(2), hold: 100 }, { id: pick(0), hold: 80 }, { id: all, hold: 120, fadeOut: 1500 },
     ];
-    strikesMs = pattern.reduce((t, s) => t + (s.fadeIn ?? 0) + s.hold, 0) + 1600;
-    strikesId = b.chaser("Lightning strikes", lp, pattern, "SingleShot");
-    return strikesId;
+    const result = { id: b.chaser("Lightning strikes", lp, pattern, "SingleShot"), ms: pattern.reduce((t, s) => t + (s.fadeIn ?? 0) + s.hold, 0) + 1600 };
+    strikeCache.set(key, result);
+    return result;
   };
-
-  // Shared overlays.
-  let blinderSceneId: number | undefined;
-  const blinderScene = () => {
-    if (blinderSceneId !== undefined) return blinderSceneId;
-    const v: Vals = new Map();
-    for (const r of [...backdrop, ...sides, ...fronts, ...movers]) {
-      const p = prof(r);
-      const s = fixtureLevel(v, r.fixtureId, p, 1);
-      for (const h of p.heads) headColor(v, r.fixtureId, h, WHITE, s);
-    }
-    return (blinderSceneId = b.scene("Blinder flash", sharedPath, v));
-  };
-  let pulseSceneId: number | undefined;
-  const pulseScene = () => {
-    if (pulseSceneId !== undefined) return pulseSceneId;
-    const v: Vals = new Map();
-    for (const r of [...sides, ...fronts]) {
-      const p = prof(r);
-      const s = fixtureLevel(v, r.fixtureId, p, 1);
-      for (const h of p.heads) headColor(v, r.fixtureId, h, WARM_WHITE, s);
-    }
-    return (pulseSceneId = b.scene("Beat pulse", sharedPath, v));
+  const sceneCache = new Map<string, number>();
+  const sharedScene = (name: string, targets: RigFixture[], color: RGB) => {
+    const key = `${name}|${idsKey(targets)}`;
+    const hit = sceneCache.get(key);
+    if (hit !== undefined) return hit;
+    const id = b.scene(name, sharedPath, flash(targets, color));
+    sceneCache.set(key, id);
+    return id;
   };
 
   const sectionIds: number[] = [];
@@ -307,7 +313,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
     const parts: number[] = [];
 
-    /** Everything that depends on colour, for one arrangement of the palette. */
+    /** Everything that depends on color, for one arrangement of the palette. */
     const look = (pal: RGB[], tag: string, withFades: boolean): number[] => {
       const out: number[] = [];
       const named = (n: string) => (tag ? `${n} ${tag}` : n);
@@ -321,7 +327,10 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         backdrop.forEach((r, i) => {
           const p = prof(r);
           const sc = fixtureLevel(v, r.fixtureId, p, level);
-          const color = pattern.id === "solid" ? pal[i % pal.length]! : p0;
+          // Spread the palette across the bars. Under a pattern, keep the
+          // pattern's color (p1) for the pattern and cycle the others.
+          const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
+          const color = pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!;
           for (const h of p.heads) headColor(v, r.fixtureId, h, color, pattern.floor * sc);
           if (s.focus !== "all" && r.side === s.focus) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
         });
@@ -336,14 +345,15 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
 
       const sideLook = (rs: RigFixture[], hot: "SL" | "SR" | null): Vals => {
         const v: Vals = new Map();
-        for (const r of rs) {
+        for (const [k, r] of rs.entries()) {
           const p = prof(r);
           const focused = s.focus !== "all" && r.side === s.focus;
           const dimmed = s.focus !== "all" && !focused;
           const isHot = hot === null || r.side === hot || r.side === "C";
           const lv = focused ? 1 : dimmed ? level * 0.35 : isHot ? level : level * 0.35;
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
-          const color = focused ? WARM_WHITE : isHot ? p0 : p1;
+          // Each light takes the next palette color; lights on the "cold" side take the one after.
+          const color = focused ? WARM_WHITE : isHot ? pal[k % pal.length]! : pal[(k + 1) % pal.length]!;
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
             if (whiteOnly) setVal(v, r.fixtureId, h.white, focused ? 255 : 0);
@@ -374,10 +384,10 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       }
       if (movers.length) {
         const v: Vals = new Map();
-        for (const r of movers) {
+        for (const [k, r] of movers.entries()) {
           const p = prof(r);
           const sc = fixtureLevel(v, r.fixtureId, p, level);
-          for (const h of p.heads) headColor(v, r.fixtureId, h, p1, sc);
+          for (const h of p.heads) headColor(v, r.fixtureId, h, pal[(k + 1) % pal.length]!, sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {
             const home = r.home ?? { pan: 128, tilt: 128 };
@@ -387,16 +397,16 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
             setVal(v, r.fixtureId, p.tiltFine, 0);
           }
         }
-        out.push(b.scene(named(mv.algorithm ? "Movers colour" : "Movers colour + position"), path, v, fi, fo));
+        out.push(b.scene(named(mv.algorithm ? "Movers color" : "Movers color + position"), path, v, fi, fo));
       }
       return out;
     };
 
     if (period > 0 && palette.length > 1) {
       const rotations = palette.map((_, k) => [...palette.slice(k), ...palette.slice(0, k)]);
-      const looks = rotations.map((pal, k) => b.collection(`Colours ${k + 1}`, path, look(pal, `(colours ${k + 1})`, false)));
+      const looks = rotations.map((pal, k) => b.collection(`Colors ${k + 1}`, path, look(pal, `(colors ${k + 1})`, false)));
       const cf = s.colorFade ? Math.min(period / 2, 1500) : 0;
-      parts.push(b.chaser("Colour changes", path, looks.map((id) => ({ id, fadeIn: cf, hold: period - cf }))));
+      parts.push(b.chaser("Color changes", path, looks.map((id) => ({ id, fadeIn: cf, hold: period - cf }))));
     } else {
       parts.push(...look(palette, "", true));
     }
@@ -418,21 +428,30 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       }
     }
 
-    // ---- effects layered on top
+    // ---- effects layered on top, each on its chosen lights
     const p0 = palette[0]!;
-    if (backdropGroup !== undefined) {
-      if (s.effects.rain) parts.push(b.matrix("Rain", path, { algorithm: "Noise", colors: [mix(p0, WHITE, 0.4)], stepMs: 120 / speed, group: backdropGroup, direction: "Backward", props: { noisePercentage: "Medium" } }));
-      if (s.effects.sparkle) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: backdropGroup }));
-      if (s.effects.strobe && pattern.id !== "strobe") parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: backdropGroup, props: { frequency: 2 } }));
+    const matrixOn = (e: EffectId) => (s.effects[e] ? groupFor(targetsFor(s, e)) : undefined);
+    const rainGroup = matrixOn("rain");
+    if (rainGroup !== undefined) parts.push(b.matrix("Rain", path, { algorithm: "Noise", colors: [mix(p0, WHITE, 0.4)], stepMs: 120 / speed, group: rainGroup, direction: "Backward", props: { noisePercentage: "Medium" } }));
+    const sparkleGroup = matrixOn("sparkle");
+    if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup }));
+    const strobeGroup = matrixOn("strobe");
+    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 } }));
+    if (s.effects.blinder) {
+      const t = targetsFor(s, "blinder");
+      if (t.length) parts.push(b.chaser("Blinder hit", path, [{ id: sharedScene("Blinder flash", t, WHITE), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));
     }
-    if (s.effects.blinder) parts.push(b.chaser("Blinder hit", path, [{ id: blinderScene(), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));
-    if (s.effects.beatPulse && (sides.length || fronts.length)) {
-      parts.push(b.chaser("Beat pulse", path, [{ id: pulseScene(), hold: beat * 0.2, fadeOut: beat * 0.5 }, { id: blank(), hold: beat * 0.8 }]));
+    if (s.effects.beatPulse) {
+      const t = targetsFor(s, "beatPulse");
+      if (t.length) parts.push(b.chaser("Beat pulse", path, [{ id: sharedScene("Beat pulse", t, WARM_WHITE), hold: beat * 0.2, fadeOut: beat * 0.5 }, { id: blank(), hold: beat * 0.8 }]));
     }
     if (s.effects.lightning) {
-      const delay = Math.max(0, (s.effects.lightningDelaySec ?? 0) * 1000);
-      const st = strikes();
-      parts.push(b.chaser("Lightning", path, delay > 0 ? [{ id: blank(), hold: delay }, { id: st, hold: strikesMs }] : [{ id: st, hold: strikesMs }], "SingleShot"));
+      const t = targetsFor(s, "lightning");
+      if (t.length) {
+        const delay = Math.max(0, (s.effects.lightningDelaySec ?? 0) * 1000);
+        const st = strikes(t);
+        parts.push(b.chaser("Lightning", path, delay > 0 ? [{ id: blank(), hold: delay }, { id: st.id, hold: st.ms }] : [{ id: st.id, hold: st.ms }], "SingleShot"));
+      }
     }
 
     sectionIds.push(b.collection(label, path, parts));
@@ -447,6 +466,14 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
 
   // 3. Write functions into the workspace.
   insertChildren(engine, b.functions, ["Function"], ["Monitor"]);
+
+  // Tidy up effect groups that no matrix uses any more.
+  const usedGroups = new Set(
+    childElements(engine, "Function")
+      .filter((f) => getAttr(f, "Type") === "RGBMatrix")
+      .map((f) => Number(textOf(firstChild(f, "FixtureGroup")))),
+  );
+  removed += removeWhere(engine, (e) => e.name === "FixtureGroup" && textOf(firstChild(e, "Name")).trim().startsWith("Lightsmith: ") && !usedGroups.has(Number(getAttr(e, "ID"))));
 
   // 4. Virtual Console: a solo frame with one button per section.
   let vc = ws.virtualConsole;

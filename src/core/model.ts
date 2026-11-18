@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { SONG_TEMPLATES, sectionTypeById, type ColorChange, type MoverSpread } from "./presets";
+import { SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -49,10 +49,10 @@ export interface Section {
   beatsPerBar: number;
   mood: string; // MOODS id
   energy: number; // 1..5
-  colors: string[]; // colour ids or "#rrggbb"; empty = use the mood's colours
-  /** How often to switch between the colours ("mood" follows the mood). */
+  colors: string[]; // color ids or "#rrggbb"; empty = use the mood's colors
+  /** How often to switch between the colors ("mood" follows the mood). */
   colorChange: ColorChange | "mood";
-  /** Crossfade when switching colours. */
+  /** Crossfade when switching colors. */
   colorFade: boolean;
   /** Backdrop pattern id, or "mood". */
   pattern: string;
@@ -60,6 +60,8 @@ export interface Section {
   moverSpread: MoverSpread;
   focus: Focus;
   effects: SectionEffects;
+  /** Which lights each effect uses (fixture IDs). Missing = the effect's default lights. */
+  effectTargets?: Partial<Record<EffectId, number[]>>;
   transition: Transition;
   /** Move to the next section by itself after its length (otherwise wait for a trigger). */
   autoAdvance: boolean;
@@ -111,7 +113,7 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])] };
+  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) } };
 }
 
 export function normalizeProject(p: Project): Project {

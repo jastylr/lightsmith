@@ -1,6 +1,6 @@
 /**
  * QLC+ fixture definitions (.qxf) and the "profile" Lightsmith derives from
- * one mode of a definition: which channels carry dimmer, colour, pan/tilt and
+ * one mode of a definition: which channels carry dimmer, color, pan/tilt and
  * shutter, grouped into heads.
  */
 import { childElements, childText, firstChild, getAttr, parseXml, textOf } from "./xml";
@@ -40,7 +40,7 @@ export interface ChannelDef {
   preset?: string;
   group?: string;
   byte: number;
-  colour?: string;
+  color?: string;
   capabilities: Capability[];
   kind: ChannelKind;
   /** For pan/tilt speed channels: true when 0 = fastest. */
@@ -61,7 +61,7 @@ export interface FixtureDef {
   modes: ModeDef[];
 }
 
-const COLOUR_KINDS: Record<string, ChannelKind> = {
+const COLOR_KINDS: Record<string, ChannelKind> = {
   red: "red",
   green: "green",
   blue: "blue",
@@ -75,8 +75,8 @@ const COLOUR_KINDS: Record<string, ChannelKind> = {
   indigo: "indigo",
 };
 
-/** Map a QLC+ channel preset (or group/colour) to what Lightsmith cares about. */
-export function classifyChannel(preset: string | undefined, group: string | undefined, byte: number, colour: string | undefined): {
+/** Map a QLC+ channel preset (or group/color) to what Lightsmith cares about. */
+export function classifyChannel(preset: string | undefined, group: string | undefined, byte: number, color: string | undefined): {
   kind: ChannelKind;
   speedFastIsLow?: boolean;
 } {
@@ -89,7 +89,7 @@ export function classifyChannel(preset: string | undefined, group: string | unde
     if (preset === "IntensityMasterDimmer") return { kind: "masterDimmer" };
     if (preset === "IntensityDimmer") return { kind: "dimmer" };
     if (preset.startsWith("Intensity")) {
-      const c = COLOUR_KINDS[preset.slice("Intensity".length).toLowerCase()];
+      const c = COLOR_KINDS[preset.slice("Intensity".length).toLowerCase()];
       return { kind: c ?? "other" };
     }
     if (preset === "PositionPan" || preset === "PositionXAxis") return { kind: "pan" };
@@ -101,7 +101,7 @@ export function classifyChannel(preset: string | undefined, group: string | unde
   switch (group) {
     case "Intensity": {
       if (byte === 1) return { kind: "fine" };
-      if (colour) return { kind: COLOUR_KINDS[colour.toLowerCase()] ?? "other" };
+      if (color) return { kind: COLOR_KINDS[color.toLowerCase()] ?? "other" };
       return { kind: "dimmer" };
     }
     case "Pan":
@@ -125,15 +125,16 @@ export function parseFixtureDef(xml: string): FixtureDef {
     const groupEl = firstChild(ch, "Group");
     const group = groupEl ? textOf(groupEl).trim() : undefined;
     const byte = groupEl ? Number(getAttr(groupEl, "Byte") ?? 0) : 0;
-    const colour = childText(ch, "Colour");
+    // QLC+ spells this element "Colour".
+    const color = childText(ch, "Colour");
     const capabilities: Capability[] = childElements(ch, "Capability").map((c) => ({
       min: Number(getAttr(c, "Min") ?? 0),
       max: Number(getAttr(c, "Max") ?? 255),
       name: textOf(c).trim(),
       preset: getAttr(c, "Preset"),
     }));
-    const cls = classifyChannel(preset, group, byte, colour);
-    channels.set(name, { name, preset, group, byte, colour, capabilities, ...cls });
+    const cls = classifyChannel(preset, group, byte, color);
+    channels.set(name, { name, preset, group, byte, color, capabilities, ...cls });
   }
   const modes: ModeDef[] = childElements(root, "Mode").map((m) => {
     const chs: string[] = [];
@@ -177,7 +178,7 @@ export interface FixtureProfile {
   mode: ModeDef;
   channelCount: number;
   masterDimmer?: number;
-  /** Heads that can show colour or white light. */
+  /** Heads that can show color or white light. */
   heads: HeadProfile[];
   pan?: number;
   panFine?: number;

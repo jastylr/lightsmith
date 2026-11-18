@@ -37,7 +37,7 @@ function Swatches({ colors }: { colors: string[] }) {
   );
 }
 
-/** A select that can show colour swatches, icons and a description per option. */
+/** A select that can show color swatches, icons and a description per option. */
 export function Dropdown<T extends string>({
   value,
   options,

@@ -3,7 +3,8 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { sideFromX, type Rig, type RigFixture, type Role, type Side } from "./model";
+import { sideFromX, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import type { EffectId } from "./presets";
 import type { WsFixture } from "./workspace";
 
 export interface ProfileResult {
@@ -112,4 +113,30 @@ export function settleRig(rig: Rig): Rig {
       .forEach((f, i) => (f.order = i));
   }
   return { fixtures };
+}
+
+/** Stage left first, by plan position (then by order). */
+export function stageOrder(a: RigFixture, b: RigFixture): number {
+  return (b.pos?.x ?? 0) - (a.pos?.x ?? 0) || a.order - b.order;
+}
+
+/** Effects drawn by an RGB matrix only work on lights with red, green and blue. */
+export const MATRIX_EFFECTS: EffectId[] = ["rain", "sparkle", "strobe"];
+
+/** The lights an effect uses unless the user picks others. */
+export function defaultEffectTargets(effect: EffectId, rig: Rig): number[] {
+  const roles: Role[] =
+    effect === "rain" || effect === "sparkle" || effect === "strobe"
+      ? ["backdrop"]
+      : effect === "beatPulse"
+        ? ["side", "front"]
+        : ["backdrop", "side", "front", "mover"];
+  return rig.fixtures.filter((f) => roles.includes(f.role)).map((f) => f.fixtureId);
+}
+
+/** The lights a section's effect will use: the user's pick or the default, limited to lights in use. */
+export function effectTargets(section: Pick<Section, "effectTargets">, effect: EffectId, rig: Rig): number[] {
+  const inUse = new Set(rig.fixtures.filter((f) => f.role !== "ignore").map((f) => f.fixtureId));
+  const ids = section.effectTargets?.[effect] ?? defaultEffectTargets(effect, rig);
+  return ids.filter((id) => inUse.has(id));
 }
