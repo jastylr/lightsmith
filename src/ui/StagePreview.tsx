@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { COLOR_CHANGES, colorById, effectTargets, energyOf, moodById, MOVEMENTS, patternById, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, colorById, DEFAULT_COLOR_LAYOUT, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -75,6 +75,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const rainOn = new Set(section.effects.rain ? effectTargets(section, "rain", rig) : []);
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
   const twinkles = (id: number) => (id === -1 ? !!(section.effects.rain || section.effects.sparkle) : rainOn.has(id) || sparkleOn.has(id));
+  const WARM = "#ffd9a8";
 
   /** A fill that steps through the palette when colors change. */
   const fill = (base: string, offset: number) => {
@@ -94,7 +95,20 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const barW = 14;
   const topY = 18;
   const cellH = 11;
-  const focusSide = section.focus;
+  const focusSet = new Set(section.focus === "all" ? [] : focusLights({ fixtures: rig.fixtures.filter((f) => f.role !== "ignore") }, section.focus));
+  const focusing = focusSet.size > 0;
+  const layout = { ...DEFAULT_COLOR_LAYOUT, ...(section.colorLayout ?? {}) };
+  /** Same rules as the export: mix spreads the palette; a number picks one color; "white" is warm white. */
+  const colorFor = (job: ColorJob, k: number, offset: number) => {
+    const t = layout[job];
+    if (t === "white") return WARM;
+    if (typeof t === "number") return pal[t % pal.length]!;
+    return pal[(k + offset) % pal.length]!;
+  };
+  const fixedBack = typeof layout.backdrop === "number" ? layout.backdrop : null;
+  const main = fixedBack !== null ? pal[fixedBack % pal.length]! : p0;
+  const accent = fixedBack !== null ? pal[(fixedBack + 1) % pal.length]! : p1;
+  const patternOn = new Set(patternTargets(section, rig));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact" : "preview"} role="img" aria-label={`Preview of ${section.name}`}>
@@ -127,20 +141,21 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         {bars.map((bar, i) => {
           const x = 40 + bar.x * (W - 80) - barW / 2;
           const k = backFx.length ? stageIndex(backFx, i) : i;
-          const solidColor = pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!;
+          const runsPattern = !!pattern.algorithm && (bar.id === -1 ? patternOn.size === 0 && backFx.length === 0 : patternOn.has(bar.id));
+          const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
           const base = fill(solidColor, 0);
           return (
             <g key={i}>
               <rect x={x - 3} y={topY - 3} width={barW + 6} height={cells * cellH + 6} rx="3" fill="#0b0a0c" />
               {Array.from({ length: cells }, (_, c) => {
                 const y = topY + c * cellH;
-                const floor = pattern.id === "solid" ? level : Math.max(0.12, pattern.floor) * level;
-                const over = fill(pattern.colors === 2 && c % 2 ? p0 : p1, 1);
+                const floor = runsPattern ? Math.max(0.12, pattern.floor) * level : level;
+                const over = fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
                 let begin = 0;
                 if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
                 else if (family === "vertical") begin = (c / cells) * cycle;
                 else if (family === "random") begin = rnd(i * 31 + c * 7) * cycle;
-                const showOver = family !== "solid" && pattern.algorithm;
+                const showOver = family !== "solid" && runsPattern;
                 return (
                   <g key={c}>
                     <rect x={x} y={y + 1} width={barW} height={cellH - 2} rx="2" fill={base.fill} opacity={floor}>
@@ -178,9 +193,9 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       {sides.map((f, i) => {
         const fx = 40 + f.pos!.x * (W - 80);
         const fy = H * 0.62 + f.pos!.y * (H * 0.36);
-        const focused = focusSide !== "all" && f.side === focusSide;
-        const dimmed = focusSide !== "all" && !focused;
-        const color = focused ? "#ffd9a8" : pal[stageIndex(sides, i) % pal.length]!;
+        const focused = focusSet.has(f.fixtureId);
+        const dimmed = focusing && !focused;
+        const color = focused ? WARM : colorFor("side", stageIndex(sides, i), 0);
         const toX = fx < W / 2 ? fx + 70 : fx - 70;
         const c = fill(color, 0);
         return (
@@ -206,7 +221,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       {movers.map((f, i) => {
         const fx = 40 + f.pos!.x * (W - 80);
         const fy = H * 0.5 + f.pos!.y * 40;
-        const c = fill(pal[(stageIndex(movers, i) + 1) % pal.length]!, 0);
+        const moverFocused = focusSet.has(f.fixtureId);
+        const c = moverFocused ? { fill: WARM, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
         const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
         const mirror = f.reverse ? -1 : 1;
         const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;
@@ -232,7 +248,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
       })}
 
       {/* Front wash */}
-      {fronts.length > 0 && <rect x="0" y={H * 0.78} width={W} height={H * 0.22} fill="#ffd9a8" opacity={0.08 + 0.12 * level} />}
+      {fronts.length > 0 && <rect x="0" y={H * 0.78} width={W} height={H * 0.22} fill={colorFor("front", 0, 0)} opacity={0.08 + 0.12 * level} />}
 
       {/* Lightning / blinder: a white flash */}
       {animate && (section.effects.lightning || section.effects.blinder) && (

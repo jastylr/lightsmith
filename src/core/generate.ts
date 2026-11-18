@@ -11,10 +11,10 @@
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
-import type { Rig, RigFixture, Song } from "./model";
+import { DEFAULT_COLOR_LAYOUT, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
-import { effectTargets, fixturesWithRole, stageOrder } from "./rig";
+import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, type Workspace } from "./workspace";
 
@@ -313,6 +313,23 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
     const parts: number[] = [];
 
+    // Focus: these lights go warm white at full; the other side and floor lights dim.
+    const focusSet = new Set(s.focus === "all" ? [] : focusLights({ fixtures: usedLights }, s.focus));
+    const focusing = focusSet.size > 0;
+    const layout = { ...DEFAULT_COLOR_LAYOUT, ...(s.colorLayout ?? {}) };
+    /** The color for the k-th light (stage left first) of a kind, given the palette arrangement. */
+    const colorFor = (pal: RGB[], job: ColorJob, k: number, mixOffset: number): RGB => {
+      const t = layout[job];
+      if (t === "white") return WARM_WHITE;
+      if (typeof t === "number") return pal[t % pal.length]!;
+      return pal[(k + mixOffset) % pal.length]!;
+    };
+    const patternLights = (() => {
+      const ids = new Set(patternTargets(s, rig));
+      return usedLights.filter((r) => ids.has(r.fixtureId)).sort(stageOrder);
+    })();
+    const patternGroup = pattern.algorithm ? groupFor(patternLights) : undefined;
+
     /** Everything that depends on color, for one arrangement of the palette. */
     const look = (pal: RGB[], tag: string, withFades: boolean): number[] => {
       const out: number[] = [];
@@ -320,40 +337,44 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       const fi = withFades ? fade : 0;
       const fo = withFades ? beat : 0;
       const p0 = pal[0]!;
-      const p1 = pal[1] ?? p0;
+      const fixed = typeof layout.backdrop === "number" ? layout.backdrop : null;
+      // The pattern's color: the one after the backdrop's chosen color, or the second color.
+      const main = fixed !== null ? pal[fixed % pal.length]! : p0;
+      const accent = fixed !== null ? pal[(fixed + 1) % pal.length]! : (pal[1] ?? p0);
 
       if (backdrop.length) {
         const v: Vals = new Map();
+        // With "mix", spread the palette across the bars, keeping the pattern's color for the pattern.
+        const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
         backdrop.forEach((r, i) => {
           const p = prof(r);
           const sc = fixtureLevel(v, r.fixtureId, p, level);
-          // Spread the palette across the bars. Under a pattern, keep the
-          // pattern's color (p1) for the pattern and cycle the others.
-          const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
-          const color = pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!;
-          for (const h of p.heads) headColor(v, r.fixtureId, h, color, pattern.floor * sc);
-          if (s.focus !== "all" && r.side === s.focus) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
+          const color = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!) : colorFor(pal, "backdrop", i, 0);
+          // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
+          const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
+          for (const h of p.heads) headColor(v, r.fixtureId, h, color, (underPattern ? pattern.floor : 1) * sc);
+          if (focusSet.has(r.fixtureId)) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
         });
         out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
-        if (backdropGroup !== undefined && pattern.algorithm) {
-          const single = pattern.whiten ? mix(pattern.floor > 0 ? p1 : p0, WHITE, pattern.whiten) : pattern.floor > 0 ? p1 : p0;
-          const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [p0, p1] : pal.slice(0, 5);
-          const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
-          out.push(b.matrix(named(`Backdrop ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: backdropGroup, direction: pattern.direction, order: pattern.order, props: pattern.props }));
-        }
+      }
+      if (patternGroup !== undefined && pattern.algorithm) {
+        const single = pattern.whiten ? mix(pattern.floor > 0 ? accent : main, WHITE, pattern.whiten) : pattern.floor > 0 ? accent : main;
+        const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [main, accent] : pal.slice(0, 5);
+        const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
+        out.push(b.matrix(named(`Pattern: ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: patternGroup, direction: pattern.direction, order: pattern.order, props: pattern.props }));
       }
 
-      const sideLook = (rs: RigFixture[], hot: "SL" | "SR" | null): Vals => {
+      /** Side and front lights; `hot` is the side that's bright in a side-to-side swap. */
+      const floorLook = (rs: RigFixture[], job: ColorJob, hot: "SL" | "SR" | null): Vals => {
         const v: Vals = new Map();
         for (const [k, r] of rs.entries()) {
           const p = prof(r);
-          const focused = s.focus !== "all" && r.side === s.focus;
-          const dimmed = s.focus !== "all" && !focused;
+          const focused = focusSet.has(r.fixtureId);
           const isHot = hot === null || r.side === hot || r.side === "C";
-          const lv = focused ? 1 : dimmed ? level * 0.35 : isHot ? level : level * 0.35;
+          const base = job === "front" ? Math.max(0.3, level * 0.8) : level;
+          const lv = focused ? 1 : focusing ? base * 0.35 : isHot ? base : base * 0.35;
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
-          // Each light takes the next palette color; lights on the "cold" side take the one after.
-          const color = focused ? WARM_WHITE : isHot ? pal[k % pal.length]! : pal[(k + 1) % pal.length]!;
+          const color = focused ? WARM_WHITE : colorFor(pal, job, k, isHot ? 0 : 1);
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
             if (whiteOnly) setVal(v, r.fixtureId, h.white, focused ? 255 : 0);
@@ -363,31 +384,24 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
         return v;
       };
       if (sides.length) {
-        if (s.focus !== "all" || mood.side === "static") {
-          out.push(b.scene(named("Side lights"), path, sideLook(sides, null), fi, fo));
+        if (focusing || mood.side === "static") {
+          out.push(b.scene(named("Side lights"), path, floorLook(sides, "side", null), fi, fo));
         } else {
           const swap = mood.side === "swapBeat" ? beat : bar;
-          const a = b.scene(named("Side lights A"), path, sideLook(sides, "SL"));
-          const c = b.scene(named("Side lights B"), path, sideLook(sides, "SR"));
+          const a = b.scene(named("Side lights A"), path, floorLook(sides, "side", "SL"));
+          const c = b.scene(named("Side lights B"), path, floorLook(sides, "side", "SR"));
           const sf = mood.side === "swapBar" ? Math.min(300, swap / 4) : 0;
           out.push(b.chaser(named("Side lights swap"), path, [{ id: a, fadeIn: sf, hold: swap - sf }, { id: c, fadeIn: sf, hold: swap - sf }]));
         }
       }
-      if (fronts.length) {
-        const v: Vals = new Map();
-        for (const r of fronts) {
-          const p = prof(r);
-          const sc = fixtureLevel(v, r.fixtureId, p, Math.max(0.3, level * 0.8));
-          for (const h of p.heads) headColor(v, r.fixtureId, h, WARM_WHITE, sc);
-        }
-        out.push(b.scene(named("Front light"), path, v, fi, fo));
-      }
+      if (fronts.length) out.push(b.scene(named("Front light"), path, floorLook(fronts, "front", null), fi, fo));
       if (movers.length) {
         const v: Vals = new Map();
         for (const [k, r] of movers.entries()) {
           const p = prof(r);
-          const sc = fixtureLevel(v, r.fixtureId, p, level);
-          for (const h of p.heads) headColor(v, r.fixtureId, h, pal[(k + 1) % pal.length]!, sc);
+          const focused = focusSet.has(r.fixtureId);
+          const sc = fixtureLevel(v, r.fixtureId, p, focused ? 1 : focusing ? level * 0.5 : level);
+          for (const h of p.heads) headColor(v, r.fixtureId, h, focused ? WARM_WHITE : colorFor(pal, "mover", k, 1), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {
             const home = r.home ?? { pan: 128, tilt: 128 };

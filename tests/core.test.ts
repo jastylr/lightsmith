@@ -4,6 +4,7 @@ import {
   buildProfile,
   checkWorkspace,
   fixtureKey,
+  focusLights,
   generateSong,
   guessRig,
   matchProfiles,
@@ -186,4 +187,26 @@ test("extra palette colors are spread across the lights", () => {
   const xml = serializeWorkspace(ws);
   // The third color (green, 0,255,0) reaches at least one scene.
   assert.match(xml, /,0,\d+,255,\d+,0[,<]/);
+});
+
+test("colors can be assigned per kind of light, and patterns and focus adapt to the rig", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  // Movers all use the third color (green).
+  const s1 = { ...newSection("verse", 120), name: "Layout", colors: ["red", "blue", "#00ff00"], colorChange: "hold" as const, movement: "static", colorLayout: { mover: 2 } };
+  // Pattern on the pars instead of the backdrop.
+  const s2 = { ...newSection("verse", 120), name: "Pattern on pars", pattern: "waves", patternTargets: [2, 3] };
+  generateSong({ ws, profiles, rig, song: { id: "l", title: "Layout", bpm: 120, sections: [s1, s2] } });
+  const xml = serializeWorkspace(ws);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+  const movers = xml.split('Name="Movers color + position"')[1]!.split("</Function>")[0]!;
+  // Mover channels 5-7 are R,G,B: green on both movers.
+  assert.equal((movers.match(/5,0,6,255,7,0/g) ?? []).length, 2);
+  assert.ok(parseWorkspace(xml).groups.some((g) => g.name === "Lightsmith: RGBW Par 2 + RGBW Par 3"));
+
+  // Focus falls back to moving heads when no side or front lights are on that side.
+  const noSides = { fixtures: rig.fixtures.map((f) => (f.role === "side" ? { ...f, role: "ignore" as const } : f)) };
+  const moverSide = noSides.fixtures.find((f) => f.role === "mover")!.side;
+  assert.deepEqual(focusLights(noSides, moverSide), noSides.fixtures.filter((f) => f.role === "mover" && f.side === moverSide).map((f) => f.fixtureId));
 });

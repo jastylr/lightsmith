@@ -28,6 +28,12 @@ export interface Rig {
 }
 
 export type Focus = "all" | Side;
+
+/** The kinds of light that colors can be assigned to. */
+export type ColorJob = "backdrop" | "side" | "mover" | "front";
+/** "mix" spreads the palette across those lights, a number picks one palette color, "white" is warm white. */
+export type ColorTarget = "mix" | "white" | number;
+export const DEFAULT_COLOR_LAYOUT: Record<ColorJob, ColorTarget> = { backdrop: "mix", side: "mix", mover: "mix", front: "white" };
 export type Transition = "snap" | "fade" | "build";
 
 export interface SectionEffects {
@@ -54,6 +60,10 @@ export interface Section {
   colorChange: ColorChange | "mood";
   /** Crossfade when switching colors. */
   colorFade: boolean;
+  /** Which palette color each kind of light uses (missing = DEFAULT_COLOR_LAYOUT). */
+  colorLayout?: Partial<Record<ColorJob, ColorTarget>>;
+  /** Lights the pattern runs on (fixture IDs). Missing = the backdrop. */
+  patternTargets?: number[];
   /** Backdrop pattern id, or "mood". */
   pattern: string;
   movement: string; // MOVEMENTS id, or "mood"
@@ -113,7 +123,7 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) } };
+  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) } };
 }
 
 export function normalizeProject(p: Project): Project {

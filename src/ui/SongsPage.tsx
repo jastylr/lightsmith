@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
   EFFECTS,
@@ -19,6 +19,13 @@ import {
   effectTargets,
   MATRIX_EFFECTS,
   stageOrder,
+  focusLights,
+  patternTargets,
+  colorById,
+  DEFAULT_COLOR_LAYOUT,
+  type ColorJob,
+  type ColorTarget,
+  type Side,
   type Role,
   type EffectId,
   type Focus,
@@ -343,45 +350,52 @@ interface Light {
 }
 const ROLE_LABEL: Record<Role, string> = { backdrop: "Backdrop", mover: "Moving heads", side: "Side and floor", front: "Front", ignore: "Not used" };
 
-/** "On: Backdrop (4)" with a checklist to choose exactly which lights an effect uses. */
-function EffectLights({ effect, s, rig, lights, onChange }: { effect: EffectId; s: Section; rig: Store["project"]["rig"]; lights: Light[]; onChange: (p: Partial<Section>) => void }) {
+/** Names a set of lights briefly: "Backdrop (4)", "Backdrop, Side and floor (6)" or "3 lights". */
+function describeLights(ids: Set<number>, lights: Light[], custom: boolean): string {
+  if (ids.size === 0) return "No lights chosen";
+  if (custom) return `${ids.size} ${ids.size === 1 ? "light" : "lights"}`;
+  const roles = [...new Set(lights.filter((l) => ids.has(l.id)).map((l) => ROLE_LABEL[l.role]))];
+  return `${roles.join(", ")} (${ids.size})`;
+}
+
+/**
+ * A button that says which lights something runs on, opening a checklist of
+ * every light grouped by job. Used for the pattern and for each effect.
+ */
+function LightPicker({ label, chosen, custom, lights, needsRgb, onChange }: { label: string; chosen: number[]; custom: boolean; lights: Light[]; needsRgb: boolean; onChange: (ids: number[] | undefined) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
-  const matrix = MATRIX_EFFECTS.includes(effect);
-  const custom = s.effectTargets?.[effect];
-  const chosen = new Set(effectTargets(s, effect, rig).filter((id) => lights.some((l) => l.id === id && (!matrix || l.hasRgb))));
+  const set = new Set(chosen.filter((id) => lights.some((l) => l.id === id && (!needsRgb || l.hasRgb))));
   const roles = [...new Set(lights.map((l) => l.role))];
-  const summary = chosen.size === 0 ? "No lights" : custom ? `${chosen.size} ${chosen.size === 1 ? "light" : "lights"}` : `${[...new Set(lights.filter((l) => chosen.has(l.id)).map((l) => ROLE_LABEL[l.role]))].join(", ")} (${chosen.size})`;
-  const setTargets = (ids: number[] | undefined) => {
-    const next = { ...(s.effectTargets ?? {}) };
-    if (ids) next[effect] = ids;
-    else delete next[effect];
-    onChange({ effectTargets: next });
-  };
   const toggle = (id: number) => {
-    const next = new Set(chosen);
+    const next = new Set(set);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    setTargets([...next]);
+    onChange([...next]);
   };
   return (
-    <div className="effect-extra popover-anchor" ref={ref}>
-      <button type="button" className={chosen.size ? "link small" : "link small warn-text"} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        On: {summary}
+    <div className="light-picker popover-anchor" ref={ref}>
+      <span className="light-picker-label">{label}</span>
+      <button type="button" className={set.size ? "picker-button" : "picker-button empty"} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog" title="Choose which lights to use">
+        <Icon name="stage" size={15} />
+        <span>{describeLights(set, lights, custom)}</span>
+        <span className="picker-action">Choose lights</span>
+        <Icon name="chevronDown" size={14} />
       </button>
       {open && (
-        <div className="popover lights-popover" role="dialog" aria-label="Lights for this effect">
+        <div className="popover lights-popover" role="dialog" aria-label={label}>
+          <p className="hint">Tick the lights to use.{needsRgb ? " Lights without color channels can't show this." : ""}</p>
           {roles.map((role) => (
             <fieldset key={role}>
               <legend>{ROLE_LABEL[role]}</legend>
               {lights
                 .filter((l) => l.role === role)
                 .map((l) => {
-                  const blocked = matrix && !l.hasRgb;
+                  const blocked = needsRgb && !l.hasRgb;
                   return (
-                    <label key={l.id} className={blocked ? "check blocked" : "check"} title={blocked ? "This light has no color channels for this effect" : undefined}>
-                      <input type="checkbox" checked={chosen.has(l.id)} disabled={blocked} onChange={() => toggle(l.id)} />
+                    <label key={l.id} className={blocked ? "check blocked" : "check"} title={blocked ? "This light has no color channels for this" : undefined}>
+                      <input type="checkbox" checked={set.has(l.id)} disabled={blocked} onChange={() => toggle(l.id)} />
                       {l.name}
                     </label>
                   );
@@ -390,15 +404,91 @@ function EffectLights({ effect, s, rig, lights, onChange }: { effect: EffectId; 
           ))}
           <div className="lights-foot">
             {custom ? (
-              <button type="button" className="link small" onClick={() => setTargets(undefined)}>
-                Use the usual lights
+              <button type="button" className="link small" onClick={() => onChange(undefined)}>
+                Go back to the usual lights
               </button>
             ) : (
-              <span className="hint">Using the usual lights for this effect.</span>
+              <span className="hint">Using the usual lights.</span>
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** A titled block of settings with a one-line explanation. */
+function Group({ icon, title, description, children, aside }: { icon: IconName; title: string; description: string; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <section className="group">
+      <header className="group-head">
+        <span className="group-icon">
+          <Icon name={icon} size={18} />
+        </span>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        {aside}
+      </header>
+      <div className="group-body">{children}</div>
+    </section>
+  );
+}
+
+/** Large radio choices with a title and a sentence each. */
+function ChoiceCards<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; title: string; text: string }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="choices" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} className={value === o.value ? "choice on" : "choice"} onClick={() => onChange(o.value)}>
+          <span className="choice-dot" aria-hidden="true" />
+          <span>
+            <strong>{o.title}</strong>
+            <small>{o.text}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Side and floor", mover: "Moving heads", front: "Front" };
+
+/** For each kind of light on the stage: mix the palette across them, or pick one color. */
+function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; onChange: (p: Partial<Section>) => void }) {
+  const jobs = (["backdrop", "side", "mover", "front"] as ColorJob[]).filter((j) => rig.fixtures.some((f) => f.role === j));
+  if (!jobs.length) return null;
+  const layout = { ...DEFAULT_COLOR_LAYOUT, ...(s.colorLayout ?? {}) };
+  const set = (job: ColorJob, t: ColorTarget) => onChange({ colorLayout: { ...(s.colorLayout ?? {}), [job]: t } });
+  return (
+    <div className="color-layout">
+      <span className="light-picker-label">Which lights get which color</span>
+      {jobs.map((job) => {
+        const v = layout[job];
+        const current = typeof v === "number" ? v % palette.length : v;
+        return (
+          <div key={job} className="layout-row">
+            <span className="layout-job">{JOB_LABEL[job]}</span>
+            <div className="layout-options" role="radiogroup" aria-label={`Color for ${JOB_LABEL[job]}`}>
+              <button type="button" role="radio" aria-checked={current === "mix"} className={current === "mix" ? "lo on" : "lo"} onClick={() => set(job, "mix")} title="Spread all the colors across these lights">
+                <span className="lo-mix" style={{ background: `conic-gradient(${palette.map(cssColor).join(", ")}, ${cssColor(palette[0]!)})` }} />
+                Mix
+              </button>
+              {palette.map((c, i) => (
+                <button key={`${c}-${i}`} type="button" role="radio" aria-checked={current === i} className={current === i ? "lo on" : "lo"} onClick={() => set(job, i)} title={`All ${JOB_LABEL[job].toLowerCase()} lights in ${colorById(c).label.toLowerCase()}`}>
+                  <span className="lo-swatch" style={{ background: cssColor(c) }} />
+                  <span className="visually-hidden">{colorById(c).label}</span>
+                </button>
+              ))}
+              <button type="button" role="radio" aria-checked={current === "white"} className={current === "white" ? "lo on" : "lo"} onClick={() => set(job, "white")} title="Warm white">
+                <span className="lo-swatch" style={{ background: "#ffd9a8" }} />
+                <span className="visually-hidden">Warm white</span>
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -410,6 +500,8 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
   const moodChange = COLOR_CHANGES.find((c) => c.id === mood.colorChange)!;
   const moveId = s.movement === "mood" ? mood.movement : s.movement;
   const changeId = s.colorChange === "mood" ? mood.colorChange : s.colorChange;
+  const palette = s.colors.length ? s.colors : mood.colors;
+  const pattern = patternById(s.pattern === "mood" ? mood.pattern : s.pattern);
 
   const moodOptions: Option<string>[] = MOODS.map((m) => ({ value: m.id, label: m.label, description: m.description, swatches: m.colors.map(cssColor) }));
   const patternOptions: Option<string>[] = [
@@ -427,6 +519,10 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
   ];
   const changeOptions: Option<string>[] = [{ value: "mood", label: `Follow the mood (${moodChange.label.toLowerCase()})` }, ...COLOR_CHANGES.map((c) => ({ value: c.id, label: c.label }))];
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
+  const nameOf = new Map(lights.map((l) => [l.id, l.name]));
+  const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
+  const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
+  const sideName: Record<Side, string> = { SL: "Stage left", C: "Center", SR: "Stage right" };
 
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
@@ -446,8 +542,9 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
       <div className="editor-grid">
         <div className="editor-preview">
           <StagePreview section={s} rig={rig} />
+          <p className="hint center">A sketch of this section on your stage, at its tempo.</p>
           <div className="timing-row">
-            <Field label="Type">
+            <Field label="Section type">
               <Dropdown
                 label="Section type"
                 value={s.type}
@@ -462,7 +559,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
             <Field label="Tempo">
               <NumberInput label="Section tempo" value={s.bpm} min={30} max={300} suffix="BPM" onChange={(bpm) => onChange({ bpm })} />
             </Field>
-            <Field label="Length" hint={fmt(sectionMs(s))}>
+            <Field label="Length" hint={`About ${fmt(sectionMs(s))}`}>
               <NumberInput label="Length in bars" value={s.bars} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.round(bars) })} />
             </Field>
             <Field label="Beats per bar">
@@ -472,62 +569,66 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
         </div>
 
         <div className="editor-controls">
-          <section className="group">
-            <h3>Mood and energy</h3>
+          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors, a pattern and movement; energy sets brightness and speed.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
-          </section>
+          </Group>
 
-          <section className="group">
-            <h3>Colors</h3>
+          <Group icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={(colors) => onChange({ colors })} />
+            <ColorLayoutEditor s={s} rig={rig} palette={palette} onChange={onChange} />
             <div className="row">
               <Field label="Switch between colors">
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
               </Field>
               {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
-          </section>
+          </Group>
 
-          <section className="group">
-            <h3>Backdrop pattern</h3>
-            <Dropdown label="Backdrop pattern" value={s.pattern} options={patternOptions} onChange={(pattern) => onChange({ pattern })} className="wide" />
-          </section>
+          <Group icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
+            <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
+            {pattern.algorithm && (
+              <LightPicker label="Runs on" chosen={patternTargets(s, rig)} custom={!!s.patternTargets} lights={lights} needsRgb onChange={(ids) => onChange({ patternTargets: ids })} />
+            )}
+            {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
+          </Group>
 
-          <section className="group">
-            <h3>Moving heads</h3>
+          <Group icon="mover" title="Moving heads" description="How moving heads move during this section. They all move around their home position, set on the Stage step.">
             {hasMovers ? (
               <>
                 <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
               </>
             ) : (
-              <p className="hint">No moving heads on your stage. Put a light in the Moving heads lane on the Stage step to use these settings.</p>
+              <p className="hint">You have no moving heads on your stage. Put a light in the Moving heads lane on the Stage step to use these settings.</p>
             )}
-          </section>
+          </Group>
 
-          <section className="group">
-            <h3>Focus</h3>
+          <Group icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. Their lights go warm white; the rest dim.">
             <Segmented
               label="Who to light"
               value={s.focus}
               onChange={(focus: Focus) => onChange({ focus })}
               options={[
-                { value: "all", label: "Whole stage" },
-                { value: "SL", label: "Stage left" },
-                { value: "C", label: "Center" },
-                { value: "SR", label: "Stage right" },
+                { value: "all", label: "No focus" },
+                ...focusOptions.map((f) => ({ value: f.side, label: sideName[f.side], disabled: f.ids.length === 0, title: f.ids.length ? undefined : `No lights on ${sideName[f.side].toLowerCase()}` })),
               ]}
             />
-            <p className="hint">Focus lights one player in warm white and dims the rest. Stage left is the performers' left.</p>
-          </section>
+            <p className="hint">
+              {s.focus === "all"
+                ? "Stage left and right are the performers' left and right."
+                : focusIds.length
+                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}.`
+                  : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
+            </p>
+          </Group>
 
-          <section className="group">
-            <h3>Effects</h3>
+          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look. Each one runs on its usual lights; use Choose lights to change that.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
-                const possible = lights.filter((l) => !MATRIX_EFFECTS.includes(e.id) || l.hasRgb);
+                const needsRgb = MATRIX_EFFECTS.includes(e.id);
+                const possible = lights.filter((l) => !needsRgb || l.hasRgb);
                 return (
                   <div key={e.id} className={on ? "effect on" : "effect"}>
                     <button type="button" aria-pressed={on} disabled={!possible.length} title={possible.length ? undefined : "None of your lights can show this effect"} onClick={() => onChange({ effects: { ...s.effects, [e.id]: !on } })}>
@@ -536,34 +637,60 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
                         <strong>{e.label}</strong>
                         <small>{e.description}</small>
                       </span>
+                      <span className="effect-state">{on ? "On" : "Off"}</span>
                     </button>
-                    {on && <EffectLights effect={e.id} s={s} rig={rig} lights={lights} onChange={onChange} />}
-                    {e.id === "lightning" && on && (
-                      <label className="effect-extra">
-                        Starts after
-                        <NumberInput label="Lightning delay in seconds" value={s.effects.lightningDelaySec ?? 0} min={0} max={600} step={0.5} suffix="s" onChange={(v) => onChange({ effects: { ...s.effects, lightningDelaySec: v } })} />
-                      </label>
+                    {on && (
+                      <div className="effect-extra">
+                        <LightPicker
+                          label="Runs on"
+                          chosen={effectTargets(s, e.id, rig)}
+                          custom={!!s.effectTargets?.[e.id]}
+                          lights={lights}
+                          needsRgb={needsRgb}
+                          onChange={(ids) => {
+                            const next = { ...(s.effectTargets ?? {}) };
+                            if (ids) next[e.id] = ids;
+                            else delete next[e.id];
+                            onChange({ effectTargets: next });
+                          }}
+                        />
+                        {e.id === "lightning" && (
+                          <label className="inline-field">
+                            Starts after
+                            <NumberInput label="Lightning delay in seconds" value={s.effects.lightningDelaySec ?? 0} min={0} max={600} step={0.5} suffix="s" onChange={(v) => onChange({ effects: { ...s.effects, lightningDelaySec: v } })} />
+                          </label>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
               })}
             </div>
-          </section>
+          </Group>
 
-          <section className="group">
-            <h3>Getting in and out</h3>
-            <Segmented
-              label="Transition into this section"
+          <Group icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
+            <span className="light-picker-label">When this section starts, the lights…</span>
+            <ChoiceCards
+              label="How the lights change when this section starts"
               value={s.transition}
               onChange={(transition: Transition) => onChange({ transition })}
               options={[
-                { value: "snap", label: "Snap" },
-                { value: "fade", label: "Fade (1 beat)" },
-                { value: "build", label: "Build (up to 4 bars)" },
+                { value: "snap", title: "Change instantly", text: "Best for hard hits, like a chorus that kicks in." },
+                { value: "fade", title: "Fade over one beat", text: "A quick, smooth change." },
+                { value: "build", title: "Build up gradually", text: "Ramps in over up to 4 bars, for a slow rise into the section." },
               ]}
             />
-            <Toggle checked={s.autoAdvance} onChange={(autoAdvance) => onChange({ autoAdvance })} label={`Move on by itself after ${s.bars} bars`} hint="Leave off if the band doesn't play to a click; you'll trigger the next section yourself." />
-          </section>
+            <span className="light-picker-label">When this section ends…</span>
+            <ChoiceCards
+              label="What happens when this section ends"
+              value={s.autoAdvance ? "auto" : "cue"}
+              onChange={(v) => onChange({ autoAdvance: v === "auto" })}
+              options={[
+                { value: "cue", title: "Wait for my cue", text: "The look holds until you press the next button or footswitch. Best when the band doesn't play to a click." },
+                { value: "auto", title: `Move on after ${s.bars} bars`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
+              ]}
+            />
+          </Group>
         </div>
       </div>
     </article>

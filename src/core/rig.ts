@@ -140,3 +140,24 @@ export function effectTargets(section: Pick<Section, "effectTargets">, effect: E
   const ids = section.effectTargets?.[effect] ?? defaultEffectTargets(effect, rig);
   return ids.filter((id) => inUse.has(id));
 }
+
+/** The lights a section's pattern runs on: the user's pick, or the backdrop. */
+export function patternTargets(section: Pick<Section, "patternTargets">, rig: Rig): number[] {
+  const inUse = new Set(rig.fixtures.filter((f) => f.role !== "ignore").map((f) => f.fixtureId));
+  const ids = section.patternTargets ?? rig.fixtures.filter((f) => f.role === "backdrop").map((f) => f.fixtureId);
+  return ids.filter((id) => inUse.has(id));
+}
+
+/**
+ * The lights that put one side of the stage in the spotlight. Side and front
+ * lights on that side are best; without them, moving heads on that side; as
+ * a last resort, backdrop lights on that side.
+ */
+export function focusLights(rig: Rig, side: Side): number[] {
+  const on = (roles: Role[]) => rig.fixtures.filter((f) => roles.includes(f.role) && f.side === side).map((f) => f.fixtureId);
+  for (const roles of [["side", "front"], ["mover"], ["backdrop"]] as Role[][]) {
+    const ids = on(roles);
+    if (ids.length) return ids;
+  }
+  return [];
+}
