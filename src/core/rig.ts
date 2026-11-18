@@ -3,7 +3,7 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import { sideFromX, sitsOut, type Mount, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
 import type { WsFixture } from "./workspace";
 
@@ -59,7 +59,7 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
   for (const f of fixtures) {
     const kept = prev.get(f.id);
     if (kept) {
-      out.push({ ...kept });
+      out.push({ ...kept, mount: kept.mount ?? guessMount(f) });
       continue;
     }
     const role = roles.get(f.id)!;
@@ -68,6 +68,7 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     const side: Side = peers.length === 1 ? "C" : idx < peers.length / 2 ? "SL" : "SR";
     const rf: RigFixture = { fixtureId: f.id, role, side: peers.length % 2 === 1 && idx === (peers.length - 1) / 2 ? "C" : side, order: idx };
     if (role === "mover") rf.home = { pan: 128, tilt: 128 };
+    rf.mount = guessMount(f);
     rf.pos = defaultPosition(role, rf.side, idx, peers.length);
     out.push(rf);
   }
@@ -78,6 +79,14 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     f.pos = defaultPosition(f.role, f.side, peers.indexOf(f), peers.length);
   }
   return { fixtures: out };
+}
+
+/**
+ * Floor or truss, from QLC+'s 3D view: anything in the upper half of the
+ * stage height is taken to be hung from a truss. Without a 3D layout, floor.
+ */
+export function guessMount(f: Pick<WsFixture, "height">): Mount {
+  return f.height !== undefined && f.height > 0.5 ? "truss" : "floor";
 }
 
 export function fixturesWithRole(rig: Rig, role: Role): RigFixture[] {

@@ -130,6 +130,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
 
   // ---- stage geometry (audience view, gentle perspective)
   const BACK = 168; // where the back wall meets the floor
+  const HANG_Y = 22; // where lights hung from the truss are clamped
   const LIP = 236; // front edge of the stage
   const depthOf = (y: number) => Math.max(0, Math.min(1, (y - 0.14) / 0.76));
   const floorY = (d: number) => BACK + d * (LIP - BACK);
@@ -163,6 +164,14 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         </linearGradient>
         <mask id={u("beam")} maskContentUnits="objectBoundingBox">
           <rect width="1" height="1" fill={url("fade")} />
+        </mask>
+        {/* For lights hung from the truss: bright at the top, fading towards the floor. */}
+        <linearGradient id={u("fadeDown")} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0.3" />
+        </linearGradient>
+        <mask id={u("beamDown")} maskContentUnits="objectBoundingBox">
+          <rect width="1" height="1" fill={url("fadeDown")} />
         </mask>
         <filter id={u("soft")} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="6" />
@@ -225,6 +234,35 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           ) : animate && onPattern ? (
             <animate attributeName="opacity" values="0.35;1;0.35" dur={`${cycle}s`} begin={`${-rnd(f.fixtureId * 7) * cycle}s`} repeatCount="indefinite" />
           ) : null;
+        if (f.mount === "truss") {
+          // Hung from the truss: a cone down onto the stage and a pool where it lands.
+          const hy = HANG_Y;
+          return (
+            <g key={f.fixtureId}>
+              <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
+                {pulse}
+                <path d={`M${fx - 4} ${hy + 8} L${fx - 36 * sc} ${fy} L${fx + 36 * sc} ${fy} L${fx + 4} ${hy + 8} Z`} fill={paint} opacity="0.32" mask={url("beamDown")} filter={url("soft")}>
+                  {anim}
+                </path>
+                <ellipse cx={fx} cy={fy + 2} rx={42 * sc} ry={8 * sc} fill={paint} opacity="0.6" filter={url("soft")}>
+                  {anim}
+                </ellipse>
+              </g>
+              <g transform={`translate(${fx} ${hy})`}>
+                <path d="M0 -3 V0" stroke="#3d3844" strokeWidth="2" />
+                <path d="M-5.5 0 L5.5 0 L7 7 L-7 7 Z" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+                <ellipse cx="0" cy="7" rx="5.5" ry="1.8" fill={paint}>
+                  {anim}
+                </ellipse>
+              </g>
+              {twinkles(f.fixtureId) && animate && (
+                <circle cx={fx} cy={hy + 7} r="6" fill="#fff" opacity="0">
+                  <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.7 + rnd(f.fixtureId) * 0.9}s`} repeatCount="indefinite" />
+                </circle>
+              )}
+            </g>
+          );
+        }
         return (
           <g key={f.fixtureId}>
             <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
@@ -354,6 +392,35 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
             ? `${-swing * mirror};${swing * mirror};${-swing * mirror * 0.4};${swing * mirror * 0.4};${-swing * mirror}`
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
         const lean = movement.id === "static" ? (fx < W / 2 ? 16 : -16) : 0;
+        const rotateAnim = (cx: number, cy: number) =>
+          animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />;
+        if (f.mount === "truss") {
+          // Hung upside down: the beam points down at the stage and sweeps across it.
+          const top = HANG_Y;
+          const hh = top + 14 * sc;
+          const len = fy - hh + 6;
+          return (
+            <g key={f.fixtureId}>
+              <g transform={`rotate(${-lean} ${fx} ${hh})`}>
+                <path d={`M${fx - 2.5} ${hh} L${fx - 15} ${hh + len} L${fx + 15} ${hh + len} L${fx + 2.5} ${hh} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beamDown")}>
+                  {c.anim}
+                </path>
+                <ellipse cx={fx} cy={hh + len} rx={18 * sc} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={url("soft")}>
+                  {c.anim}
+                </ellipse>
+                {rotateAnim(fx, hh)}
+              </g>
+              <g transform={`translate(${fx} ${top}) scale(${sc})`}>
+                <rect x="-9" y="0" width="18" height="4" rx="1" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
+                <path d="M-7 4 L-7 14 M7 4 L7 14" stroke="#3d3844" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="0" cy="14" r="5.5" fill="#2c2832" stroke="#3d3844" strokeWidth="0.6" />
+                <circle cx="0" cy="14" r="2.8" fill={o.off ? DARK_LENS : c.fill}>
+                  {c.anim}
+                </circle>
+              </g>
+            </g>
+          );
+        }
         return (
           <g key={f.fixtureId}>
             <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={o.off ? 0 : 0.35 * vis(moverLevel)} filter={url("soft")}>
@@ -363,7 +430,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
               <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beam")}>
                 {c.anim}
               </path>
-              {animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${fx} ${hy}`).join(";")} dur={`${dur}s`} begin={`${-(i * dur) / Math.max(2, movers.length)}s`} repeatCount="indefinite" additive="sum" />}
+              {rotateAnim(fx, hy)}
             </g>
             <g transform={`translate(${fx} ${fy}) scale(${sc})`}>
               <rect x="-9" y="-4" width="18" height="4" rx="1" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />

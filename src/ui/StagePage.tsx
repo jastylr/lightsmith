@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ROLE_ROW, settleRig, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
-import { Field, NumberInput, Toggle } from "./controls";
+import { ROLE_ROW, settleRig, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import type { Store } from "./store";
 
@@ -300,13 +300,16 @@ function FixtureGlyph({
     }
   })();
   const labelY = rf.role === "backdrop" ? 54 : 38;
+  // Hung from a truss: a clamp above the light, and moving heads drawn upside down.
+  const hung = rf.mount === "truss" && rf.role !== "backdrop";
+  const top = rf.role === "mover" ? -22 : -13;
   return (
     <g
       className={`glyph${selected ? " on" : ""}${dragging ? " dragging" : ""}`}
       transform={`translate(${x} ${y})`}
       tabIndex={0}
       role="button"
-      aria-label={`${name}, ${ROLE_INFO[rf.role].label}, ${rf.side === "SL" ? "stage left" : rf.side === "SR" ? "stage right" : "center"}`}
+      aria-label={`${name}, ${ROLE_INFO[rf.role].label}, ${rf.side === "SL" ? "stage left" : rf.side === "SR" ? "stage right" : "center"}${hung ? ", hung from a truss" : ""}`}
       onPointerDown={onPointerDown}
       onClick={onSelect}
       onKeyDown={(e) => {
@@ -321,7 +324,13 @@ function FixtureGlyph({
       }}
     >
       <circle r="46" className="halo" />
-      {shape}
+      {hung && (
+        <g className="hanger" aria-hidden="true">
+          <rect x={-16} y={top - 14} width="32" height="5" rx="1.5" />
+          <path d={`M0 ${top - 9}V${top}`} />
+        </g>
+      )}
+      <g transform={hung && rf.role === "mover" ? "translate(0 -4) scale(1 -1)" : undefined}>{shape}</g>
       <text y={labelY} className="glyph-label">
         {short}
       </text>
@@ -366,10 +375,34 @@ function Inspector({ rf, fixture, canBe, onChange }: { rf: RigFixture; fixture: 
         </Field>
       )}
 
+      {rf.role !== "ignore" && rf.role !== "backdrop" && (
+        <Field
+          label="Mounting"
+          hint={
+            fixture.height !== undefined
+              ? `QLC+'s 3D view has it ${fixture.height > 0.5 ? "high up" : "low down"} (${Math.round(fixture.height * 100)}% of the stage height). This changes how it's drawn in the preview, not its colors.`
+              : "This changes how it's drawn in the preview, not its colors."
+          }
+        >
+          <Segmented
+            label="Mounting"
+            value={rf.mount ?? "floor"}
+            onChange={(mount: Mount) => onChange({ mount })}
+            options={[
+              { value: "floor", label: "On the floor" },
+              { value: "truss", label: "Hung from a truss" },
+            ]}
+          />
+        </Field>
+      )}
+
       {rf.role === "mover" && (
         <div className="mover-box">
           <h3>Home position</h3>
-          <p className="hint">Where the head points when still, and the center of every movement. Find good values in QLC+'s Simple Desk.</p>
+          <p className="hint">
+            Where the head points when still, and the center of every movement. Find good values in QLC+'s Simple Desk.
+            {rf.mount === "truss" && " Hung upside down, 128/128 points straight down at the stage, and pan and tilt run the opposite way to a head on the floor."}
+          </p>
           {(["pan", "tilt"] as const).map((axis) => (
             <div key={axis} className="slider-row">
               <span>{axis === "pan" ? "Pan" : "Tilt"}</span>

@@ -451,3 +451,28 @@ test("Focus spotlights its lights even with their own settings, and dims the res
   // The other par: its own 80% halved.
   assert.equal(vals(3).get(0), Math.round(255 * 0.8 * FOCUS_DIM));
 });
+
+test("fixture heights come from QLC+'s 3D view, and high fixtures start as hung from a truss", () => {
+  // A 3D layout: a 3 m tall stage; fixture 4 at 2.6 m, fixture 2 on the floor, fixture 0 with no item.
+  const xml = WORKSPACE_QXW.replace(
+    " </Engine>",
+    `  <Monitor DisplayMode="1"><Grid Width="5" Height="3" Depth="3" Units="0"/><FxItem ID="2" XPos="100" YPos="10" ZPos="0"/><FxItem ID="4" XPos="200" YPos="2600" ZPos="0" XRot="180"/></Monitor>\n </Engine>`,
+  );
+  const ws = parseWorkspace(xml);
+  const byId = new Map(ws.fixtures.map((f) => [f.id, f]));
+  assert.ok(byId.get(4)!.height! > 0.8);
+  assert.ok(byId.get(2)!.height! < 0.1);
+  assert.equal(byId.get(0)!.height, undefined);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const mount = (id: number) => rig.fixtures.find((f) => f.fixtureId === id)!.mount;
+  assert.equal(mount(4), "truss");
+  assert.equal(mount(2), "floor");
+  assert.equal(mount(0), "floor");
+  // A user's choice is kept on the next guess.
+  const changed = { fixtures: rig.fixtures.map((f) => (f.fixtureId === 2 ? { ...f, mount: "truss" as const, userSet: true } : f)) };
+  assert.equal(guessRig(ws.fixtures, profiles, changed).fixtures.find((f) => f.fixtureId === 2)!.mount, "truss");
+  // QLC+ 4's 2D monitor (no Depth) is ignored.
+  const flat = parseWorkspace(WORKSPACE_QXW.replace(" </Engine>", `  <Monitor><Grid Width="5" Height="5" Units="0"/><FxItem ID="4" XPos="0" YPos="4900"/></Monitor>\n </Engine>`));
+  assert.equal(flat.fixtures.find((f) => f.id === 4)!.height, undefined);
+});

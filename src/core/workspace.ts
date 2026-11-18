@@ -22,6 +22,11 @@ export interface WsFixture {
   universe: number;
   address: number; // 0-based
   channels: number;
+  /**
+   * How high the fixture hangs, as a share of the stage height (0 = floor,
+   * 1 = top), from QLC+'s 3D view. Missing when the show has no 3D layout.
+   */
+  height?: number;
 }
 
 export interface WsFunction {
@@ -62,6 +67,21 @@ export function parseWorkspace(xml: string): Workspace {
     path: getAttr(f, "Path"),
   }));
   const groups = childElements(engine, "FixtureGroup").map((g) => ({ id: Number(getAttr(g, "ID")), name: childText(g, "Name") ?? "" }));
+  // QLC+ 5's 3D view: <Monitor><Grid Height=… Depth=… Units=…/><FxItem ID YPos …/>.
+  // YPos is the height in millimetres; the grid is in metres (Units 0) or feet (1).
+  // QLC+ 4's 2D view has no Depth, and its YPos means something else, so skip it.
+  const monitor = firstChild(engine, "Monitor") ?? firstChild(doc.root, "Monitor");
+  const grid = monitor ? firstChild(monitor, "Grid") : undefined;
+  if (monitor && grid && getAttr(grid, "Depth") !== undefined) {
+    const stageMm = Number(getAttr(grid, "Height") ?? 0) * (getAttr(grid, "Units") === "1" ? 304.8 : 1000);
+    if (stageMm > 0) {
+      const heights = new Map(childElements(monitor, "FxItem").map((it) => [Number(getAttr(it, "ID")), Number(getAttr(it, "YPos") ?? 0) / stageMm]));
+      for (const f of fixtures) {
+        const h = heights.get(f.id);
+        if (h !== undefined && Number.isFinite(h)) f.height = Math.max(0, Math.min(1, h));
+      }
+    }
+  }
   return { doc, engine, virtualConsole: firstChild(doc.root, "VirtualConsole"), fixtures, functions, groups };
 }
 

@@ -6,6 +6,7 @@ import { energyOf, moodById, patternById, SONG_TEMPLATES, sectionTypeById, type 
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
+export type Mount = "floor" | "truss";
 
 export interface RigFixture {
   fixtureId: number;
@@ -19,6 +20,8 @@ export interface RigFixture {
   home?: { pan: number; tilt: number };
   /** Movers: run movement in the opposite direction (e.g. a head facing the other way). */
   reverse?: boolean;
+  /** Standing on the floor (the default) or hung from a truss and pointing down. */
+  mount?: Mount;
   /** True once the user has edited this fixture; until then we keep re-guessing. */
   userSet?: boolean;
 }

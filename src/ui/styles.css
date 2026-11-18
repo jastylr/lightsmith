@@ -2978,3 +2978,18 @@ body.is-resizing * {
     margin-left: 0;
   }
 }
+
+/* Hung-from-a-truss marker on the stage plan */
+.glyph .hanger rect {
+  fill: #6f6875;
+}
+.glyph .hanger path {
+  stroke: #6f6875;
+  stroke-width: 2.5;
+}
+.glyph.on .hanger rect {
+  fill: var(--tungsten);
+}
+.glyph.on .hanger path {
+  stroke: var(--tungsten);
+}
