@@ -1588,8 +1588,8 @@ li.bad .fx-source {
 .effects {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-auto-rows: 1fr;
   gap: 0.5rem;
-  align-items: start;
 }
 .effect {
   display: flex;
@@ -1633,13 +1633,39 @@ li.bad .fx-source {
 .effect > button:disabled {
   opacity: 0.45;
 }
+.effect > button:first-child {
+  flex: 1;
+}
+.effect > button small {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .effect-extra {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.4rem;
-  padding: 0 0.7rem 0.7rem;
+  height: 2.6rem;
+  padding: 0 0.7rem 0.75rem;
   min-width: 0;
+}
+.effect-extra > .lights-chip {
+  flex: 0 1 auto;
+}
+.effect-extra > .inline-field {
+  flex: none;
+}
+.effect-off {
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 0.78rem;
+  justify-content: flex-start;
+}
+.effect-off:hover:not(:disabled) {
+  color: var(--tungsten-hi);
 }
 .inline-field.compact {
   font-size: 0.8rem;
@@ -1647,6 +1673,20 @@ li.bad .fx-source {
 }
 .inline-field.compact .number {
   height: 1.85rem;
+}
+.inline-field.compact input {
+  width: 2.2rem;
+  min-width: 2.2rem;
+  padding: 0 0.15rem 0 0;
+}
+.inline-field.compact .number {
+  flex: none;
+}
+.inline-field.compact .number-suffix {
+  padding: 0 0.4rem 0 0;
+}
+.effect-extra .inline-field.compact {
+  gap: 0.2rem;
 }
 .runs-on {
   display: flex;

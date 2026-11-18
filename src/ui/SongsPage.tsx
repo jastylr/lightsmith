@@ -595,12 +595,17 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
                           }}
                         />
                         {e.id === "lightning" && (
-                          <label className="inline-field compact">
-                            After
+                          <label className="inline-field compact" title="Start the lightning this many seconds into the section">
+                            <Icon name="clock" size={14} />
                             <NumberInput label="Lightning delay in seconds" value={s.effects.lightningDelaySec ?? 0} min={0} max={600} step={0.5} suffix="s" onChange={(v) => onChange({ effects: { ...s.effects, lightningDelaySec: v } })} />
                           </label>
                         )}
                       </div>
+                    )}
+                    {!on && (
+                      <button type="button" className="effect-extra effect-off" disabled={!possible.length} onClick={() => onChange({ effects: { ...s.effects, [e.id]: true } })}>
+                        {possible.length ? "Click to turn on" : "No lights can show this"}
+                      </button>
                     )}
                   </div>
                 );
