@@ -3,6 +3,7 @@ import { REPO_URL } from "../config";
 import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
 import { useLightsmith } from "./store";
+import { sectionMs } from "../core";
 import { ImportPage } from "./ImportPage";
 import { StagePage } from "./StagePage";
 import { SongsPage } from "./SongsPage";
@@ -47,6 +48,32 @@ export function App() {
                     <small>{s.status}</small>
                   </span>
                 </button>
+                {s.id === "songs" && ready && store.project.songs.length > 0 && (
+                  <ul className="rail-songs" aria-label="Songs">
+                    {store.project.songs.map((song) => {
+                      const current = song.id === (store.project.songs.some((x) => x.id === songId) ? songId : store.project.songs[0]!.id);
+                      const ms = song.sections.reduce((t, x) => t + sectionMs(x), 0);
+                      const sec = Math.round(ms / 1000);
+                      return (
+                        <li key={song.id}>
+                          <button
+                            className={current && step === "songs" ? "rail-song on" : current ? "rail-song current" : "rail-song"}
+                            onClick={() => {
+                              setSongId(song.id);
+                              setStep("songs");
+                            }}
+                            aria-current={current ? "true" : undefined}
+                            title={song.title || "Untitled song"}
+                          >
+                            <Icon name="music" size={13} />
+                            <span>{song.title || "Untitled song"}</span>
+                            <small>{`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`}</small>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             ))}
           </ol>

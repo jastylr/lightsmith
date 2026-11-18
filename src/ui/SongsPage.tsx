@@ -135,14 +135,34 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   return (
     <section className="page songs">
       <header className="song-head">
-        <div className="song-pick">
+        <div className="song-pick song-switch-narrow">
           <Dropdown label="Song" value={song.id} options={songs.map((s) => ({ value: s.id, label: s.title || "Untitled song" }))} onChange={setSongId} className="song-switch" />
-          <button className="ghost small" onClick={() => setSongId(store.addSong())}>
-            <Icon name="plus" size={15} /> New song
-          </button>
         </div>
         <div className="song-line">
-          <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" />
+          {/* The hidden copy of the title sizes the box to the text. */}
+          <span className="song-title-wrap" data-value={song.title || "Song title"}>
+            <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" size={1} />
+          </span>
+          <div className="song-actions">
+            <button type="button" className="icon-button" onClick={() => setSongId(store.addSong())} aria-label="Add a song" title="Add a song">
+              <Icon name="plus" size={17} />
+            </button>
+            <button
+              type="button"
+              className="icon-button danger"
+              aria-label={`Delete the song "${song.title || "Untitled song"}"`}
+              title="Delete this song"
+              onClick={() => {
+                if (confirm(`Delete the song "${song.title || "Untitled song"}"? This can't be undone.`)) {
+                  const next = songs.find((s) => s.id !== song.id);
+                  store.deleteSong(song.id);
+                  setSongId(next?.id ?? "");
+                }
+              }}
+            >
+              <Icon name="trash" size={16} />
+            </button>
+          </div>
           <div className="song-meta">
             <label className="stat stat-input">
               <span>Song tempo</span>
@@ -163,19 +183,6 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <span>Sections</span>
               <strong>{song.sections.length}</strong>
             </div>
-            {songs.length > 1 && (
-              <button
-                className="ghost small danger"
-                onClick={() => {
-                  if (confirm(`Delete "${song.title}"? This can't be undone.`)) {
-                    store.deleteSong(song.id);
-                    setSongId(songs.find((s) => s.id !== song.id)!.id);
-                  }
-                }}
-              >
-                <Icon name="trash" size={15} /> Delete song
-              </button>
-            )}
           </div>
         </div>
       </header>
