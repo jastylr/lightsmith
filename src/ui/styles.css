@@ -1492,6 +1492,7 @@ body.is-resizing * {
   font-size: 0.8rem;
 }
 .cue {
+  position: relative;
   display: flex;
   align-items: stretch;
   border-radius: var(--r-md);
@@ -2440,4 +2441,50 @@ body.is-resizing * {
   align-self: flex-start;
   font-size: 0.78rem;
   padding: 0;
+}
+
+/* Section tile actions: duplicate and delete, on hover and when selected */
+.cue-actions {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 0.2rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.cue:hover .cue-actions,
+.cue.on .cue-actions,
+.cue:focus-within .cue-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cue:hover .cue-chevron,
+.cue.on .cue-chevron,
+.cue:focus-within .cue-chevron {
+  opacity: 0;
+}
+.cue-action {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--house);
+  color: var(--muted);
+}
+.cue-action:hover {
+  color: var(--text);
+  border-color: var(--tungsten);
+}
+.cue-action.danger:hover {
+  color: #ff8a7a;
+  border-color: #b8463a;
+}
+.cue-main .cue-text {
+  padding-right: 4.4rem;
 }

@@ -205,10 +205,10 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 <h2>Sections</h2>
                 <span>Drag to reorder</span>
               </div>
-              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDelete={remove} />
+              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} />
             </div>
             {current && (
-              <LookEditor key={current.id} s={current} songBpm={song.bpm} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} s={current} songBpm={song.bpm} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
           </div>
         </>
@@ -616,7 +616,7 @@ function Timeline({
   );
 }
 
-function CueList({ song, selected, onSelect, onMove, onDelete }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDelete: (s: Section) => void }) {
+function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDuplicate: (s: Section) => void; onDelete: (s: Section) => void }) {
   const keys = song.sections.map((s) => s.id);
   const { dragging, itemRef, handle } = useSortable(keys, onMove, "y");
   return (
@@ -649,6 +649,15 @@ function CueList({ song, selected, onSelect, onMove, onDelete }: { song: Song; s
             </span>
             <Icon name="chevronRight" size={16} className="cue-chevron" />
           </button>
+          {/* Shown on hover and on the selected section. */}
+          <span className="cue-actions">
+            <button type="button" className="cue-action" onClick={() => onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate this section">
+              <Icon name="copy" size={15} />
+            </button>
+            <button type="button" className="cue-action danger" onClick={() => onDelete(s)} aria-label={`Delete ${s.name}`} title="Delete this section (or press Delete)">
+              <Icon name="trash" size={15} />
+            </button>
+          </span>
         </li>
       ))}
     </ol>
@@ -731,7 +740,7 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
   );
 }
 
-function LookEditor({ s, songBpm, rig, lights, index, onChange, onDuplicate, onRemove }: { s: Section; songBpm: number; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void; onDuplicate: () => void; onRemove: () => void }) {
+function LookEditor({ s, songBpm, rig, lights, index, onChange }: { s: Section; songBpm: number; rig: Store["project"]["rig"]; lights: Light[]; index: number; onChange: (p: Partial<Section>) => void }) {
   const mood = moodById(s.mood);
   const moodPattern = patternById(mood.pattern);
   const moodMove = MOVEMENTS.find((m) => m.id === mood.movement)!;
@@ -768,14 +777,6 @@ function LookEditor({ s, songBpm, rig, lights, index, onChange, onDuplicate, onR
       <header className="editor-head">
         <span className="editor-num">{index + 1}</span>
         <input className="editor-name" aria-label="Section name" value={s.name} onChange={(e) => onChange({ name: e.target.value })} />
-        <div className="editor-actions">
-          <button className="ghost small" onClick={onDuplicate}>
-            <Icon name="copy" size={15} /> Duplicate
-          </button>
-          <button className="ghost small danger" onClick={onRemove}>
-            <Icon name="trash" size={15} /> Delete
-          </button>
-        </div>
       </header>
 
       <div className="editor-grid">
