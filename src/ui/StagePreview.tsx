@@ -28,6 +28,7 @@ const FAMILY: Record<string, Family> = {
   alternate: "vertical",
   marquee: "vertical",
   rainfall: "vertical",
+  drizzle: "random",
   snow: "vertical",
   bubbles: "vertical",
   strobe: "strobe",
@@ -72,9 +73,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   const stageIndex = (list: { pos?: { x: number } }[], i: number) =>
     [...list.keys()].sort((a, b) => (list[b]!.pos?.x ?? 0) - (list[a]!.pos?.x ?? 0)).indexOf(i);
   const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
-  const rainOn = new Set(section.effects.rain ? effectTargets(section, "rain", rig) : []);
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
-  const twinkles = (id: number) => (id === -1 ? !!(section.effects.rain || section.effects.sparkle) : rainOn.has(id) || sparkleOn.has(id));
+  const twinkles = (id: number) => (id === -1 ? !!section.effects.sparkle : sparkleOn.has(id));
   const WARM = "#ffd9a8";
 
   /** A fill that steps through the palette when colors change. */
@@ -222,7 +222,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
                       </rect>
                     )}
                     {twinkles(bar.id) && animate && (
-                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill={sparkleOn.has(bar.id) || (bar.id === -1 && section.effects.sparkle) ? "#fff" : "#cfe3ff"} opacity="0">
+                      <rect x={x} y={y + 0.6} width={barW} height={cellH - 1.2} rx="1" fill="#fff" opacity="0">
                         <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.1;1" dur={`${0.9 + rnd(i * 13 + c) * 1.6}s`} begin={`${-rnd(i * 5 + c * 11) * 2}s`} repeatCount="indefinite" />
                       </rect>
                     )}

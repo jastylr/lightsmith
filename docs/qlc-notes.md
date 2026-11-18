@@ -37,3 +37,12 @@ uses whatever heads the definition declares and only drives color on them.
 
 - Function IDs, fixture group IDs and Virtual Console widget IDs must be unique in their own lists.
 - A function's `Path` attribute puts it in a folder; `/` makes nested folders.
+
+## Blend modes for RGB matrices
+
+When two RGB matrices run on the same lights, the one started last normally
+replaces the other's colors. QLC+ (4.12 and later) can instead *add* a
+matrix's light on top: the function is saved with `BlendMode="Additive"`
+(the normal mode is saved with no attribute). Lightsmith's matrix effects
+(Sparkle, Strobe hits) use Additive so they sit on top of the section's
+pattern; patterns themselves use the normal mode.

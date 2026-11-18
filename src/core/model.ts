@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
+import { patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -37,7 +37,6 @@ export const DEFAULT_COLOR_LAYOUT: Record<ColorJob, ColorTarget> = { backdrop: "
 export type Transition = "snap" | "fade" | "build";
 
 export interface SectionEffects {
-  rain?: boolean;
   lightning?: boolean;
   lightningDelaySec?: number;
   strobe?: boolean;
@@ -123,7 +122,18 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  return { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) } };
+  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) } };
+  // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
+  // drizzle where there was no other pattern, on the same lights.
+  const old = out.effects as SectionEffects & { rain?: boolean };
+  const oldTargets = out.effectTargets as Record<string, number[] | undefined>;
+  if (old.rain && !patternById(out.pattern).algorithm) {
+    out.pattern = "drizzle";
+    if (oldTargets.rain) out.patternTargets = oldTargets.rain;
+  }
+  delete old.rain;
+  delete oldTargets.rain;
+  return out;
 }
 
 export function normalizeProject(p: Project): Project {
@@ -153,6 +163,20 @@ export function sectionsFromTemplate(templateId: string, bpm: number): Section[]
     if ((totals[type] ?? 0) > 1) s.name = `${s.name} ${count[type]}`;
     return s;
   });
+}
+
+/** A section's length in beats (bars can include part of a bar). */
+export const sectionBeats = (s: Pick<Section, "bars" | "beatsPerBar">) => Math.max(1, Math.round(s.bars * s.beatsPerBar));
+
+/** "16 bars", "1 bar", or "16 bars + 2 beats". */
+export function lengthLabel(s: Pick<Section, "bars" | "beatsPerBar">): string {
+  const beats = sectionBeats(s);
+  const bars = Math.floor(beats / s.beatsPerBar);
+  const rest = beats - bars * s.beatsPerBar;
+  const barText = `${bars} ${bars === 1 ? "bar" : "bars"}`;
+  if (!rest) return barText;
+  const beatText = `${rest} ${rest === 1 ? "beat" : "beats"}`;
+  return bars ? `${barText} + ${beatText}` : beatText;
 }
 
 export function sectionMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars">): number {

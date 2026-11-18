@@ -77,7 +77,7 @@ export function useSortable(keys: string[], onMove: (from: number, to: number) =
       begin(key, e.clientX, e.clientY);
     },
     onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
-      if (!e.altKey) return;
+      if (!e.altKey || e.shiftKey) return;
       const from = keys.indexOf(key);
       const back = axis === "x" ? "ArrowLeft" : "ArrowUp";
       const fwd = axis === "x" ? "ArrowRight" : "ArrowDown";

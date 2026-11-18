@@ -13,6 +13,9 @@ import {
   newSong,
   normalizeSection,
   sectionsFromTemplate,
+  sectionBeats,
+  sectionMs,
+  lengthLabel,
   parseFixtureDef,
   PATTERNS,
   parseWorkspace,
@@ -39,7 +42,7 @@ const song = (): Song => ({
   title: "Test Song",
   bpm: 120,
   sections: [
-    { ...newSection("intro", 120), effects: { rain: true, lightning: true, lightningDelaySec: 2 } },
+    { ...newSection("intro", 120), effects: { sparkle: true, lightning: true, lightningDelaySec: 2 } },
     newSection("verse", 120),
     { ...newSection("chorus", 120), focus: "SR" },
     { ...newSection("solo", 140), movement: "figure8" },
@@ -125,7 +128,7 @@ test("patterns, color changes, custom colors and effects all export cleanly", ()
     colorFade: i % 2 === 0,
     movement: MOVEMENTS[i % MOVEMENTS.length]!.id,
     moverSpread: (["together", "chase", "offset"] as const)[i % 3]!,
-    effects: { rain: i % 2 === 0, sparkle: i % 3 === 0, blinder: i % 4 === 0, beatPulse: i % 5 === 0, strobe: i % 6 === 0, lightning: i === 1 },
+    effects: { sparkle: i % 3 === 0 || i % 2 === 0, blinder: i % 4 === 0, beatPulse: i % 5 === 0, strobe: i % 6 === 0, lightning: i === 1 },
   }));
   const s: Song = { id: "p", title: "Pattern test", bpm: 120, sections };
   generateSong({ ws, profiles, rig, song: s });
@@ -159,13 +162,13 @@ test("effects go on the lights chosen for them", () => {
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles);
-  const s1 = { ...newSection("verse", 120), name: "Default", effects: { rain: true, blinder: true } };
-  const s2 = { ...newSection("verse", 120), name: "Pars only", effects: { rain: true, blinder: true }, effectTargets: { rain: [2, 3], blinder: [2] } };
+  const s1 = { ...newSection("verse", 120), name: "Default", effects: { sparkle: true, blinder: true } };
+  const s2 = { ...newSection("verse", 120), name: "Pars only", effects: { sparkle: true, blinder: true }, effectTargets: { sparkle: [2, 3], blinder: [2] } };
   generateSong({ ws, profiles, rig, song: { id: "t", title: "Targets", bpm: 120, sections: [s1, s2] } });
   const xml = serializeWorkspace(ws);
   const reread = parseWorkspace(xml);
   assert.deepEqual(checkWorkspace(reread, profiles), []);
-  // Default rain uses the backdrop group; the second section gets a group of the two pars.
+  // Default sparkle uses the backdrop group; the second section gets a group of the two pars.
   assert.ok(reread.groups.some((g) => g.name === "Lightsmith Backdrop"));
   assert.ok(reread.groups.some((g) => g.name === "Lightsmith: RGBW Par 2 + RGBW Par 3"));
   // The second blinder only touches fixture 2.
@@ -173,7 +176,7 @@ test("effects go on the lights chosen for them", () => {
   assert.equal(blinders.length, 2);
   assert.ok(blinders.some((c) => c.includes('<FixtureVal ID="2">') && !c.includes('<FixtureVal ID="0">')));
 
-  // Re-exporting without the pars-only rain removes its group again.
+  // Re-exporting without the pars-only sparkle removes its group again.
   generateSong({ ws: reread, profiles, rig, song: { id: "t", title: "Targets", bpm: 120, sections: [s1] } });
   assert.ok(!parseWorkspace(serializeWorkspace(reread)).groups.some((g) => g.name.startsWith("Lightsmith: ")));
 });
@@ -238,4 +241,38 @@ test("the section buttons land where they can be seen, and stay where the user p
   const plain = parseWorkspace(WORKSPACE_QXW);
   const s3 = generateSong({ ws: plain, profiles, rig, song: song() });
   assert.match(s3.buttonsWhere, /^on the first Virtual Console page/);
+});
+
+test("old Rain effects become the Drizzle pattern, and matrix effects blend on top", () => {
+  const old = normalizeSection({ ...newSection("verse", 120), pattern: "solid", effects: { rain: true } as never, effectTargets: { rain: [2, 3] } as never });
+  assert.equal(old.pattern, "drizzle");
+  assert.deepEqual(old.patternTargets, [2, 3]);
+  assert.ok(!("rain" in old.effects));
+  // A section that already had a pattern keeps it.
+  const kept = normalizeSection({ ...newSection("verse", 120), pattern: "waves", effects: { rain: true } as never });
+  assert.equal(kept.pattern, "waves");
+
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("verse", 120), pattern: "drizzle", effects: { sparkle: true } };
+  generateSong({ ws, profiles, rig, song: { id: "d", title: "Drizzle", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.match(xml, /Type="RGBMatrix" Name="Sparkle"[^>]*BlendMode="Additive"/);
+  assert.match(xml, /<Algorithm Type="Script">Noise<\/Algorithm>/);
+  assert.doesNotMatch(xml, /Name="Pattern[^"]*"[^>]*BlendMode/);
+  assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
+});
+
+test("sections can end part-way through a bar", () => {
+  const s = { ...newSection("verse", 120), bars: 16 + 2 / 4 };
+  assert.equal(sectionBeats(s), 66);
+  assert.equal(lengthLabel(s), "16 bars + 2 beats");
+  assert.equal(lengthLabel({ bars: 1, beatsPerBar: 4 }), "1 bar");
+  assert.equal(sectionMs(s), 33000);
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "p", title: "Part bar", bpm: 120, sections: [{ ...s, autoAdvance: true }] } });
+  assert.deepEqual(checkWorkspace(parseWorkspace(serializeWorkspace(ws)), profiles), []);
 });

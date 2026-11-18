@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
   EFFECTS,
@@ -14,6 +14,8 @@ import {
   newSection,
   patternById,
   sectionMs,
+  sectionBeats,
+  lengthLabel,
   sectionTypeById,
   sectionsFromTemplate,
   effectTargets,
@@ -63,6 +65,7 @@ const PATTERN_GROUP: Record<string, string> = {
   marquee: "Moving",
   sparkle: "Atmosphere",
   rainfall: "Atmosphere",
+  drizzle: "Atmosphere",
   snow: "Atmosphere",
   bubbles: "Atmosphere",
   starfield: "Atmosphere",
@@ -72,7 +75,7 @@ const PATTERN_GROUP: Record<string, string> = {
   rainbow: "Party",
   strobe: "Party",
 };
-const EFFECT_ICON: Record<EffectId, IconName> = { rain: "rain", lightning: "bolt", blinder: "sun", beatPulse: "pulse", sparkle: "sparkle", strobe: "strobe" };
+const EFFECT_ICON: Record<EffectId, IconName> = { lightning: "bolt", blinder: "sun", beatPulse: "pulse", sparkle: "sparkle", strobe: "strobe" };
 
 export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; songId: string; setSongId: (id: string) => void; onNext: () => void }) {
   const songs = store.project.songs;
@@ -181,7 +184,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onAdd={add} />
+          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} addButton={<AddSectionMenu onAdd={add} />} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -282,41 +285,207 @@ function AddSectionMenu({ onAdd }: { onAdd: (type: string) => void }) {
 }
 
 /** The song as a strip of blocks: width = length, height = energy. Drag to reorder. */
-function Timeline({ song, selected, onSelect, onMove, onAdd }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onAdd: (t: string) => void }) {
+/** Seconds between ruler ticks, so labels are at least ~64px apart. */
+const tickStep = (scale: number) => [1, 2, 5, 10, 15, 30, 60, 120, 300].find((t) => t * scale >= 64) ?? 600;
+
+/**
+ * The song as a strip of blocks on a time scale. Drag a block to reorder it;
+ * drag its right edge to change its length (whole bars, or beats with Alt).
+ */
+function Timeline({
+  song,
+  selected,
+  onSelect,
+  onMove,
+  onResize,
+  addButton,
+}: {
+  song: Song;
+  selected: string | null;
+  onSelect: (id: string) => void;
+  onMove: (a: number, b: number) => void;
+  onResize: (id: string, bars: number) => void;
+  addButton: ReactNode;
+}) {
   const keys = song.sections.map((s) => s.id);
   const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x");
+  const scroller = useRef<HTMLDivElement>(null);
+  const track = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(10); // pixels per second
+  const [resizing, setResizing] = useState<{ id: string; fine: boolean } | null>(null);
+  const totalSec = song.sections.reduce((t, s) => t + sectionMs(s), 0) / 1000;
+  const latest = useRef({ song, onResize, scale });
+  latest.current = { song, onResize, scale };
+
+  // Fit the song to the strip when it's first shown (and when switching songs).
+  const fit = () => {
+    const w = (scroller.current?.clientWidth ?? 800) - 24;
+    setScale(Math.max(2, Math.min(40, w / Math.max(totalSec, 10))));
+  };
+  useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startResize = (e: ReactPointerEvent<HTMLElement>, id: string) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const block = (e.currentTarget as HTMLElement).parentElement!;
+    const left = block.offsetLeft;
+    let clientX = e.clientX;
+    let fine = e.altKey;
+    let raf = 0;
+    setResizing({ id, fine });
+    const update = () => {
+      const { song: sg, onResize: resize, scale: sc } = latest.current;
+      const s = sg.sections.find((x) => x.id === id);
+      const t = track.current;
+      if (!s || !t) return;
+      const x = clientX - t.getBoundingClientRect().left - left;
+      const beatSec = 60 / s.bpm;
+      const raw = x / sc / beatSec;
+      const beats = fine ? Math.max(1, Math.round(raw)) : Math.max(1, Math.round(raw / s.beatsPerBar)) * s.beatsPerBar;
+      if (beats !== sectionBeats(s)) resize(id, beats / s.beatsPerBar);
+    };
+    // Scroll the strip when dragging near its ends.
+    const tick = () => {
+      const el = scroller.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        // Faster the further into the edge zone, up to 6px a frame.
+        const into = clientX > r.right - 48 ? clientX - (r.right - 48) : clientX < r.left + 48 ? clientX - (r.left + 48) : 0;
+        const step = Math.sign(into) * Math.ceil(Math.min(48, Math.abs(into)) / 8);
+        if (step) {
+          el.scrollLeft += step;
+          update();
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const move = (ev: PointerEvent) => {
+      clientX = ev.clientX;
+      fine = ev.altKey;
+      setResizing({ id, fine });
+      update();
+    };
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key !== "Alt") return;
+      fine = ev.type === "keydown";
+      setResizing({ id, fine });
+      update();
+    };
+    const end = () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
+      document.body.classList.remove("is-resizing");
+      setResizing(null);
+    };
+    document.body.classList.add("is-resizing");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+  };
+
+  // Shift + arrows: a bar longer or shorter; with Alt, a beat.
+  const resizeKey = (e: ReactKeyboardEvent, s: Section) => {
+    const dir = e.key === "ArrowRight" ? 1 : -1;
+    const beats = sectionBeats(s);
+    const bpb = s.beatsPerBar;
+    const next = e.altKey ? beats + dir : dir > 0 ? Math.floor(beats / bpb) * bpb + bpb : Math.ceil(beats / bpb) * bpb - bpb;
+    onResize(s.id, Math.max(1, next) / bpb);
+  };
+
+  const step = tickStep(scale);
+  const width = totalSec * scale;
   return (
     <div className="timeline-wrap">
       <div className="timeline-row">
-      <div className="timeline" role="list" aria-label="Song timeline. Drag sections to reorder.">
-        {song.sections.map((s) => {
-          const pal = paletteOf(s);
-          return (
-            <div
-              key={s.id}
-              role="listitem"
-              ref={itemRef(s.id)}
-              className={`block${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}`}
-              style={{ flexGrow: sectionMs(s), ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
-              tabIndex={0}
-              aria-label={`${s.name}, ${fmt(sectionMs(s))}. Press Enter to edit, Alt and arrow keys to move.`}
-              {...handle(s.id)}
-              onClick={() => !wasDrag() && onSelect(s.id)}
-              onKeyDownCapture={(e) => e.key === "Enter" && onSelect(s.id)}
-            >
-              <span className="block-light" />
-              <span className="block-text">
-                <strong>{s.name}</strong>
-                <small>{fmt(sectionMs(s))}</small>
-              </span>
+        <div className="timeline" ref={scroller}>
+          <div className="timeline-track" ref={track} style={{ width: width + 2 }}>
+            <div className="ruler" aria-hidden="true">
+              {Array.from({ length: Math.floor(totalSec / step) + 1 }, (_, i) => (
+                <span key={i} style={{ left: i * step * scale }}>
+                  {fmt(i * step * 1000)}
+                </span>
+              ))}
             </div>
-          );
-        })}
+            <div className="blocks" role="list" aria-label="Song timeline. Drag sections to reorder, or drag a section's right edge to change its length.">
+              {song.sections.map((s) => {
+                const pal = paletteOf(s);
+                const ms = sectionMs(s);
+                const w = (ms / 1000) * scale;
+                const h = handle(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    role="listitem"
+                    ref={itemRef(s.id)}
+                    className={`block${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
+                    style={{ width: w, ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
+                    tabIndex={0}
+                    aria-label={`${s.name}, ${lengthLabel(s)}, ${fmt(ms)}. Enter to edit, Alt and arrows to move, Shift and arrows to change the length.`}
+                    onPointerDown={h.onPointerDown}
+                    onKeyDown={(e) => {
+                      if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+                        e.preventDefault();
+                        resizeKey(e, s);
+                      } else h.onKeyDown(e);
+                    }}
+                    onClick={() => !wasDrag() && onSelect(s.id)}
+                    onKeyDownCapture={(e) => e.key === "Enter" && onSelect(s.id)}
+                  >
+                    <span className="block-light" />
+                    <span className="block-text">
+                      <strong>{s.name}</strong>
+                      <small>{fmt(ms)}</small>
+                    </span>
+                    <span className="block-resize" title="Drag to change the length (hold Alt / Option for single beats)" onPointerDown={(e) => startResize(e, s.id)} />
+                  </div>
+                );
+              })}
+            </div>
+            {resizing &&
+              (() => {
+                const s = song.sections.find((v) => v.id === resizing.id);
+                if (!s) return null;
+                let right = 0;
+                for (const v of song.sections) {
+                  right += (sectionMs(v) / 1000) * scale;
+                  if (v.id === s.id) break;
+                }
+                return (
+                  <div className="resize-bubble" style={{ left: right }}>
+                    <span>
+                      <strong>{lengthLabel(s)}</strong> · {fmt(sectionMs(s))}
+                    </span>
+                    <small>{resizing.fine ? "Snapping to beats" : "Hold Alt for beats"}</small>
+                  </div>
+                );
+              })()}
+          </div>
+        </div>
+        {/* Outside the scrolling strip, so its menu isn't clipped. */}
+        {addButton}
       </div>
-      {/* Outside the scrolling strip, so its menu isn't clipped. */}
-      <AddSectionMenu onAdd={onAdd} />
+      <div className="timeline-foot">
+        <p className="hint">Drag a block to reorder it, or drag its right edge to change its length. Taller blocks have more energy.</p>
+        <div className="zoom" role="group" aria-label="Zoom the timeline">
+          <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.max(1, v / 1.5))} aria-label="Zoom out" title="Zoom out">
+            <Icon name="minus" size={14} />
+          </button>
+          <button type="button" className="ghost small" onClick={fit} title="Fit the whole song">
+            Fit
+          </button>
+          <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.min(80, v * 1.5))} aria-label="Zoom in" title="Zoom in">
+            <Icon name="plus" size={14} />
+          </button>
+        </div>
       </div>
-      <p className="hint">Drag blocks to reorder. Taller blocks have more energy.</p>
     </div>
   );
 }
@@ -496,8 +665,8 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
             <Field label="Tempo">
               <NumberInput label="Section tempo" value={s.bpm} min={30} max={300} suffix="BPM" onChange={(bpm) => onChange({ bpm })} />
             </Field>
-            <Field label="Length" hint={`About ${fmt(sectionMs(s))}`}>
-              <NumberInput label="Length in bars" value={s.bars} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.round(bars) })} />
+            <Field label="Length" hint={`${sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}, a` : "A"}bout ${fmt(sectionMs(s))}`}>
+              <NumberInput label="Length in bars" value={Math.floor(sectionBeats(s) / s.beatsPerBar)} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + (sectionBeats(s) % s.beatsPerBar) / s.beatsPerBar })} />
             </Field>
             <Field label="Beats per bar">
               <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />
@@ -563,7 +732,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
             </p>
           </Group>
 
-          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look. Each runs on its usual lights; click the lights chip on an effect to choose others.">
+          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern. Each runs on its usual lights; click the lights chip on an effect to choose others.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
@@ -632,7 +801,7 @@ function LookEditor({ s, rig, lights, index, onChange, onDuplicate, onRemove }: 
               onChange={(v) => onChange({ autoAdvance: v === "auto" })}
               options={[
                 { value: "cue", title: "Wait for my cue", text: "The look holds until you press the next button or footswitch. Best when the band doesn't play to a click." },
-                { value: "auto", title: `Move on after ${s.bars} bars`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
+                { value: "auto", title: `Move on after ${lengthLabel(s)}`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
               ]}
             />
           </Group>

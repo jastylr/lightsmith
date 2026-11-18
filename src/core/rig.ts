@@ -121,12 +121,12 @@ export function stageOrder(a: RigFixture, b: RigFixture): number {
 }
 
 /** Effects drawn by an RGB matrix only work on lights with red, green and blue. */
-export const MATRIX_EFFECTS: EffectId[] = ["rain", "sparkle", "strobe"];
+export const MATRIX_EFFECTS: EffectId[] = ["sparkle", "strobe"];
 
 /** The lights an effect uses unless the user picks others. */
 export function defaultEffectTargets(effect: EffectId, rig: Rig): number[] {
   const roles: Role[] =
-    effect === "rain" || effect === "sparkle" || effect === "strobe"
+    effect === "sparkle" || effect === "strobe"
       ? ["backdrop"]
       : effect === "beatPulse"
         ? ["side", "front"]

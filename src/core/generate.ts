@@ -80,9 +80,9 @@ class Builder {
   functions: XmlElement[] = [];
   constructor(private nextId: number) {}
 
-  private fn(type: string, name: string, path: string, children: XmlElement[]): number {
+  private fn(type: string, name: string, path: string, children: XmlElement[], extra: Record<string, string> = {}): number {
     const id = this.nextId++;
-    this.functions.push(el("Function", { ID: id, Type: type, Name: name, Path: path }, children));
+    this.functions.push(el("Function", { ID: id, Type: type, Name: name, Path: path, ...extra }, children));
     return id;
   }
 
@@ -95,7 +95,12 @@ class Builder {
     return this.fn("Scene", name, path, kids);
   }
 
-  matrix(name: string, path: string, opts: { algorithm: string; colors: RGB[]; stepMs: number; group: number; direction?: string; order?: string; props?: Record<string, string | number> }): number {
+  /**
+   * An RGB matrix. `blend: "Additive"` adds its light on top of whatever else
+   * runs on those lights (QLC+ writes this as BlendMode="Additive"); without
+   * it the matrix replaces their colors.
+   */
+  matrix(name: string, path: string, opts: { algorithm: string; colors: RGB[]; stepMs: number; group: number; direction?: string; order?: string; props?: Record<string, string | number>; blend?: "Additive" }): number {
     const kids: XmlElement[] = [
       el("Speed", { FadeIn: 0, FadeOut: 0, Duration: Math.max(20, Math.round(opts.stepMs)) }),
       textEl("Direction", opts.direction ?? "Forward"),
@@ -106,7 +111,7 @@ class Builder {
       textEl("FixtureGroup", opts.group),
       ...Object.entries(opts.props ?? {}).map(([k, v]) => el("Property", { Name: k, Value: v })),
     ];
-    return this.fn("RGBMatrix", name, path, kids);
+    return this.fn("RGBMatrix", name, path, kids, opts.blend ? { BlendMode: opts.blend } : {});
   }
 
   chaser(name: string, path: string, steps: Step[], order: "Loop" | "SingleShot" | "PingPong" = "Loop"): number {
@@ -457,14 +462,12 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     }
 
     // ---- effects layered on top, each on its chosen lights
-    const p0 = palette[0]!;
+    // Matrix effects blend additively, so they sit on top of the pattern.
     const matrixOn = (e: EffectId) => (s.effects[e] ? groupFor(targetsFor(s, e)) : undefined);
-    const rainGroup = matrixOn("rain");
-    if (rainGroup !== undefined) parts.push(b.matrix("Rain", path, { algorithm: "Noise", colors: [mix(p0, WHITE, 0.4)], stepMs: 120 / speed, group: rainGroup, direction: "Backward", props: { noisePercentage: "Medium" } }));
     const sparkleGroup = matrixOn("sparkle");
-    if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup }));
+    if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup, blend: "Additive" }));
     const strobeGroup = matrixOn("strobe");
-    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 } }));
+    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
     if (s.effects.blinder) {
       const t = targetsFor(s, "blinder");
       if (t.length) parts.push(b.chaser("Blinder hit", path, [{ id: sharedScene("Blinder flash", t, WHITE), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));

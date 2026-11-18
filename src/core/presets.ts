@@ -92,6 +92,7 @@ export const PATTERNS: PatternPreset[] = [
   { id: "plasma", label: "Plasma", description: "Liquid, shifting color", algorithm: "Plasma", colors: 5, stepMs: 60, floor: 0 },
   { id: "sparkle", label: "Sparkle", description: "Random single pixels", algorithm: "Random Single", colors: 1, stepBeats: 0.125, floor: 0.2 },
   { id: "rainfall", label: "Falling rain", description: "Streaks falling down the bars", algorithm: "Vertical fall", colors: 1, stepMs: 90, floor: 0.2, whiten: 0.4 },
+  { id: "drizzle", label: "Drizzle", description: "Raindrops twinkling at random", algorithm: "Noise", colors: 1, stepMs: 120, floor: 0.2, whiten: 0.4, props: { noisePercentage: "Medium" } },
   { id: "snow", label: "Snow", description: "Flakes drifting down", algorithm: "Snow or Bubbles", colors: 1, stepMs: 120, floor: 0.15, whiten: 0.6, props: { presetflakes: 40, windchill: "No", reverse: "No", multiColor: "No" } },
   { id: "bubbles", label: "Bubbles", description: "Bubbles rising up", algorithm: "Snow or Bubbles", colors: 1, stepMs: 120, floor: 0.15, props: { presetflakes: 30, windchill: "No", reverse: "Yes", multiColor: "No" } },
   { id: "starfield", label: "Starfield", description: "Flying through stars", algorithm: "3D Starfield", colors: 1, stepMs: 100, floor: 0.1, props: { StarsAmount: 60, MultiColor: "No", InvertBrightness: "Dim->Bright" } },
@@ -143,9 +144,8 @@ export const SPREADS: { id: MoverSpread; label: string; description: string; pro
 
 // ---------------------------------------------------------------- effects (layered on top)
 
-export type EffectId = "rain" | "lightning" | "strobe" | "blinder" | "beatPulse" | "sparkle";
+export type EffectId = "lightning" | "strobe" | "blinder" | "beatPulse" | "sparkle";
 export const EFFECTS: { id: EffectId; label: string; description: string }[] = [
-  { id: "rain", label: "Rain", description: "Drizzle twinkling over the backdrop" },
   { id: "lightning", label: "Lightning", description: "A burst of lightning flashes" },
   { id: "blinder", label: "Blinder hit", description: "A full white hit as the section starts" },
   { id: "beatPulse", label: "Beat pulse", description: "Side and front lights pulse on every beat" },

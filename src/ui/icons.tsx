@@ -14,6 +14,7 @@ const PATHS = {
   alert: "M12 8v5M12 16.5v.5M10.3 4l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z",
   x: "M6 6l12 12M18 6L6 18",
   plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
   grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
   copy: "M9 9h11v11H9zM5 15V4h11",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
