@@ -525,15 +525,18 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 ---
 
-### Chapter 21. Songs: Effects, and Start and end
+### Chapter 21. Songs: Effects, Sequences, and Start and end
 
 **On screen.**
 - **Effects:** uniform tiles, On/Off, each effect's lights chip, and lightning's delay.
+- **Sequences:** your own chasers. Add one from a quick start (Lightning, Chase across, Bounce, Sides take turns, Random flashes), an empty sequence, or a chaser imported from the show file; set when it starts; edit its steps on a strip (lights on a mini stage, color, brightness, fade in, hold, fade out, pauses), its run order and its units (milliseconds or beats); play it in the preview.
 - **Start and end:** change instantly, fade or build; wait for a cue or move on after the section's length. Blackouts get cut-to-black and fade-to-black instead.
 
 **Concepts.** Equal-height grids; choice cards as accessible radio groups; wording settings in user terms rather than QLC+ terms; how each choice becomes engine output (previewed here, implemented in Chapter 22).
 
-**Files.** `src/ui/SongsPage.tsx` (effects grid, `ChoiceCards`), `src/core/presets.ts` (`EFFECTS`), `src/core/rig.ts` (`effectTargets`).
+**Concepts (sequences).** Data shared by the whole project but used per section, each use with its own delay. Turning steps into QLC+ scenes (one per distinct look) and a chaser; why a looping sequence waits in an outer one-shot chaser; beats converted at the section's tempo (`toMs`). Reading someone else's work: importing a chaser from the show file, including chasers inside chasers, deciding what a scene lights (`sceneLook`), turning an opening pause into the delay, and reporting what didn't come across. Worked example: the band's "Hands Intro Lightning Sequence", imported step for step. Previewing a timeline with SMIL `keyTimes`, and replaying it.
+
+**Files.** `src/ui/SongsPage.tsx` (effects grid, `ChoiceCards`), `src/ui/Sequences.tsx`, `src/core/sequences.ts`, `src/core/presets.ts` (`EFFECTS`), `src/core/rig.ts` (`effectTargets`).
 
 ---
 

@@ -3294,3 +3294,228 @@ body.is-resizing * {
   align-items: center;
   gap: 0.35rem;
 }
+
+/* Songs: sequences (the user's own chasers) */
+.sequences {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.seq-use {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--deck);
+}
+.seq-use.open {
+  border-color: var(--line);
+}
+.seq-use-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  flex-wrap: wrap;
+}
+.seq-use-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: 12rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.seq-use-name svg {
+  align-self: center;
+  color: var(--faint);
+}
+.seq-use-name small {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+.seq-delay {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.seq-delay .number input {
+  width: 4rem;
+}
+.seq-editor {
+  border-top: 1px solid var(--line-soft);
+  padding: 1.1rem 1.2rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.seq-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.seq-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+}
+.seq-strip {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0.35rem 0.1rem 0.5rem;
+}
+.seq-step {
+  flex: none;
+  width: var(--w);
+  min-width: 2.4rem;
+  height: 3.6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--house);
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.seq-step i {
+  width: 70%;
+  height: 0.6rem;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: 0 0 8px var(--c);
+}
+.seq-step.pause i {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--faint);
+}
+.seq-step-n {
+  font-size: 0.72rem;
+}
+.seq-step small {
+  font-size: 0.68rem;
+  color: var(--faint);
+}
+.seq-step.on {
+  border-color: var(--tungsten);
+  color: var(--text);
+  background: rgba(242, 167, 59, 0.08);
+}
+.seq-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.seq-tools .ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.seq-tools .seq-play {
+  margin-left: auto;
+}
+.seq-step-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line-soft);
+}
+.seq-step-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 1.2rem;
+}
+@media (max-width: 900px) {
+  .seq-step-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.seq-step-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.seq-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.seq-quick > span {
+  margin-right: 0.2rem;
+}
+.seq-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.seq-color {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  padding: 0;
+  cursor: pointer;
+}
+.seq-color.on {
+  border-color: var(--tungsten);
+  box-shadow: 0 0 0 2px var(--house), 0 0 0 4px var(--tungsten);
+}
+.seq-color.custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+}
+.seq-color.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.seq-times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.seq-times .number {
+  display: flex;
+}
+.seq-times .number input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.dropdown-value.placeholder {
+  color: var(--faint);
+}
+.ghost.danger:hover {
+  color: #ff8a7a;
+}
+.seq-times .number input {
+  min-width: 3.2rem;
+  padding-right: 0.2rem;
+}
+.seq-times .number-suffix {
+  padding-right: 0.45rem;
+  font-size: 0.75rem;
+}
+@media (min-width: 1200px) {
+  .seq-times {
+    grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
+  }
+}

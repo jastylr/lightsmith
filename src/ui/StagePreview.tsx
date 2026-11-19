@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, aimOf, colorById, mountOf, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -41,7 +41,7 @@ const FAMILY: Record<string, Family> = {
  */
 const cells = 9;
 
-export function StagePreview({ section, rig, compact = false }: { section: Section; rig: Rig; compact?: boolean }) {
+export function StagePreview({ section, rig, compact = false, sequences = [], skipDelay = false }: { section: Section; rig: Rig; compact?: boolean; sequences?: Sequence[]; skipDelay?: boolean }) {
   const view = useMemo(() => {
     const mood = moodById(section.mood);
     const en = energyOf(section.energy);
@@ -469,6 +469,74 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           </g>
         );
       })}
+
+      {/* Sequences: each step lights its lights, on top of the look */}
+      {animate &&
+        (section.sequences ?? []).map((use, k) => {
+          const q = sequences.find((x) => x.id === use.id);
+          if (!q || !q.steps.length) return null;
+          const order = q.order === "bounce" && q.steps.length > 2 ? [...q.steps, ...q.steps.slice(1, -1).reverse()] : q.steps;
+          const sec = (v: number) => toMs(v, q.units, section.bpm) / 1000;
+          const total = order.reduce((t, st) => t + sec(st.fadeIn) + sec(st.hold), 0);
+          if (total <= 0) return null;
+          const begin = skipDelay ? 0 : use.delay;
+          const ids = [...new Set(order.flatMap((st) => st.lights))];
+          return (
+            <g key={`${use.id}-${k}`} pointerEvents="none">
+              {ids.map((id) => {
+                const f = rig.fixtures.find((x) => x.fixtureId === id);
+                if (!f?.pos || f.role === "ignore") return null;
+                // Opacity over one pass: up over the fade in, held, then off as the step ends.
+                const pts: [number, number][] = [[0, 0]];
+                const fills: string[] = [];
+                let t = 0;
+                for (const st of order) {
+                  const fi = sec(st.fadeIn);
+                  const h = sec(st.hold);
+                  if (st.lights.includes(id)) {
+                    const lv = st.level ?? 1;
+                    const push = (time: number, v: number) => {
+                      const last = pts[pts.length - 1]!;
+                      pts.push([Math.max(time, last[0] + 0.0005), v]);
+                    };
+                    push(t, 0);
+                    push(t + fi, lv);
+                    push(t + fi + h - 0.001, lv);
+                    push(t + fi + h + Math.min(0.15, sec(st.fadeOut)), 0);
+                    fills.push(st.color ? `rgb(${colorById(st.color).rgb.join(",")})` : "#ffffff");
+                  }
+                  t += fi + h;
+                }
+                const end = Math.max(total, pts[pts.length - 1]![0]);
+                if (pts[pts.length - 1]![0] < end) pts.push([end, 0]);
+                const keyTimes = pts.map(([x]) => (x / end).toFixed(5)).join(";");
+                const values = pts.map(([, v]) => v.toFixed(3)).join(";");
+                const color = fills[0] ?? "#ffffff";
+                const anim = <animate attributeName="opacity" values={values} keyTimes={keyTimes} dur={`${end}s`} begin={`${begin}s`} repeatCount={q.order === "once" ? 1 : "indefinite"} fill="freeze" />;
+                if (f.role === "backdrop") {
+                  const x = xAt(f.pos.x, 0) - barW / 2;
+                  return (
+                    <g key={id} opacity="0">
+                      {anim}
+                      <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="44" ry="80" fill={color} opacity="0.55" filter={url("glow")} />
+                      <rect x={x - 0.5} y={topY} width={barW + 1} height={cells * cellH} rx="1.5" fill={color} />
+                    </g>
+                  );
+                }
+                const d = f.role === "front" ? 1 : depthOf(f.pos.y);
+                const cx = xAt(f.pos.x, d);
+                const cy = f.role === "front" ? LIP - 6 : mountOf(f) === "truss" ? HANG_Y + 10 : floorY(d) - 8;
+                return (
+                  <g key={id} opacity="0">
+                    {anim}
+                    <ellipse cx={cx} cy={cy} rx="46" ry="30" fill={color} opacity="0.5" filter={url("glow")} />
+                    <circle cx={cx} cy={cy} r="6" fill={color} />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
 
       {/* Lightning / blinder: a white flash */}
       {animate && (section.effects.lightning || section.effects.blinder) && (

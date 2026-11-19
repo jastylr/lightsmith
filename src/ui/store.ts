@@ -15,6 +15,7 @@ import {
   type FixtureDef,
   type Project,
   type Rig,
+  type Sequence,
   type Song,
   type WsFixture,
 } from "../core";
@@ -218,6 +219,7 @@ export function useLightsmith() {
   }, []);
 
   const setRig = useCallback((rig: Rig) => change((p) => ({ ...p, rig })), [change]);
+  const setSequences = useCallback((sequences: Sequence[]) => change((p) => ({ ...p, sequences })), [change]);
   const updateSong = useCallback((song: Song) => change((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), [change]);
   const addSong = useCallback(() => {
     const s = newSong("Untitled song", 120);
@@ -245,6 +247,9 @@ export function useLightsmith() {
     addFiles,
     removeDef,
     setRig,
+    setSequences,
+    /** The loaded show file, read-only (for importing chasers). */
+    showFile: parsed && !("error" in parsed) ? parsed : null,
     updateSong,
     addSong,
     deleteSong,

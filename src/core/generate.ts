@@ -14,7 +14,8 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { aimOf, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { aimOf, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
+import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -172,6 +173,8 @@ export interface GenerateInput {
   profiles: Map<number, FixtureProfile>;
   rig: Rig;
   song: Song;
+  /** The project's sequences, for sections that use them. */
+  sequences?: Sequence[];
 }
 
 export interface GenerateSummary {
@@ -194,7 +197,7 @@ export function songPathFor(title: string): string {
 }
 
 /** Mutates `ws` (merging the song into it) and returns a summary. */
-export function generateSong({ ws, profiles, rig, song }: GenerateInput): GenerateSummary {
+export function generateSong({ ws, profiles, rig, song, sequences = [] }: GenerateInput): GenerateSummary {
   const title = safeName(song.title);
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
@@ -323,6 +326,41 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     strikeCache.set(key, result);
     return result;
   };
+  // Sequences: one scene per distinct look (lights, color, brightness),
+  // shared by every step and section that uses it.
+  const seqLooks = new Map<string, number>();
+  const seqLook = (q: Sequence, st: SequenceStep): number => {
+    const rs = st.lights.map((id) => rig.fixtures.find((f) => f.fixtureId === id)).filter((r): r is RigFixture => !!r && profiles.has(r.fixtureId));
+    if (!rs.length) return blank();
+    const level = Math.max(0, Math.min(1, st.level ?? 1));
+    const key = `${idsKey(rs)}|${st.color ?? "white"}|${level.toFixed(3)}`;
+    const hit = seqLooks.get(key);
+    if (hit !== undefined) return hit;
+    const v: Vals = new Map();
+    const rgb = st.color ? colorById(st.color).rgb : WHITE;
+    for (const r of rs) {
+      const p = prof(r);
+      const sc = fixtureLevel(v, r.fixtureId, p, level);
+      for (const h of p.heads) headColor(v, r.fixtureId, h, rgb, sc);
+    }
+    const id = b.scene(`${safeName(q.name)} look ${seqLooks.size + 1}`, `${sharedPath}/Sequences`, v);
+    seqLooks.set(key, id);
+    return id;
+  };
+  const RUN: Record<SequenceOrder, "SingleShot" | "Loop" | "PingPong"> = { once: "SingleShot", loop: "Loop", bounce: "PingPong" };
+  /** A section's sequence as a chaser, started after its delay. */
+  const sequenceChaser = (q: Sequence, delaySec: number, bpm: number, path: string): number | undefined => {
+    if (!q.steps.length) return undefined;
+    const ms = (v: number) => Math.round(toMs(v, q.units, bpm));
+    const steps: Step[] = q.steps.map((st) => ({ id: seqLook(q, st), fadeIn: ms(st.fadeIn), hold: Math.max(1, ms(st.hold)), fadeOut: ms(st.fadeOut) }));
+    const name = `Sequence: ${safeName(q.name)}`;
+    const delay = Math.round(Math.max(0, delaySec) * 1000);
+    if (q.order === "once") return b.chaser(name, path, delay > 0 ? [{ id: blank(), hold: delay }, ...steps] : steps, "SingleShot");
+    // A looping sequence can't hold its own delay (it would repeat); wait in an outer chaser instead.
+    const inner = b.chaser(name, path, steps, RUN[q.order]);
+    return delay > 0 ? b.chaser(`${name} (after ${delaySec}s)`, path, [{ id: blank(), hold: delay }, { id: inner, hold: INFINITE }], "SingleShot") : inner;
+  };
+
   const sceneCache = new Map<string, number>();
   const sharedScene = (name: string, targets: RigFixture[], color: RGB) => {
     const key = `${name}|${idsKey(targets)}`;
@@ -563,6 +601,12 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       }
     }
 
+    // Sequences the user built (or imported), each started after its delay.
+    for (const use of s.sequences ?? []) {
+      const q = sequences.find((x) => x.id === use.id);
+      const id = q ? sequenceChaser(q, use.delay, s.bpm, path) : undefined;
+      if (id !== undefined) parts.push(id);
+    }
     sectionIds.push(b.collection(label, path, parts));
   });
 

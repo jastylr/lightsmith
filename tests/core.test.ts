@@ -7,6 +7,12 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  chasersIn,
+  importChaser,
+  quickStart,
+  QUICK_STARTS,
+  toMs,
+  sequenceMs,
   strobeRange,
   strobeOffValue,
   openGobo,
@@ -616,4 +622,55 @@ test("beam channels: zoom, strobe, gobo and prism are found, with safe values", 
   assert.equal(openGobo(p.gobo!.capabilities)?.name, "Open");
   assert.equal(prismRange(p.prism!.capabilities, true)?.min, 128);
   assert.equal(prismRange(p.prism!.capabilities, false)?.min, 0);
+});
+
+test("sequences: a chaser imports as editable steps, and exports with the same timing", () => {
+  const base = parseWorkspace(WORKSPACE_QXW);
+  const { profiles: all } = matchProfiles(base.fixtures, defs());
+  const [fid, p] = [...all].find(([, pr]) => !pr.isMover && pr.heads.length > 0 && pr.heads[0]!.red !== undefined)!;
+  const h = p.heads[0]!;
+  const vals = [p.masterDimmer, h.red, h.green, h.blue].filter((c) => c !== undefined).flatMap((c) => [c, 255]).join(",");
+  const xml = WORKSPACE_QXW.replace(
+    " </Engine>",
+    `  <Function ID="900" Type="Scene" Name="Wait"><Speed FadeIn="0" FadeOut="0" Duration="0"/></Function>
+  <Function ID="901" Type="Scene" Name="Flash"><Speed FadeIn="0" FadeOut="0" Duration="0"/><FixtureVal ID="${fid}">${vals}</FixtureVal></Function>
+  <Function ID="902" Type="Chaser" Name="Storm" Path="My songs"><Speed FadeIn="0" FadeOut="0" Duration="0"/><Direction>Forward</Direction><RunOrder>SingleShot</RunOrder><SpeedModes FadeIn="PerStep" FadeOut="PerStep" Duration="PerStep"/>
+   <Step Number="0" FadeIn="0" Hold="5000" FadeOut="0">900</Step><Step Number="1" FadeIn="40" Hold="100" FadeOut="0">901</Step><Step Number="2" FadeIn="0" Hold="50" FadeOut="0">900</Step></Function>
+ </Engine>`,
+  );
+  const ws = parseWorkspace(xml);
+  assert.ok(chasersIn(ws).some((c) => c.name === "Storm"));
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const { sequence, delay, notes } = importChaser(ws, 902, profiles);
+  assert.equal(delay, 5, "the opening wait becomes the section's delay");
+  assert.deepEqual(notes, []);
+  assert.equal(sequence.steps.length, 2);
+  assert.deepEqual(sequence.steps[0]!.lights, [fid]);
+  assert.equal(sequence.steps[0]!.color, undefined, "full red, green and blue reads as white");
+  assert.deepEqual([sequence.steps[0]!.fadeIn, sequence.steps[0]!.hold], [40, 100]);
+  assert.equal(sequence.steps[1]!.lights.length, 0, "an empty scene is a pause");
+  const rig = guessRig(ws.fixtures, profiles);
+  const sec = { ...newSection("intro", 120), sequences: [{ id: sequence.id, delay }] };
+  generateSong({ ws, profiles, rig, song: { id: "s", title: "Seq", bpm: 120, sections: [sec] }, sequences: [sequence] });
+  const chaser = serializeWorkspace(ws).match(/<Function ID="\d+" Type="Chaser" Name="Sequence: Storm"[\s\S]*?<\/Function>/)?.[0] ?? "";
+  assert.match(chaser, /<Step Number="0" FadeIn="0" Hold="5000" FadeOut="0">/);
+  assert.match(chaser, /<Step Number="1" FadeIn="40" Hold="100" FadeOut="0">/);
+  assert.match(chaser, /<RunOrder>SingleShot<\/RunOrder>/);
+});
+
+test("sequences: quick starts, beats at the section's tempo, and a delayed loop", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  for (const q of QUICK_STARTS) assert.ok(quickStart(q.id, rig, profiles).steps.length > 0, q.id);
+  const chase = quickStart("chase", rig, profiles);
+  assert.equal(chase.units, "beats");
+  assert.equal(toMs(1, "beats", 120), 500);
+  assert.equal(sequenceMs(chase, 120), chase.steps.length * 500);
+  const sec = { ...newSection("verse", 120), sequences: [{ id: chase.id, delay: 2 }] };
+  generateSong({ ws, profiles, rig, song: { id: "s", title: "Chase", bpm: 120, sections: [sec] }, sequences: [chase] });
+  const xml = serializeWorkspace(ws);
+  // The loop waits in an outer one-shot chaser, so the delay doesn't repeat.
+  assert.match(xml, /Name="Sequence: Chase across \(after 2s\)"[\s\S]*?<Step Number="0" FadeIn="0" Hold="2000"/);
+  assert.match(xml, /Name="Sequence: Chase across"[^>]*>[\s\S]*?<RunOrder>Loop<\/RunOrder>[\s\S]*?Hold="500"/);
 });

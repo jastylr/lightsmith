@@ -19,7 +19,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
     setFailure(null);
     try {
       const ws = parseWorkspace(store.workspace.xml);
-      const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song });
+      const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences });
       const xml = serializeWorkspace(ws);
       const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
       setResult({ xml, summary, issues, songTitle: song.title });

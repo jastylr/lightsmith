@@ -19,7 +19,9 @@ import {
   strobeRange,
   type BeamSettings,
   type FixtureProfile,
+  type Sequence,
   type StrobeSpeed,
+  type Workspace,
   sectionBeats,
   isBlackout,
   lengthLabel,
@@ -46,6 +48,9 @@ import {
 } from "../core";
 import { cssColor, PaletteEditor } from "./ColorPicker";
 import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
+import { SequencesCard } from "./Sequences";
+
+type Replay = { n: number; skip: boolean };
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
@@ -96,6 +101,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const song = songs.find((s) => s.id === songId) ?? songs[0];
   const [selected, setSelected] = useState<string | null>(song?.sections[0]?.id ?? null);
   const [popped, setPopped] = useState(false);
+  // Replaying the preview restarts its animations; "skip" starts sequences at once.
+  const [replay, setReplay] = useState<Replay>({ n: 0, skip: false });
 
   useEffect(() => {
     if (song && !song.sections.some((s) => s.id === selected)) setSelected(song.sections[0]?.id ?? null);
@@ -257,11 +264,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
-                <SectionPreview s={current} rig={store.project.rig} />
+                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} />
               </PreviewWindow>
             )}
           </div>
@@ -917,8 +924,8 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
 }
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
-function SectionPreview({ s, rig }: { s: Section; rig: Store["project"]["rig"] }) {
-  if (!isBlackout(s)) return <StagePreview section={s} rig={rig} />;
+function SectionPreview({ s, rig, sequences, replay }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay }) {
+  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} />;
   return (
     <div className="blackout-preview">
       <Icon name="moon" size={26} />
@@ -944,7 +951,17 @@ function LookEditor({
   onCopyLights,
   profiles,
   onRigChange,
+  sequences,
+  onSequences,
+  showFile,
+  replay,
+  onReplay,
 }: {
+  sequences: Sequence[];
+  onSequences: (next: Sequence[]) => void;
+  showFile: Workspace | null;
+  replay: Replay;
+  onReplay: (skipDelay: boolean) => void;
   profiles: Map<number, FixtureProfile>;
   onRigChange: (rig: Store["project"]["rig"]) => void;
   s: Section;
@@ -997,6 +1014,7 @@ function LookEditor({
   const [closed, setClosed] = useClosedCards();
   const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
   const ownLights = Object.keys(s.lights ?? {}).length;
+  const usedSequences = (s.sequences ?? []).flatMap((u) => sequences.filter((q) => q.id === u.id));
   const effectsOn = EFFECTS.filter((e) => s.effects[e.id]);
   const beamBits = [
     s.beam?.zoom !== undefined ? `${ZOOMS.reduce((a, b) => (Math.abs((b.zoom ?? 9) - s.beam!.zoom!) < Math.abs((a.zoom ?? 9) - s.beam!.zoom!) ? b : a)).label.toLowerCase()} zoom` : "",
@@ -1020,6 +1038,10 @@ function LookEditor({
     },
     focus: { summary: s.focus === "all" ? "No focus" : `Spotlight on ${lower(sideName[s.focus])}`, changed: s.focus !== "all" },
     effects: { summary: effectsOn.length ? effectsOn.map((e) => e.label).join(", ") : "None", changed: effectsOn.length > 0 },
+    sequences: {
+      summary: usedSequences.length ? usedSequences.map((q) => q.name).join(", ") : "None",
+      changed: usedSequences.length > 0,
+    },
     timing: { summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}`, changed: s.transition !== typeDefault || s.autoAdvance },
   };
   const visibleCards = blackout ? ["timing"] : Object.keys(cards);
@@ -1055,7 +1077,7 @@ function LookEditor({
           ) : (
             <figure className="preview-figure">
               <div className="preview-frame">
-                <SectionPreview s={s} rig={rig} />
+                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} />
                 <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
                   <Icon name="popout" size={15} /> Pop out
                 </button>
@@ -1271,6 +1293,10 @@ function LookEditor({
                 );
               })}
             </div>
+          </Group>
+
+          <Group card={card("sequences")} icon="list" title="Sequences" description="Your own chasers, built step by step or imported from your show file, running on top of this section's look.">
+            <SequencesCard s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={onReplay} />
           </Group>
 
             </>

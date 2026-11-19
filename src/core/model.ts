@@ -149,6 +149,8 @@ export interface Section {
   aim?: string;
   /** Zoom, strobe, gobo and prism for the moving heads that have them. */
   beam?: BeamSettings;
+  /** Sequences that run in this section. */
+  sequences?: SequenceUse[];
   moverSpread: MoverSpread;
   focus: Focus;
   effects: SectionEffects;
@@ -166,10 +168,49 @@ export interface Song {
   sections: Section[];
 }
 
+/**
+ * One step of a sequence: some lights in one color for a moment. A step
+ * with no lights is a pause. Lights not in a step show the section's look.
+ */
+export interface SequenceStep {
+  id: string;
+  /** Fixture IDs. Empty = a pause. */
+  lights: number[];
+  /** A color id or hex; missing = white. */
+  color?: string;
+  /** 0-1; missing = full. */
+  level?: number;
+  /** In the sequence's units (milliseconds or beats). */
+  fadeIn: number;
+  hold: number;
+  fadeOut: number;
+}
+
+export type SequenceUnits = "ms" | "beats";
+export type SequenceOrder = "once" | "loop" | "bounce";
+
+/** A step-by-step chaser the user builds (or imports), usable in any section. */
+export interface Sequence {
+  id: string;
+  name: string;
+  units: SequenceUnits;
+  order: SequenceOrder;
+  steps: SequenceStep[];
+}
+
+/** A section's use of a sequence: which one, and how long after the section starts. */
+export interface SequenceUse {
+  id: string;
+  /** Seconds after the section starts. */
+  delay: number;
+}
+
 export interface Project {
   version: 1;
   rig: Rig;
   songs: Song[];
+  /** Sequences, shared by every song. */
+  sequences?: Sequence[];
 }
 
 let counter = 0;
@@ -207,7 +248,7 @@ export function newSection(type: string, bpm: number): Section {
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
   // Sections saved before patterns could be chosen followed the mood's; keep that look.
-  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
@@ -224,8 +265,10 @@ export function normalizeSection(s: Partial<Section> & { id: string }): Section 
 export function normalizeProject(p: Project): Project {
   return {
     version: 1,
-    rig: { fixtures: [...(p.rig?.fixtures ?? [])] },
+    // Keep everything the rig holds (stage size, saved positions), not just its fixtures.
+    rig: { ...(p.rig ?? {}), fixtures: [...(p.rig?.fixtures ?? [])] },
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
+    ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights] })) })) } : {}),
   };
 }
 

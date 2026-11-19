@@ -44,19 +44,22 @@ export function Dropdown<T extends string>({
   onChange,
   label,
   className,
+  placeholder,
 }: {
   value: T;
   options: Option<T>[];
   onChange: (v: T) => void;
   label: string;
   className?: string;
+  /** Shown when the value isn't one of the options (an action menu). */
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const id = useId();
-  const current = options.find((o) => o.value === value) ?? options[0];
+  const current = options.find((o) => o.value === value) ?? (placeholder !== undefined ? undefined : options[0]);
   useDismiss(open, () => setOpen(false), root);
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export function Dropdown<T extends string>({
       >
         {current?.icon}
         {current?.swatches && <Swatches colors={current.swatches} />}
-        <span className="dropdown-value">{current?.label}</span>
+        <span className={current ? "dropdown-value" : "dropdown-value placeholder"}>{current?.label ?? placeholder}</span>
         <Icon name="chevronDown" size={16} className="dropdown-chevron" />
       </button>
       {open && (
