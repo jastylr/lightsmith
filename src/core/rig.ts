@@ -3,7 +3,7 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import { DEFAULT_HOME, sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
 import type { Placement, StageSize, WsFixture } from "./workspace";
 import type { FixtureSize } from "./fixture";
@@ -102,7 +102,8 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     const kept = old?.userSet ? old : undefined;
     const role = kept?.role ?? (p ? guessRole(p, f.place) : "ignore");
     const rf: RigFixture = kept ? { ...kept } : { fixtureId: f.id, role, side: "C", order: 0 };
-    if (role === "mover") rf.home = rf.home ?? { pan: 128, tilt: 128 };
+    // Keep a head's home when the rig is guessed again; only a new head gets the default.
+    if (role === "mover") rf.home = rf.home ?? old?.home ?? { ...DEFAULT_HOME };
     if (old?.moved) {
       rf.pos = old.pos;
       rf.height = old.height;

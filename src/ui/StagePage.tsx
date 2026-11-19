@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { DEFAULT_HOME, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { PositionsCard } from "./PositionsCard";
@@ -108,7 +108,7 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
       const p = store.profiles.get(id);
       const role = p ? guessRole(p, patch.pos) : "ignore";
       patch.role = role;
-      if (role === "mover") patch.home = f.home ?? { pan: 128, tilt: 128 };
+      if (role === "mover") patch.home = f.home ?? DEFAULT_HOME;
     }
     update(id, patch);
     setSelected(id);
@@ -535,7 +535,7 @@ function Inspector({
               style={{ "--job": ROLE_INFO[r].color } as CSSProperties}
               disabled={!canBe(r)}
               aria-pressed={rf.role === r}
-              onClick={() => onChange({ role: r, home: r === "mover" ? rf.home ?? { pan: 128, tilt: 128 } : rf.home })}
+              onClick={() => onChange({ role: r, home: r === "mover" ? rf.home ?? DEFAULT_HOME : rf.home })}
             >
               <Icon name={ROLE_INFO[r].icon} size={20} />
               <span>{ROLE_INFO[r].label}</span>

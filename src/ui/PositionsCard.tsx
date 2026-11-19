@@ -1,4 +1,4 @@
-import { mirroredAim, newId, type AimPosition, type PanTilt, type Rig, type RigFixture, type WsFixture } from "../core";
+import { DEFAULT_HOME, mirroredAim, newId, type AimPosition, type PanTilt, type Rig, type RigFixture, type WsFixture } from "../core";
 import { askConfirm } from "./ConfirmDialog";
 import { NumberInput } from "./controls";
 import { Icon } from "./icons";
@@ -10,7 +10,7 @@ export const headsOf = (rig: Rig) => rig.fixtures.filter((f) => f.role === "move
 
 /** A new position, with every head starting where it rests, so it looks like home until changed. */
 export function makePosition(rig: Rig, name: string): AimPosition {
-  const aims = Object.fromEntries(headsOf(rig).map((h) => [String(h.fixtureId), { ...(h.home ?? { pan: 128, tilt: 128 }) }]));
+  const aims = Object.fromEntries(headsOf(rig).map((h) => [String(h.fixtureId), { ...(h.home ?? DEFAULT_HOME) }]));
   return { id: newId("pos"), name, aims };
 }
 
@@ -22,7 +22,7 @@ export function unusedSuggestions(rig: Rig): string[] {
 /** Each head's pan and tilt in one position, with "Match" for heads after the first. */
 export function PositionEditor({ rig, position, names, onChange }: { rig: Rig; position: AimPosition; names: (f: RigFixture) => string; onChange: (p: AimPosition) => void }) {
   const heads = headsOf(rig);
-  const aimIn = (f: RigFixture): PanTilt => position.aims[String(f.fixtureId)] ?? f.home ?? { pan: 128, tilt: 128 };
+  const aimIn = (f: RigFixture): PanTilt => position.aims[String(f.fixtureId)] ?? f.home ?? DEFAULT_HOME;
   const setAim = (f: RigFixture, aim: PanTilt) => onChange({ ...position, aims: { ...position.aims, [String(f.fixtureId)]: aim } });
   const first = heads[0];
   return (

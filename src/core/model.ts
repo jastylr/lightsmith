@@ -88,6 +88,14 @@ export interface MoverShape {
  * A movement's actual shape around a head's aim: width and height clamped so
  * the shape stays inside 0-255, the middle moved by the nudges, and the turn.
  */
+/**
+ * Where a new moving head rests until you set it. Tilt 128 is the middle of
+ * the range, which points a head straight up (or down, hung), and a head
+ * pointing straight up can only spin its beam in place. So it starts tilted
+ * well away from the middle, near the tilt that worked on a real rig (70).
+ */
+export const DEFAULT_HOME: PanTilt = { pan: 128, tilt: 80 };
+
 /** Tilt within this of 128 points a floor-standing head (nearly) straight up. */
 export const UPRIGHT_TILT = 24;
 
@@ -123,7 +131,7 @@ export function moverCycleBeats(s: Pick<Section, "moverBeats" | "beatsPerBar" | 
  */
 export function aimOf(s: Pick<Section, "aim">, rig: Pick<Rig, "positions">, f: Pick<RigFixture, "fixtureId" | "home">): PanTilt {
   const pos = s.aim ? rig.positions?.find((p) => p.id === s.aim) : undefined;
-  return pos?.aims[String(f.fixtureId)] ?? f.home ?? { pan: 128, tilt: 128 };
+  return pos?.aims[String(f.fixtureId)] ?? f.home ?? DEFAULT_HOME;
 }
 
 /**

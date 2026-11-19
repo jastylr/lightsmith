@@ -8,6 +8,8 @@ import {
   generateSong,
   guessRig,
   moverShapeAt,
+  DEFAULT_HOME,
+  UPRIGHT_TILT,
   colorRateOf,
   ratePeriodMs,
   lookOf,
@@ -823,4 +825,17 @@ test("movement shape: size, exact width and height, rotation, nudges and fan", (
   assert.match(efx, /<PropagationMode>Parallel<\/PropagationMode>/, "an exact fan replaces QLC+'s own spread");
   const offsets = [...efx.matchAll(/<Fixture>[\s\S]*?<StartOffset>(\d+)<\/StartOffset>/g)].map((m) => Number(m[1]));
   if (offsets.length > 1) assert.deepEqual(offsets.slice(0, 2), [0, 90]);
+});
+
+test("a new moving head starts aimed away from straight up, and keeps its home when the rig is guessed again", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const heads = rig.fixtures.filter((f) => f.role === "mover");
+  if (!heads.length) return;
+  assert.deepEqual(heads[0]!.home, DEFAULT_HOME);
+  assert.ok(Math.abs(DEFAULT_HOME.tilt - 128) >= UPRIGHT_TILT, "not pointing straight up");
+  const own = { ...rig, fixtures: rig.fixtures.map((f) => (f.role === "mover" ? { ...f, home: { pan: 128, tilt: 128 } } : f)) };
+  const again = guessRig(ws.fixtures, profiles, own);
+  assert.deepEqual(again.fixtures.find((f) => f.role === "mover")!.home, { pan: 128, tilt: 128 }, "an existing rig is left as it was");
 });
