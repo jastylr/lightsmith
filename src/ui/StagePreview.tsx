@@ -1,5 +1,5 @@
 import { useId, useMemo } from "react";
-import { COLOR_CHANGES, colorById, mountOf, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, colorById, mountOf, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -403,7 +403,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         // Where the head points at rest, from its home pan and tilt: 128/128 is
         // straight out of the head. A rough sketch, assuming a 540° pan and a
         // 270° tilt; a head facing the back mirrors one facing the audience.
-        const home = f.home ?? { pan: 128, tilt: 128 };
+        const home = aimOf(section, rig, f);
         const tiltRad = (((home.tilt - 128) / 128) * 135 * Math.PI) / 180;
         const panRad = (((home.pan - 128) / 255) * 540 * Math.PI) / 180;
         const lean = Math.max(-60, Math.min(60, Math.sin(tiltRad) * Math.cos(panRad) * 60)) * (f.facesBack ? -1 : 1);

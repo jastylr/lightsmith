@@ -11,7 +11,7 @@
  */
 import { APP_NAME } from "../config";
 import type { FixtureProfile, HeadProfile } from "./fixture";
-import { colorLayoutOf, lightLevels, lightSetting, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { aimOf, colorLayoutOf, lightLevels, lightSetting, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -464,7 +464,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, "mover", k, 1)), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
           if (!mv.algorithm) {
-            const home = r.home ?? { pan: 128, tilt: 128 };
+            const home = aimOf(s, rig, r);
             setVal(v, r.fixtureId, p.pan, home.pan);
             setVal(v, r.fixtureId, p.panFine, 0);
             setVal(v, r.fixtureId, p.tilt, home.tilt);
@@ -490,7 +490,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
       const spread = SPREADS.find((x) => x.id === s.moverSpread) ?? SPREADS[0]!;
       const byHome = new Map<string, RigFixture[]>();
       for (const r of movers) {
-        const h = r.home ?? { pan: 128, tilt: 128 };
+        const h = aimOf(s, rig, r);
         const k = `${h.pan},${h.tilt}`;
         byHome.set(k, [...(byHome.get(k) ?? []), r]);
       }

@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  aimOf,
+  mirroredAim,
   barsForSeconds,
   fixtureSize,
   isBar,
@@ -561,4 +563,30 @@ test("a length in seconds becomes the nearest whole number of bars", () => {
   // And back: the bars it picks are within half a bar of the time asked for.
   const s = { bpm: 97, beatsPerBar: 3, bars: barsForSeconds(45, 97, 3) };
   assert.ok(Math.abs(sectionMs(s) / 1000 - 45) <= (60 / 97) * 3 / 2);
+});
+
+test("saved positions: sections point the heads there, and movements run around them", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const base = guessRig(ws.fixtures, profiles);
+  const heads = base.fixtures.filter((f) => f.role === "mover");
+  assert.ok(heads.length > 0);
+  const id = heads[0]!.fixtureId;
+  const rig = { ...base, positions: [{ id: "x", name: "X over the drums", aims: { [String(id)]: { pan: 40, tilt: 200 } } }] };
+  // Positions survive the rig being guessed again.
+  assert.equal(guessRig(ws.fixtures, profiles, rig).positions?.[0]?.name, "X over the drums");
+  const pointed = { ...newSection("verse", 120), aim: "x" };
+  assert.deepEqual(aimOf(pointed, rig, heads[0]!), { pan: 40, tilt: 200 });
+  // No position (or a deleted one): the head's home.
+  assert.deepEqual(aimOf({ aim: "gone" }, rig, heads[0]!), heads[0]!.home ?? { pan: 128, tilt: 128 });
+  // A moving section's EFX is centred on the position.
+  generateSong({ ws, profiles, rig, song: { id: "s", title: "Aim", bpm: 120, sections: [{ ...pointed, movement: "circle" }] } });
+  const xml = serializeWorkspace(ws);
+  assert.match(xml, /<Axis Name="X">\s*<Offset>40<\/Offset>/);
+  assert.match(xml, /<Axis Name="Y">\s*<Offset>200<\/Offset>/);
+});
+
+test("matching a head: opposite facings share values, the same facing mirrors the pan", () => {
+  assert.deepEqual(mirroredAim({ pan: 60, tilt: 90 }, false, true), { pan: 60, tilt: 90 });
+  assert.deepEqual(mirroredAim({ pan: 60, tilt: 90 }, false, false), { pan: 195, tilt: 90 });
 });

@@ -135,7 +135,8 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     const unplaced = out.filter((f) => f.role === role && !f.pos);
     unplaced.forEach((f, i) => (f.pos = defaultPosition(role, "C", i, unplaced.length)));
   }
-  const rig = settleRig({ fixtures: out });
+  // Saved positions belong to the rig, not to any one fixture: keep them.
+  const rig = settleRig(previous?.positions ? { fixtures: out, positions: previous.positions } : { fixtures: out });
   return stage ? { ...rig, stage: { width: stage.width, depth: stage.depth, height: stage.height, feet: stage.feet } } : rig;
 }
 

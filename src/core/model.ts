@@ -41,10 +41,47 @@ export interface RigFixture {
   userSet?: boolean;
 }
 
+/** Pan and tilt for one moving head (0-255 each). */
+export interface PanTilt {
+  pan: number;
+  tilt: number;
+}
+
+/**
+ * A named place for the moving heads to point, such as "X over the drums",
+ * with each head's own pan and tilt. Set once for the rig, used by any section.
+ */
+export interface AimPosition {
+  id: string;
+  name: string;
+  /** Pan and tilt by fixture ID. A head without one uses its home position. */
+  aims: Record<string, PanTilt>;
+}
+
 export interface Rig {
   fixtures: RigFixture[];
+  /** Named places for the moving heads to point, in the order the user made them. */
+  positions?: AimPosition[];
   /** The stage size from QLC+'s 3D view, in metres, when the show has one. */
   stage?: { width: number; depth: number; height: number; feet: boolean };
+}
+
+/**
+ * Where a moving head points in a section: the section's saved position if it
+ * has one for this head, otherwise the head's home position.
+ */
+export function aimOf(s: Pick<Section, "aim">, rig: Pick<Rig, "positions">, f: Pick<RigFixture, "fixtureId" | "home">): PanTilt {
+  const pos = s.aim ? rig.positions?.find((p) => p.id === s.aim) : undefined;
+  return pos?.aims[String(f.fixtureId)] ?? f.home ?? { pan: 128, tilt: 128 };
+}
+
+/**
+ * A starting point for one head in a new position, from a head already set:
+ * heads facing opposite ways get the same values (they aim as mirror images
+ * anyway); heads facing the same way get the pan mirrored about the middle.
+ */
+export function mirroredAim(from: PanTilt, fromFacesBack: boolean, toFacesBack: boolean): PanTilt {
+  return fromFacesBack !== toFacesBack ? { ...from } : { pan: 255 - from.pan, tilt: from.tilt };
 }
 
 /** On the floor, or hung from a truss (anything in the top half of the stage). */
@@ -96,6 +133,8 @@ export interface Section {
   /** Backdrop pattern id, or "mood". */
   pattern: string;
   movement: string; // MOVEMENTS id, or "mood"
+  /** Where the moving heads point (an AimPosition id); missing = each head's home position. */
+  aim?: string;
   moverSpread: MoverSpread;
   focus: Focus;
   effects: SectionEffects;

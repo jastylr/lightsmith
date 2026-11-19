@@ -908,6 +908,7 @@ function LookEditor({
   ];
   const changeOptions: Option<string>[] = [{ value: "mood", label: `Follow the mood (${moodChange.label.toLowerCase()})` }, ...COLOR_CHANGES.map((c) => ({ value: c.id, label: c.label }))];
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
+  const positions = rig.positions ?? [];
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
   const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
@@ -1021,10 +1022,21 @@ function LookEditor({
             {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
           </Group>
 
-          <Group icon="mover" title="Moving heads" description="How moving heads move during this section. They all move around their home position, set on the Stage step.">
+          <Group icon="mover" title="Moving heads" description="Where the moving heads point and how they move. Movements run around the place they point. Name places on the Stage step.">
             {hasMovers ? (
               <>
-                <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
+                <Field label="Where they point" hint={positions.length ? undefined : "Name places like \"X over the drums\" on the Stage step to pick them here."}>
+                  <Dropdown
+                    label="Where they point"
+                    value={s.aim && positions.some((p) => p.id === s.aim) ? s.aim : "home"}
+                    options={[{ value: "home", label: "Home position", description: "Each head's home, set on the Stage step" }, ...positions.map((p) => ({ value: p.id, label: p.name }))]}
+                    onChange={(v) => onChange({ aim: v === "home" ? undefined : v })}
+                    className="wide"
+                  />
+                </Field>
+                <Field label="Movement">
+                  <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
+                </Field>
                 {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
               </>
             ) : (

@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointer
 import { guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
+import { PositionsCard } from "./PositionsCard";
 import type { Store } from "./store";
 
 /** What each job is called and does. Where a light is and what it does are separate. */
@@ -331,6 +332,7 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
               </ul>
             )}
           </div>
+          <PositionsCard rig={rig} fixtures={byId} onChange={commit} />
         </div>
 
         <aside className="inspector" aria-label="Selected light">

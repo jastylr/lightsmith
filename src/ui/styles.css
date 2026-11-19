@@ -3111,3 +3111,86 @@ body.is-resizing * {
   min-width: 0;
   width: auto;
 }
+
+/* Stage page: saved positions for the moving heads */
+.positions-card {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.positions-head h2 {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+.position {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--deck);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.position-title {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.position-name {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 650;
+  color: var(--text);
+  background: var(--house);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 0.35rem 0.55rem;
+}
+.position-heads {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.6rem 1rem;
+}
+.position-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.position-head-name {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.position-head-name small {
+  color: var(--faint);
+}
+.position-head .ghost {
+  align-self: flex-start;
+}
+.position-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--tungsten);
+}
