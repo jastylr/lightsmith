@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
   EFFECTS,
@@ -31,6 +31,7 @@ import {
   focusLights,
   patternTargets,
   colorById,
+  energyOf,
   colorLayoutOf,
   lightLevels,
   type ColorJob,
@@ -722,20 +723,85 @@ function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete, gest
 }
 
 /** A titled block of settings with a one-line explanation. */
-function Group({ icon, title, description, children, aside }: { icon: IconName; title: string; description: string; children: ReactNode; aside?: ReactNode }) {
+/** Which settings cards are closed. Remembered across sections and visits. */
+const CLOSED_KEY = "lightsmith.closedCards.v1";
+function useClosedCards() {
+  const [closed, setClosedState] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const setClosed = (next: Set<string>) => {
+    setClosedState(next);
+    try {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify([...next]));
+    } catch {
+      /* not remembered; fine */
+    }
+  };
+  return [closed, setClosed] as const;
+}
+
+/**
+ * A settings card. Click its header to close it: a closed card shows a
+ * one-line summary of what's set, and "Changed" when it has settings of its
+ * own beyond what the mood gives.
+ */
+function Group({
+  icon,
+  title,
+  description,
+  children,
+  aside,
+  card,
+}: {
+  icon: IconName;
+  title: string;
+  description: string;
+  children: ReactNode;
+  aside?: ReactNode;
+  card?: { closed: boolean; onToggle: () => void; summary: string; changed: boolean };
+}) {
+  const bodyId = useId();
+  const closed = !!card?.closed;
+  const heading = (
+    <>
+      <span className="group-icon">
+        <Icon name={icon} size={18} />
+      </span>
+      <div className="group-titles">
+        <h3>
+          {title}
+          {closed && card?.changed && (
+            <span className="group-changed" title="This card has settings of its own">
+              Changed
+            </span>
+          )}
+        </h3>
+        <p>{closed ? card!.summary : description}</p>
+      </div>
+    </>
+  );
   return (
-    <section className="group">
+    <section className={closed ? "group closed" : "group"}>
       <header className="group-head">
-        <span className="group-icon">
-          <Icon name={icon} size={18} />
-        </span>
-        <div>
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
-        {aside}
+        {card ? (
+          <button type="button" className="group-toggle-head" aria-expanded={!closed} aria-controls={bodyId} onClick={card.onToggle} title={closed ? `Open ${title}` : `Close ${title}`}>
+            {heading}
+            <Icon name={closed ? "chevronDown" : "chevronUp"} size={18} />
+          </button>
+        ) : (
+          heading
+        )}
+        {!closed && aside}
       </header>
-      <div className="group-body">{children}</div>
+      {!closed && (
+        <div className="group-body" id={bodyId}>
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -927,6 +993,48 @@ function LookEditor({
   const sideName: Record<Side, string> = { SL: "Stage left", C: "Center", SR: "Stage right" };
   const blackout = isBlackout(s);
 
+  // ---- collapsible cards: what each one says when closed, and whether it has settings of its own
+  const [closed, setClosed] = useClosedCards();
+  const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+  const ownLights = Object.keys(s.lights ?? {}).length;
+  const effectsOn = EFFECTS.filter((e) => s.effects[e.id]);
+  const beamBits = [
+    s.beam?.zoom !== undefined ? `${ZOOMS.reduce((a, b) => (Math.abs((b.zoom ?? 9) - s.beam!.zoom!) < Math.abs((a.zoom ?? 9) - s.beam!.zoom!) ? b : a)).label.toLowerCase()} zoom` : "",
+    s.beam?.strobe ? `${s.beam.strobe} strobe` : "",
+    s.beam?.gobo ? s.beam.gobo : "",
+    s.beam?.prism ? "prism" : "",
+  ].filter(Boolean);
+  const typeDefault = sectionTypeById(s.type).transition;
+  const transitionLabel = blackout ? (s.transition === "snap" ? "Cut to black" : "Fade to black") : s.transition === "snap" ? "Changes instantly" : s.transition === "fade" ? "Fades over one beat" : "Builds up gradually";
+  const cards: Record<string, { summary: string; changed: boolean }> = {
+    mood: { summary: `${mood.label}, ${lower(energyOf(s.energy).label)} energy${Object.keys(s.brightness ?? {}).length ? ", own brightness" : ""}`, changed: Object.keys(s.brightness ?? {}).length > 0 },
+    colors: {
+      summary: `${palette.map((c) => colorById(c).label).join(", ")} · ${lower(COLOR_CHANGES.find((c) => c.id === changeId)?.label ?? "")}`,
+      changed: s.colors.length > 0 || Object.keys(s.colorLayout ?? {}).length > 0 || s.colorChange !== "mood" || s.colorFade,
+    },
+    lights: { summary: ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : "Every light follows the settings above", changed: ownLights > 0 },
+    pattern: { summary: pattern.algorithm ? `${pattern.label} on ${patternTargets(s, rig).length} lights` : pattern.label, changed: s.pattern !== "solid" },
+    movers: {
+      summary: hasMovers ? [aimed?.name ?? "Home position", MOVEMENTS.find((m) => m.id === moveId)?.label ?? "", ...beamBits].filter(Boolean).join(" · ") : "No moving heads on your stage",
+      changed: !!s.aim || s.movement !== "mood" || s.moverSpread !== "together" || !!s.beam,
+    },
+    focus: { summary: s.focus === "all" ? "No focus" : `Spotlight on ${lower(sideName[s.focus])}`, changed: s.focus !== "all" },
+    effects: { summary: effectsOn.length ? effectsOn.map((e) => e.label).join(", ") : "None", changed: effectsOn.length > 0 },
+    timing: { summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}`, changed: s.transition !== typeDefault || s.autoAdvance },
+  };
+  const visibleCards = blackout ? ["timing"] : Object.keys(cards);
+  const card = (id: string) => ({
+    ...cards[id]!,
+    closed: closed.has(id),
+    onToggle: () => {
+      const next = new Set(closed);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setClosed(next);
+    },
+  });
+  const allClosed = visibleCards.every((id) => closed.has(id));
+
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
       <header className="editor-head">
@@ -1000,15 +1108,32 @@ function LookEditor({
         </div>
 
         <div className="editor-controls">
+          <div className="cards-bar">
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => {
+                const next = new Set(closed);
+                for (const id of visibleCards) {
+                  if (allClosed) next.delete(id);
+                  else next.add(id);
+                }
+                setClosed(next);
+              }}
+            >
+              <Icon name={allClosed ? "chevronDown" : "chevronUp"} size={16} />
+              {allClosed ? "Expand all" : "Collapse all"}
+            </button>
+          </div>
           {!blackout && (
             <>
-          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
+          <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
             <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />
           </Group>
 
-          <Group icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">
+          <Group card={card("colors")} icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={(colors) => onChange({ colors })} />
             <ColorLayoutEditor s={s} rig={rig} palette={palette} onChange={onChange} />
             <div className="row">
@@ -1019,11 +1144,11 @@ function LookEditor({
             </div>
           </Group>
 
-          <Group icon="stage" title="Individual lights" description="Give particular lights their own color or brightness, or switch them off, for this section. Everything else keeps following the mood and the settings above.">
+          <Group card={card("lights")} icon="stage" title="Individual lights" description="Give particular lights their own color or brightness, or switch them off, for this section. Everything else keeps following the mood and the settings above.">
             <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
           </Group>
 
-          <Group icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
+          <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
             {pattern.algorithm && (
               <div className="runs-on">
@@ -1034,7 +1159,7 @@ function LookEditor({
             {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
           </Group>
 
-          <Group icon="mover" title="Moving heads" description="Where the moving heads point in this section, and how they move. Any movement runs around the place they point.">
+          <Group card={card("movers")} icon="mover" title="Moving heads" description="Where the moving heads point in this section, and how they move. Any movement runs around the place they point.">
             {hasMovers ? (
               <>
                 <Field label="Where they point">
@@ -1079,7 +1204,7 @@ function LookEditor({
             )}
           </Group>
 
-          <Group icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. The lights on their side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.">
+          <Group card={card("focus")} icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. The lights on their side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.">
             <Segmented
               label="Who to light"
               value={s.focus}
@@ -1098,7 +1223,7 @@ function LookEditor({
             </p>
           </Group>
 
-          <Group icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern. Each runs on its usual lights; click the lights chip on an effect to choose others.">
+          <Group card={card("effects")} icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern. Each runs on its usual lights; click the lights chip on an effect to choose others.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
@@ -1151,7 +1276,7 @@ function LookEditor({
             </>
           )}
 
-          <Group icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
+          <Group card={card("timing")} icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
             <h4 className="subhead">When this section starts, the lights…</h4>
             {blackout ? (
               <ChoiceCards

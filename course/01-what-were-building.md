@@ -183,7 +183,7 @@ Lightsmith has four steps, shown in the left menu, and you go through them in or
 3. **The timeline.** One block per section, sized by length, with taller blocks for more energy. Drag to reorder, drag a block's edge to resize it, and use Play to watch the song.
 4. **The section list.** The same sections as numbered tiles, with duplicate and delete buttons.
 5. **The selected section's stage preview** and its basic settings (type, tempo with Tap, length in bars or seconds, beats per bar). The preview is an animated sketch on the user's own rig, and can pop out into a floating window.
-6. **The section's settings cards,** below the preview: Mood and energy, Colors, Individual lights, Pattern, Moving heads (where they point, movement and beam), Focus, Effects, and Start and end.
+6. **The section's settings cards,** below the preview: Mood and energy, Colors, Individual lights, Pattern, Moving heads (where they point, movement and beam), Focus, Effects, and Start and end. Each card can be closed to a one-line summary, and stays closed as you move between sections.
 
 **Takes in:** the rig. **Produces:** **songs**, each a list of **sections** with all their settings.
 

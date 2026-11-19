@@ -481,7 +481,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Drawing each light at its real depth, and bars lying flat on their side.
 - Aiming a resting moving head from its position or home: pan swings the beam, tilt shortens it, and a head facing the back mirrors one facing the audience. Why the same DMX values make an X when two heads face opposite ways, and calibrating the sketch's direction against a real rig (pan 42, tilt 70).
 - Floating windows through portals, with a remembered position.
-- The settings-card pattern (`Group`) that every section below uses.
+- The settings-card pattern (`Group`) that every section below uses, and making it collapsible: a header button with `aria-expanded`, a one-line summary and a "Changed" marker when closed, open and closed state shared across sections and remembered in `localStorage` (`useClosedCards`), and Collapse all / Expand all.
 
 **Files.** `src/ui/StagePreview.tsx`, `src/ui/PreviewWindow.tsx`, `src/ui/SongsPage.tsx` (`LookEditor`, `SectionPreview`, `Group`).
 
