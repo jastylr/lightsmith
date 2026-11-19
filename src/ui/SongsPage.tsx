@@ -970,14 +970,14 @@ function ColorLayoutEditor({
       <h4 className="subhead">Which lights get which color</h4>
       <p className="hint layout-hint">
         Mix spreads all your colors across those lights. Or click colors to pick just the ones they use: one color puts them all in it, several spread just those. The last swatch is warm white.
-        {changing && " Switch decides which kinds of light change color as the section goes."}
+ Switch or Steady decides which kinds of light change color as the section goes.
       </p>
       {jobs.map((job) => {
         const v = layout[job];
         const mode = v === "mix" ? "mix" : v === "white" ? "white" : "pick";
         const chosen = mode === "pick" ? (jobPalette(v, palette) as string[]) : [];
         const switching = switchesColors(s, job);
-        const canSwitch = changing && (mode === "mix" ? palette.length > 1 : chosen.length > 1);
+        const several = mode === "mix" ? palette.length > 1 : chosen.length > 1;
         return (
           <div key={job} className="layout-row">
             <span className="layout-job">{JOB_LABEL[job]}</span>
@@ -1014,10 +1014,17 @@ function ColorLayoutEditor({
                 full={palette.length >= MAX_COLORS}
                 onAdd={(c) => onAddToJob(job, c)}
               />
-              {canSwitch && (
-                <button type="button" aria-pressed={switching} className={switching ? "lo lo-switch on" : "lo lo-switch"} onClick={() => setSwitch(job, !switching)} title={switching ? "These lights change color as the section goes; click to hold them steady" : "These lights hold their colors; click to let them change"}>
+              {several && (
+                <button
+                  type="button"
+                  aria-pressed={changing && switching}
+                  disabled={!changing}
+                  className={changing && switching ? "lo lo-switch on" : "lo lo-switch"}
+                  onClick={() => setSwitch(job, !switching)}
+                  title={!changing ? "Colors don't change in this section yet: pick how often under \"Switch between colors\"" : switching ? "These lights change color as the section goes; click to hold them steady" : "These lights hold their colors; click to let them change"}
+                >
                   <Icon name="reset" size={14} />
-                  {switching ? "Switch" : "Steady"}
+                  {changing && switching ? "Switch" : "Steady"}
                 </button>
               )}
             </div>
@@ -1309,13 +1316,13 @@ function LookEditor({
 
           <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color just for those lights.`}>
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
-            <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} onAddToJob={addToJob} />
             <div className="row">
-              <Field label="Switch between colors">
+              <Field label="Switch between colors" hint={changeId === "hold" ? "Pick how often to switch, then choose below which lights switch and which stay steady." : undefined}>
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
               </Field>
               {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
+            <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} onAddToJob={addToJob} />
           </Group>
 
           <Group card={card("lights")} icon="stage" title="Individual lights" description="Give particular lights their own color or brightness, or switch them off, for this section. Everything else keeps following the mood and the settings above.">

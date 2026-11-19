@@ -3619,3 +3619,7 @@ body.is-resizing * {
 .add-menu {
   min-width: 15rem;
 }
+.lo.lo-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
