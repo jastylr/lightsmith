@@ -251,6 +251,12 @@ export function StagePreview({
         const sideLevel = o.off ? 0 : focused ? 1 : (o.level ?? lv.side.level) * (focusing ? FOCUS_DIM : 1);
         // Beat pulse, or the pattern when it runs on this light (rigs without a backdrop).
         const onPattern = !!pattern.algorithm && family !== "solid" && patternOn.has(f.fixtureId);
+        // A side-to-side swap (from the mood): each side bright in turn, the other at about a third.
+        const swapSec = view.mood.side === "swapBeat" ? beat : view.mood.side === "swapBar" ? beat * section.beatsPerBar : 0;
+        const swapping = animate && swapSec > 0 && !focusing && !focused && f.side !== "C" && !o.off;
+        const swap = swapping ? (
+          <animate attributeName="opacity" values={f.side === "SL" ? "1;0.35" : "0.35;1"} keyTimes="0;0.5" calcMode="discrete" dur={`${2 * swapSec}s`} repeatCount="indefinite" />
+        ) : null;
         const pulse =
           animate && section.effects.beatPulse ? (
             <animate attributeName="opacity" values="1;0.35;0.35" keyTimes="0;0.4;1" dur={`${beat}s`} repeatCount="indefinite" />
@@ -262,6 +268,7 @@ export function StagePreview({
           const hy = HANG_Y;
           return (
             <g key={f.fixtureId}>
+              {swap}
               <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
                 {pulse}
                 <path d={`M${fx - 4} ${hy + 8} L${fx - 36 * sc} ${fy} L${fx + 36 * sc} ${fy} L${fx + 4} ${hy + 8} Z`} fill={paint} opacity="0.32" mask={url("beamDown")} filter={url("soft")}>
@@ -288,6 +295,7 @@ export function StagePreview({
         }
         return (
           <g key={f.fixtureId}>
+            {swap}
             <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
               {pulse}
               <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>

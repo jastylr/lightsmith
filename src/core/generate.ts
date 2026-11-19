@@ -507,7 +507,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
           // settings; every other light dims to half. Only "Off" wins over Focus.
           const lv = o.off ? 0 : focused ? 1 : (o.level ?? (isHot ? base : base * 0.35)) * (focusing ? FOCUS_DIM : 1);
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
-          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, job, k, isHot ? 0 : 1));
+          // A side-to-side swap changes brightness only; each light keeps its color.
+          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, job, k, 0));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
             if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
@@ -530,23 +531,28 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
       if (fronts.length) out.push(b.scene(named("Front light"), path, floorLook(fronts, "front", null), fi, fo));
       if (movers.length) {
         const v: Vals = new Map();
+        // Where the heads point goes in its own scene with no fade, at full
+        // pan/tilt speed: a scene's fade (or a slow motor) would make the heads
+        // crawl into position instead of being there when the section starts.
+        const aimVals: Vals = new Map();
         for (const [k, r] of movers.entries()) {
           const p = prof(r);
           const o = own(r);
           const focused = focusSet.has(r.fixtureId);
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : focused ? 1 : (o.level ?? levels.mover.level) * (focusing ? FOCUS_DIM : 1));
           for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, "mover", k, 1)), sc);
-          if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
+          if (p.ptSpeed) setVal(aimVals, r.fixtureId, p.ptSpeed.channel, p.ptSpeed.fastIsLow ? 0 : 255);
           if (!o.off) beamValues(v, r.fixtureId, p, s.beam ?? {});
           if (!mv.algorithm) {
             const home = aimOf(s, rig, r);
-            setVal(v, r.fixtureId, p.pan, home.pan);
-            setVal(v, r.fixtureId, p.panFine, 0);
-            setVal(v, r.fixtureId, p.tilt, home.tilt);
-            setVal(v, r.fixtureId, p.tiltFine, 0);
+            setVal(aimVals, r.fixtureId, p.pan, home.pan);
+            setVal(aimVals, r.fixtureId, p.panFine, 0);
+            setVal(aimVals, r.fixtureId, p.tilt, home.tilt);
+            setVal(aimVals, r.fixtureId, p.tiltFine, 0);
           }
         }
-        out.push(b.scene(named(mv.algorithm ? "Movers color" : "Movers color + position"), path, v, fi, fo));
+        out.push(b.scene(named("Movers color"), path, v, fi, fo));
+        if (aimVals.size) out.push(b.scene(named(mv.algorithm ? "Movers speed" : "Movers position"), path, aimVals, 0, 0));
       }
       return out;
     };

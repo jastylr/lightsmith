@@ -231,7 +231,7 @@ test("colors can be assigned per kind of light, and patterns and focus adapt to 
   generateSong({ ws, profiles, rig, song: { id: "l", title: "Layout", bpm: 120, sections: [s1, s2] } });
   const xml = serializeWorkspace(ws);
   assert.deepEqual(checkWorkspace(parseWorkspace(xml), profiles), []);
-  const movers = xml.split('Name="Movers color + position"')[1]!.split("</Function>")[0]!;
+  const movers = xml.split('Name="Movers color"')[1]!.split("</Function>")[0]!;
   // Mover channels 5-7 are R,G,B: green on both movers.
   assert.equal((movers.match(/5,0,6,255,7,0/g) ?? []).length, 2);
   assert.ok(parseWorkspace(xml).groups.some((g) => g.name === "Lightsmith: RGBW Par 2 + RGBW Par 3"));
@@ -684,4 +684,32 @@ test("a backdrop set to one color runs its pattern in that color too", () => {
   const matrix = serializeWorkspace(ws).match(/Type="RGBMatrix" Name="[^"]*Pattern[^"]*"[\s\S]*?<\/Function>/)?.[0] ?? "";
   const colors = [...matrix.matchAll(/<Color Index="\d+">(\d+)<\/Color>/g)].map((m) => Number(m[1]) & 0xffffff);
   assert.deepEqual(colors, [0xffffff], "white rain, not the next color in the palette");
+});
+
+test("moving heads jump to their position at full speed, without the section's fade", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("intro", 120), movement: "static", transition: "build" as const };
+  generateSong({ ws, profiles, rig, song: { id: "p", title: "Aim", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  const pos = xml.match(/<Function ID="\d+" Type="Scene" Name="[^"]*Movers position"[^>]*>\s*<Speed FadeIn="(\d+)"/);
+  assert.ok(pos, "a separate position scene");
+  assert.equal(pos![1], "0", "no fade on pan and tilt");
+});
+
+test("a side-to-side swap changes brightness, not each light's color", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("chorus", 120), mood: "lively", colors: ["magenta", "cyan"], colorChange: "hold" as const };
+  generateSong({ ws, profiles, rig, song: { id: "w", title: "Swap", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  const scene = (n: string) => xml.split(`Name="${n}"`)[1]!.split("</Function>")[0]!;
+  const vals = (body: string) => [...body.matchAll(/<FixtureVal ID="(\d+)">([^<]*)</g)].map((m) => [m[1], m[2]!.split(",").filter((_, i) => i % 2 === 1).map(Number)] as const);
+  const colorOf = (body: string) => new Map(vals(body).map(([id, v]) => [id, v.map((x) => (x > 0 ? 1 : 0)).join("")]));
+  const a = colorOf(scene("Side lights A"));
+  const b = colorOf(scene("Side lights B"));
+  // The same lights are lit in the same channels in both halves of the swap (only the level differs).
+  assert.deepEqual([...a.entries()], [...b.entries()]);
 });
