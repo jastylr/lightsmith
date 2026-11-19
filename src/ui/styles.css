@@ -3203,3 +3203,24 @@ body.is-resizing * {
   padding-top: 0.8rem;
   border-top: 1px solid var(--line-soft);
 }
+
+.aim-editor {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--deck);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.beam-controls .subhead {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+.position-add-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  align-self: center;
+}

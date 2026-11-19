@@ -44,6 +44,7 @@ import {
   type Transition,
 } from "../core";
 import { cssColor, PaletteEditor } from "./ColorPicker";
+import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
@@ -255,7 +256,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -876,8 +877,10 @@ function LookEditor({
   onPopIn,
   onCopyLights,
   profiles,
+  onRigChange,
 }: {
   profiles: Map<number, FixtureProfile>;
+  onRigChange: (rig: Store["project"]["rig"]) => void;
   s: Section;
   songBpm: number;
   rig: Store["project"]["rig"];
@@ -916,6 +919,7 @@ function LookEditor({
   const changeOptions: Option<string>[] = [{ value: "mood", label: `Follow the mood (${moodChange.label.toLowerCase()})` }, ...COLOR_CHANGES.map((c) => ({ value: c.id, label: c.label }))];
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
   const positions = rig.positions ?? [];
+  const aimed = s.aim ? positions.find((p) => p.id === s.aim) : undefined;
   const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
@@ -1030,18 +1034,40 @@ function LookEditor({
             {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
           </Group>
 
-          <Group icon="mover" title="Moving heads" description="Where the moving heads point and how they move. Movements run around the place they point. Name places on the Stage step.">
+          <Group icon="mover" title="Moving heads" description="Where the moving heads point in this section, and how they move. Any movement runs around the place they point.">
             {hasMovers ? (
               <>
-                <Field label="Where they point" hint={positions.length ? undefined : "Name places like \"X over the drums\" on the Stage step to pick them here."}>
+                <Field label="Where they point">
                   <Dropdown
                     label="Where they point"
-                    value={s.aim && positions.some((p) => p.id === s.aim) ? s.aim : "home"}
-                    options={[{ value: "home", label: "Home position", description: "Each head's home, set on the Stage step" }, ...positions.map((p) => ({ value: p.id, label: p.name }))]}
-                    onChange={(v) => onChange({ aim: v === "home" ? undefined : v })}
+                    value={aimed ? aimed.id : "home"}
+                    options={[
+                      { value: "home", label: "Home position", description: "Where each head rests, set on the Stage page" },
+                      ...positions.map((p) => ({ value: p.id, label: p.name, group: "Your positions" })),
+                      ...unusedSuggestions(rig).map((n) => ({ value: `new:${n}`, label: n, description: "New: set it up below", group: "Add a position" })),
+                      { value: "new:", label: "Other…", description: "A new position with its own name", group: "Add a position" },
+                    ]}
+                    onChange={(v) => {
+                      if (v.startsWith("new:")) {
+                        const p = makePosition(rig, v.slice(4) || `Position ${positions.length + 1}`);
+                        onRigChange({ ...rig, positions: [...positions, p] });
+                        onChange({ aim: p.id });
+                      } else onChange({ aim: v === "home" ? undefined : v });
+                    }}
                     className="wide"
                   />
                 </Field>
+                {aimed ? (
+                  <div className="aim-editor">
+                    <div className="position-title">
+                      <input className="position-name" value={aimed.name} aria-label="Position name" onChange={(e) => onRigChange({ ...rig, positions: positions.map((x) => (x.id === aimed.id ? { ...x, name: e.target.value } : x)) })} />
+                    </div>
+                    <PositionEditor rig={rig} position={aimed} names={(f) => lights.find((l) => l.id === f.fixtureId)?.name ?? `Fixture ${f.fixtureId}`} onChange={(p) => onRigChange({ ...rig, positions: positions.map((x) => (x.id === p.id ? p : x)) })} />
+                    <p className="hint">Changes here apply to every section that points the heads at "{aimed.name}". Find good values in QLC+'s Simple Desk; the preview only sketches the aim.</p>
+                  </div>
+                ) : (
+                  <p className="hint">Each head rests where you set its home position on the Stage page. Pick or add a position to point them somewhere else in this section.</p>
+                )}
                 <Field label="Movement">
                   <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 </Field>
@@ -1190,7 +1216,7 @@ function BeamControls({ beam, heads, onChange }: { beam: BeamSettings; heads: Fi
   const zoomNow = beam.zoom === undefined ? "asis" : ZOOMS.reduce((a, b) => (Math.abs((b.zoom ?? 9) - beam.zoom!) < Math.abs((a.zoom ?? 9) - beam.zoom!) ? b : a)).value;
   return (
     <div className="beam-controls">
-      <span className="field-label">Beam</span>
+      <h4 className="subhead">Beam</h4>
       {zoom && (
         <Field label="Zoom" hint={zoomNow === "asis" ? "Left as the fixture has it." : undefined}>
           <Segmented label="Zoom" value={zoomNow} onChange={(v: string) => set({ zoom: ZOOMS.find((z) => z.value === v)!.zoom })} options={ZOOMS.map((z) => ({ value: z.value, label: z.label }))} />
