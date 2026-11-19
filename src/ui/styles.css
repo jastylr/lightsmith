@@ -2234,7 +2234,7 @@ body.is-resizing * {
     grid-template-columns: minmax(0, 1fr);
   }
   .timing-row {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 @media (max-width: 700px) {
@@ -2661,7 +2661,7 @@ body.is-resizing * {
 
 /* ------------------------------------------------------------- preview frame and window */
 .editor-preview .timing-row {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 @media (max-width: 700px) {
   .editor-preview .timing-row {
@@ -3055,4 +3055,59 @@ body.is-resizing * {
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Tap tempo */
+.tempo-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.tempo-pair .number {
+  min-width: 0;
+  flex: 1;
+}
+.tempo-pair .number input {
+  width: 100%;
+  min-width: 2.2rem;
+}
+.tap-tempo {
+  flex: none;
+  min-width: 3.2rem;
+  height: 2.1rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  user-select: none;
+}
+.tap-tempo:hover {
+  background: var(--raised-2);
+}
+.tap-tempo:active {
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+}
+.tap-tempo.on {
+  border-color: var(--tungsten);
+}
+.song-meta .tap-tempo {
+  align-self: flex-end;
+}
+.timing-row .number {
+  display: flex;
+  min-width: 0;
+}
+.timing-row .number input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }

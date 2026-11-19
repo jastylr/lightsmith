@@ -7,6 +7,7 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  barsForSeconds,
   fixtureSize,
   isBar,
   mountOf,
@@ -550,4 +551,14 @@ test("fixture sizes come from the definition, and a mode's own size wins", () =>
   assert.deepEqual(fixtureSize(buildProfile(def, "A")), { width: 1000, height: 100, depth: 27 });
   assert.deepEqual(fixtureSize(buildProfile(def, "B")), { width: 500, height: 50, depth: 40 });
   assert.deepEqual(fixtureSize(undefined), { width: 300, height: 300, depth: 300 });
+});
+
+test("a length in seconds becomes the nearest whole number of bars", () => {
+  assert.equal(barsForSeconds(16, 120, 4), 8);
+  // 30 s at 138 BPM is 17.25 bars.
+  assert.equal(barsForSeconds(30, 138, 4), 17);
+  assert.equal(barsForSeconds(0.2, 120, 4), 1);
+  // And back: the bars it picks are within half a bar of the time asked for.
+  const s = { bpm: 97, beatsPerBar: 3, bars: barsForSeconds(45, 97, 3) };
+  assert.ok(Math.abs(sectionMs(s) / 1000 - 45) <= (60 / 97) * 3 / 2);
 });

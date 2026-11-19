@@ -251,3 +251,54 @@ export function NumberInput({ value, onChange, min, max, step = 1, label, suffix
     </span>
   );
 }
+
+/**
+ * Tap along with the beat to find a tempo. Each tap after the first gives a
+ * reading from the average gap of the last eight taps; a pause of more than
+ * two seconds starts again.
+ */
+export function TapTempo({ onTempo, label = "Tap tempo" }: { onTempo: (bpm: number) => void; label?: string }) {
+  const taps = useRef<number[]>([]);
+  const [reading, setReading] = useState<number | null>(null);
+  const idle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(idle.current), []);
+  const tap = () => {
+    const now = performance.now();
+    const last = taps.current[taps.current.length - 1];
+    if (last !== undefined && now - last > 2000) taps.current = [];
+    taps.current = [...taps.current, now].slice(-8);
+    clearTimeout(idle.current);
+    idle.current = setTimeout(() => {
+      taps.current = [];
+      setReading(null);
+    }, 2500);
+    const t = taps.current;
+    if (t.length < 2) return setReading(0);
+    const gap = (t[t.length - 1]! - t[0]!) / (t.length - 1);
+    const bpm = Math.max(30, Math.min(300, Math.round(60000 / gap)));
+    setReading(bpm);
+    onTempo(bpm);
+  };
+  return (
+    <button
+      type="button"
+      className={reading !== null ? "tap-tempo on" : "tap-tempo"}
+      onPointerDown={(e) => {
+        // On press, not release, so taps land on the beat.
+        if (e.button !== 0) return;
+        e.preventDefault();
+        tap();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          if (!e.repeat) tap();
+        }
+      }}
+      aria-label={`${label}: tap along with the beat`}
+      title="Tap along with the beat, four or more times"
+    >
+      {reading === null ? "Tap" : reading === 0 ? "Keep tapping" : `${reading} BPM`}
+    </button>
+  );
+}

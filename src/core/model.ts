@@ -266,6 +266,11 @@ export function lengthLabel(s: Pick<Section, "bars" | "beatsPerBar">): string {
   return bars ? `${barText} + ${beatText}` : beatText;
 }
 
+/** The whole number of bars nearest to a length in seconds, at least one. */
+export function barsForSeconds(seconds: number, bpm: number, beatsPerBar: number): number {
+  return Math.max(1, Math.round((seconds * bpm) / (60 * beatsPerBar)));
+}
+
 export function sectionMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars">): number {
   return (60000 / s.bpm) * s.beatsPerBar * s.bars;
 }

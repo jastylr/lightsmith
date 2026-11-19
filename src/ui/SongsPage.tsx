@@ -14,6 +14,7 @@ import {
   newSection,
   patternById,
   sectionMs,
+  barsForSeconds,
   sectionBeats,
   isBlackout,
   lengthLabel,
@@ -38,7 +39,7 @@ import {
   type Transition,
 } from "../core";
 import { cssColor, PaletteEditor } from "./ColorPicker";
-import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, Toggle, useDismiss, type Option } from "./controls";
+import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
@@ -215,6 +216,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 onChange={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })}
               />
             </label>
+            <TapTempo label="Song tempo" onTempo={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })} />
             <div className="stat">
               <span>Length</span>
               <strong>{fmt(total)}</strong>
@@ -954,15 +956,29 @@ function LookEditor({
               />
             </Field>
             <Field label="Section tempo" hint={s.bpm === songBpm ? "Same as the song" : undefined}>
-              <NumberInput label="Section tempo" value={s.bpm} min={30} max={300} suffix="BPM" onChange={(bpm) => onChange({ bpm })} />
+              <span className="tempo-pair">
+                <NumberInput label="Section tempo in BPM" value={s.bpm} min={30} max={300} onChange={(bpm) => onChange({ bpm })} />
+                <TapTempo label="Section tempo" onTempo={(bpm) => onChange({ bpm })} />
+              </span>
               {s.bpm !== songBpm && (
                 <button type="button" className="link small tempo-reset" onClick={() => onChange({ bpm: songBpm })} title="Use the song tempo for this section">
                   Reset to {songBpm}
                 </button>
               )}
             </Field>
-            <Field label="Length" hint={`${sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}, a` : "A"}bout ${fmt(sectionMs(s))}`}>
+            <Field label="Length" hint={sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}` : undefined}>
               <NumberInput label="Length in bars" value={Math.floor(sectionBeats(s) / s.beatsPerBar)} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + (sectionBeats(s) % s.beatsPerBar) / s.beatsPerBar })} />
+            </Field>
+            <Field label="In seconds" hint="Rounds to whole bars">
+              <NumberInput
+                label="Length in seconds"
+                value={Math.round(sectionMs(s) / 100) / 10}
+                min={0.1}
+                max={3600}
+                step={0.1}
+                suffix="sec"
+                onChange={(sec) => onChange({ bars: barsForSeconds(sec, s.bpm, s.beatsPerBar) })}
+              />
             </Field>
             <Field label="Beats per bar">
               <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />

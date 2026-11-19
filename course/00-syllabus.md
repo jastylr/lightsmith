@@ -425,7 +425,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **The song list** under "3. Songs" in the left menu, with lengths.
-- **The header.** A title box that sizes to the title, add and delete icons, and song tempo, length and section count.
+- **The header.** A title box that sizes to the title, add and delete icons, and song tempo (with a Tap button), length and section count.
 - **The empty song.** Starting from a template or adding sections one by one.
 - **Branded confirmations** for deleting.
 
@@ -469,11 +469,12 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 **On screen.**
 - **The editor header.**
 - **The stage preview** at full width, with the **Pop out** floating window you can move and resize.
-- **The section fields row:** type, section tempo, length, beats per bar.
+- **The section fields row:** type, section tempo with Tap, length in bars, length in seconds, beats per bar.
 
 **Concepts.**
 - Drawing the stage in SVG: geometry and perspective, filters for glow, masks for beams.
 - SMIL animation timed to tempo; a visual brightness mapping.
+- The timing math: seconds = bars × beats per bar × 60 ÷ BPM, and back again to the nearest whole bar (`sectionMs`, `barsForSeconds`). Tap tempo: averaging the gaps between taps, acting on press rather than release, and starting over after a pause (`TapTempo`).
 - Mirroring the export's rules so the preview tells the truth.
 - Hung lights: bodies hanging from the truss, cones pointing down to pools on the floor, and moving-head beams that sweep from above.
 - Drawing each light at its real depth, and bars lying flat on their side.
