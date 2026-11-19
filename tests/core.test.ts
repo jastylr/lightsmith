@@ -804,11 +804,13 @@ test("each kind of light can switch colors at its own rate", () => {
 test("movement shape: size, exact width and height, rotation, nudges and fan", () => {
   const circle = { width: 70, height: 50 };
   assert.deepEqual(moverShapeAt(undefined, circle, { pan: 128, tilt: 128 }), { x: 128, y: 128, width: 70, height: 50, rotation: 0 });
+  // QLC+ reads width as travel each way and caps it at 127 when it loads.
+  assert.equal(moverShapeAt({ size: 2 }, { width: 110, height: 10 }, { pan: 128, tilt: 128 }).width, 127);
   assert.deepEqual(moverShapeAt({ size: 0.5 }, circle, { pan: 128, tilt: 128 }), { x: 128, y: 128, width: 35, height: 25, rotation: 0 });
-  // Exact width wins over size; the shape stays inside 0-255 around its middle.
+  // Exact width wins over size; the shape never runs past 0 or 255.
   const near = moverShapeAt({ size: 2, width: 200, panNudge: -100, rotation: 450 }, circle, { pan: 120, tilt: 128 });
   assert.equal(near.x, 20);
-  assert.equal(near.width, 40, "only 20 steps of room either side");
+  assert.equal(near.width, 20, "only 20 steps of room either side");
   assert.equal(near.rotation, 90);
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());

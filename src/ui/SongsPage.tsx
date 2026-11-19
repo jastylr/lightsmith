@@ -27,6 +27,9 @@ import {
   type FixtureProfile,
   type LookPreset,
   type MoverShape,
+  EFX_MAX,
+  UPRIGHT_TILT,
+  aimOf,
   type Sequence,
   type StrobeSpeed,
   type Workspace,
@@ -1234,6 +1237,9 @@ function LookEditor({
     return <MoreOptions used={used} onShow={() => setPeek(new Set(peek).add(id))} />;
   };
   const shape = s.moverShape ?? {};
+  // A floor head at tilt 128 points straight up; pan then only turns the
+  // beam round its own axis, so a sweep or circle shrinks to a small wobble.
+  const pointsUp = rig.fixtures.filter((f) => f.role === "mover" && Math.abs(aimOf(s, rig, f).tilt + (shape.tiltNudge ?? 0) - 128) < UPRIGHT_TILT);
   const proShapeSet = shape.width !== undefined || shape.height !== undefined || !!shape.rotation || !!shape.panNudge || !!shape.tiltNudge || !!shape.fan;
   const setShape = (patch: Partial<MoverShape>) => {
     const next: MoverShape = { ...shape, ...patch };
@@ -1410,6 +1416,14 @@ function LookEditor({
                 <Field label="Movement">
                   <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 </Field>
+                {moveId !== "static" && pointsUp.length > 0 && (
+                  <div className="notice warn">
+                    <Icon name="info" />
+                    <span>
+                      {pointsUp.length === 1 ? "A head points" : "The heads point"} almost straight up here (tilt near 128), so this movement will mostly spin {pointsUp.length === 1 ? "its beam" : "the beams"} in place: a small circle, not a sweep. Pick a position aimed at the stage or the crowd above, or set {aimed ? "this position" : "the home position on the Stage page"} with a tilt well away from 128.
+                    </span>
+                  </div>
+                )}
                 {moveId !== "static" && (
                   <Field label="Size" hint={shape.width !== undefined || shape.height !== undefined ? "Width and height are set exactly below." : "How far the heads travel around the place they point."}>
                     <Segmented
@@ -1667,13 +1681,13 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
   return (
     <div className="shape-controls">
       <h4 className="subhead">Exact shape</h4>
-      {row("Width", "EFX width", shape.width, Math.round(movement.width * size), 0, 255, (width) => onChange({ width }))}
-      {row("Height", "EFX height", shape.height, Math.round(movement.height * size), 0, 255, (height) => onChange({ height }))}
+      {row("Width", "EFX width", shape.width, Math.round(movement.width * size), 0, EFX_MAX, (width) => onChange({ width }))}
+      {row("Height", "EFX height", shape.height, Math.round(movement.height * size), 0, EFX_MAX, (height) => onChange({ height }))}
       {row("Rotation", "EFX rotation", shape.rotation, 0, 0, 359, (rotation) => onChange({ rotation: rotation || undefined }), "°")}
       {row("Pan nudge", "X offset", shape.panNudge, 0, -64, 64, (panNudge) => onChange({ panNudge: panNudge || undefined }))}
       {row("Tilt nudge", "Y offset", shape.tiltNudge, 0, -64, 64, (tiltNudge) => onChange({ tiltNudge: tiltNudge || undefined }))}
       {spreadOffset && row("Fan", "start offset per head", shape.fan, 0, 0, 180, (fan) => onChange({ fan: fan || undefined }), "°")}
-      <p className="hint">Width and height are QLC+'s 0-255 scale, kept inside the heads' range around where they point. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}</p>
+      <p className="hint">Width and height are QLC+'s numbers: how far the heads travel each way from where they point, up to 127, and never past the end of their range. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}</p>
     </div>
   );
 }

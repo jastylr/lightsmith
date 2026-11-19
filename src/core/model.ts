@@ -88,13 +88,22 @@ export interface MoverShape {
  * A movement's actual shape around a head's aim: width and height clamped so
  * the shape stays inside 0-255, the middle moved by the nudges, and the turn.
  */
+/** Tilt within this of 128 points a floor-standing head (nearly) straight up. */
+export const UPRIGHT_TILT = 24;
+
+/** The largest EFX width or height QLC+ accepts. */
+export const EFX_MAX = 127;
+
 export function moverShapeAt(shape: MoverShape | undefined, movement: { width: number; height: number }, aim: { pan: number; tilt: number }) {
   const sh = shape ?? {};
   const size = sh.size ?? 1;
   const x = Math.max(0, Math.min(255, Math.round(aim.pan + (sh.panNudge ?? 0))));
   const y = Math.max(0, Math.min(255, Math.round(aim.tilt + (sh.tiltNudge ?? 0))));
-  const w = Math.min(Math.round(sh.width ?? movement.width * size), 255, 2 * Math.min(x, 255 - x));
-  const h = Math.min(Math.round(sh.height ?? movement.height * size), 255, 2 * Math.min(y, 255 - y));
+  // QLC+ treats width and height as how far the head travels EACH WAY from
+  // the middle (x = offset ± width), and caps both at 127 when it loads a
+  // show. So the shape is kept to 127 and to the room on each side.
+  const w = Math.min(Math.round(sh.width ?? movement.width * size), EFX_MAX, x, 255 - x);
+  const h = Math.min(Math.round(sh.height ?? movement.height * size), EFX_MAX, y, 255 - y);
   return { x, y, width: Math.max(0, w), height: Math.max(0, h), rotation: Math.round(((sh.rotation ?? 0) % 360 + 360) % 360) };
 }
 

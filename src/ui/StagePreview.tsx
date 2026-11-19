@@ -438,7 +438,11 @@ export function StagePreview({
         // The shape's size scales the swing, as width does in the export.
         const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f));
         const sizeScale = movement.width ? Math.min(2.4, shaped.width / movement.width) : 1;
-        const swing = (movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24) * sizeScale;
+        // A head pointing straight up (tilt near 128) only turns its beam round
+        // its own axis when it pans, so the movement shrinks to a small wobble,
+        // as it does on the real rig. The further it tilts, the wider it reads.
+        const tiltAway = Math.min(1, Math.max(0.12, Math.abs(shaped.y - 128) / 64));
+        const swing = (movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24) * sizeScale * tiltAway;
         const values =
           movement.id === "figure8" || movement.id === "ballyhoo"
             ? `${-swing * mirror};${swing * mirror};${-swing * mirror * 0.4};${swing * mirror * 0.4};${-swing * mirror}`
