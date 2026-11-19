@@ -3194,3 +3194,12 @@ body.is-resizing * {
 .chip:hover {
   border-color: var(--tungsten);
 }
+
+/* Songs: moving-head beam settings */
+.beam-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line-soft);
+}

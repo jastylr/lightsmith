@@ -15,6 +15,11 @@ import {
   patternById,
   sectionMs,
   barsForSeconds,
+  openGobo,
+  strobeRange,
+  type BeamSettings,
+  type FixtureProfile,
+  type StrobeSpeed,
   sectionBeats,
   isBlackout,
   lengthLabel,
@@ -250,7 +255,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -870,7 +875,9 @@ function LookEditor({
   onPopOut,
   onPopIn,
   onCopyLights,
+  profiles,
 }: {
+  profiles: Map<number, FixtureProfile>;
   s: Section;
   songBpm: number;
   rig: Store["project"]["rig"];
@@ -909,6 +916,7 @@ function LookEditor({
   const changeOptions: Option<string>[] = [{ value: "mood", label: `Follow the mood (${moodChange.label.toLowerCase()})` }, ...COLOR_CHANGES.map((c) => ({ value: c.id, label: c.label }))];
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
   const positions = rig.positions ?? [];
+  const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
   const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
@@ -1038,9 +1046,10 @@ function LookEditor({
                   <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 </Field>
                 {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
+                <BeamControls beam={s.beam ?? {}} heads={moverProfiles} onChange={(beam) => onChange({ beam })} />
               </>
             ) : (
-              <p className="hint">You have no moving heads on your stage. Put a light in the Moving heads lane on the Stage step to use these settings.</p>
+              <p className="hint">You have no moving heads on your stage. Give a light the Moving head job on the Stage step to use these settings.</p>
             )}
           </Group>
 
@@ -1154,5 +1163,60 @@ function LookEditor({
         </div>
       </div>
     </article>
+  );
+}
+
+const ZOOMS: { value: string; label: string; zoom?: number }[] = [
+  { value: "asis", label: "As set" },
+  { value: "narrow", label: "Narrow", zoom: 0.1 },
+  { value: "medium", label: "Medium", zoom: 0.5 },
+  { value: "wide", label: "Wide", zoom: 0.9 },
+];
+
+/** Zoom, strobe, gobo and prism: only the ones the section's moving heads have. */
+function BeamControls({ beam, heads, onChange }: { beam: BeamSettings; heads: FixtureProfile[]; onChange: (b: BeamSettings | undefined) => void }) {
+  const zoom = heads.some((p) => p.zoom);
+  const strobe = heads.some((p) => strobeRange(p));
+  const goboHead = heads.find((p) => p.gobo);
+  const prism = heads.some((p) => p.prism);
+  if (!zoom && !strobe && !goboHead && !prism) return null;
+  const set = (patch: Partial<BeamSettings>) => {
+    const next: BeamSettings = { ...beam, ...patch };
+    for (const k of Object.keys(next) as (keyof BeamSettings)[]) if (next[k] === undefined || next[k] === false) delete next[k];
+    onChange(Object.keys(next).length ? next : undefined);
+  };
+  const open = goboHead?.gobo ? openGobo(goboHead.gobo.capabilities) : undefined;
+  const gobos = goboHead?.gobo ? [...new Set(goboHead.gobo.capabilities.filter((c) => c !== open).map((c) => c.name.trim()))] : [];
+  const zoomNow = beam.zoom === undefined ? "asis" : ZOOMS.reduce((a, b) => (Math.abs((b.zoom ?? 9) - beam.zoom!) < Math.abs((a.zoom ?? 9) - beam.zoom!) ? b : a)).value;
+  return (
+    <div className="beam-controls">
+      <span className="field-label">Beam</span>
+      {zoom && (
+        <Field label="Zoom" hint={zoomNow === "asis" ? "Left as the fixture has it." : undefined}>
+          <Segmented label="Zoom" value={zoomNow} onChange={(v: string) => set({ zoom: ZOOMS.find((z) => z.value === v)!.zoom })} options={ZOOMS.map((z) => ({ value: z.value, label: z.label }))} />
+        </Field>
+      )}
+      {strobe && (
+        <Field label="Strobe">
+          <Segmented
+            label="Strobe"
+            value={beam.strobe ?? "off"}
+            onChange={(v: string) => set({ strobe: v === "off" ? undefined : (v as StrobeSpeed) })}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "slow", label: "Slow" },
+              { value: "medium", label: "Medium" },
+              { value: "fast", label: "Fast" },
+            ]}
+          />
+        </Field>
+      )}
+      {goboHead && gobos.length > 0 && (
+        <Field label="Gobo">
+          <Dropdown label="Gobo" value={beam.gobo ?? "open"} options={[{ value: "open", label: open?.name.trim() || "Open" }, ...gobos.map((g) => ({ value: g, label: g }))]} onChange={(v) => set({ gobo: v === "open" ? undefined : v })} />
+        </Field>
+      )}
+      {prism && <Toggle checked={!!beam.prism} onChange={(on) => set({ prism: on || undefined })} label="Prism" hint="Splits each beam into several." />}
+    </div>
   );
 }

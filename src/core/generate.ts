@@ -6,12 +6,15 @@
  * Rules learned the hard way (see docs/qlc-notes.md):
  *  - Never write a shutter/strobe channel unless the definition says the value
  *    opens the shutter or is a strobe. "No function" values can read as closed.
+ *    The one exception: when a song strobes a moving head, other sections
+ *    stop the strobe with the value the definition calls "no function" or
+ *    "off", because some heads have no "open" value at all.
  *  - Light needs the master dimmer up AND a color. Every look sets both.
  *  - RGB matrices only drive color, so a scene must hold the dimmer.
  */
 import { APP_NAME } from "../config";
-import type { FixtureProfile, HeadProfile } from "./fixture";
-import { aimOf, colorLayoutOf, lightLevels, lightSetting, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
+import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
+import { aimOf, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
@@ -330,6 +333,39 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
     return id;
   };
 
+  // Beam settings are left alone unless some section in the song sets them;
+  // then every other section puts them back (zoom to the middle, strobe off,
+  // gobo open, prism out), so one section's setting doesn't carry on.
+  const uses = {
+    zoom: song.sections.some((x) => x.beam?.zoom !== undefined),
+    strobe: song.sections.some((x) => !!x.beam?.strobe),
+    gobo: song.sections.some((x) => !!x.beam?.gobo),
+    prism: song.sections.some((x) => !!x.beam?.prism),
+  };
+  const STROBE_AT = { slow: 0.15, medium: 0.5, fast: 0.9 };
+  const beamValues = (v: Vals, id: number, p: FixtureProfile, beam: BeamSettings) => {
+    if (p.zoom && (beam.zoom !== undefined || uses.zoom)) {
+      const z = Math.max(0, Math.min(1, beam.zoom ?? 0.5));
+      setVal(v, id, p.zoom.channel, Math.round((p.zoom.wideIsLow ? 1 - z : z) * 255));
+    }
+    const sr = strobeRange(p);
+    if (sr && beam.strobe) {
+      const f = sr.fastFirst ? 1 - STROBE_AT[beam.strobe] : STROBE_AT[beam.strobe];
+      setVal(v, id, sr.channel, Math.round(sr.min + f * (sr.max - sr.min)));
+    } else if (sr && uses.strobe) {
+      const off = strobeOffValue(p, sr.channel);
+      if (off !== undefined) setVal(v, id, sr.channel, off);
+    }
+    if (p.gobo && (beam.gobo || uses.gobo)) {
+      const cap = (beam.gobo ? capabilityNamed(p.gobo.capabilities, beam.gobo) : undefined) ?? openGobo(p.gobo.capabilities);
+      if (cap) setVal(v, id, p.gobo.channel, Math.round((cap.min + cap.max) / 2));
+    }
+    if (p.prism && (beam.prism || uses.prism)) {
+      const cap = prismRange(p.prism.capabilities, !!beam.prism);
+      if (cap) setVal(v, id, p.prism.channel, Math.round((cap.min + cap.max) / 2));
+    }
+  };
+
   const sectionIds: number[] = [];
   song.sections.forEach((s, idx) => {
     const label = `${idx + 1}. ${safeName(s.name)}`;
@@ -463,6 +499,7 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : focused ? 1 : (o.level ?? levels.mover.level) * (focusing ? FOCUS_DIM : 1));
           for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, "mover", k, 1)), sc);
           if (p.ptSpeed) setVal(v, r.fixtureId, p.ptSpeed.channel, mv.algorithm ? (p.ptSpeed.fastIsLow ? 0 : 255) : p.ptSpeed.fastIsLow ? 200 : 55);
+          if (!o.off) beamValues(v, r.fixtureId, p, s.beam ?? {});
           if (!mv.algorithm) {
             const home = aimOf(s, rig, r);
             setVal(v, r.fixtureId, p.pan, home.pan);

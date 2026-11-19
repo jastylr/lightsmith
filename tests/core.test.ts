@@ -7,6 +7,10 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  strobeRange,
+  strobeOffValue,
+  openGobo,
+  prismRange,
   aimOf,
   mirroredAim,
   barsForSeconds,
@@ -589,4 +593,27 @@ test("saved positions: sections point the heads there, and movements run around 
 test("matching a head: opposite facings share values, the same facing mirrors the pan", () => {
   assert.deepEqual(mirroredAim({ pan: 60, tilt: 90 }, false, true), { pan: 60, tilt: 90 });
   assert.deepEqual(mirroredAim({ pan: 60, tilt: 90 }, false, false), { pan: 195, tilt: 90 });
+});
+
+test("beam channels: zoom, strobe, gobo and prism are found, with safe values", () => {
+  const def = parseFixtureDef(`<?xml version="1.0"?><FixtureDefinition><Manufacturer>M</Manufacturer><Model>Spot</Model><Type>Moving Head</Type>
+<Channel Name="Pan" Preset="PositionPan"/><Channel Name="Tilt" Preset="PositionTilt"/>
+<Channel Name="Dimmer" Preset="IntensityMasterDimmer"/><Channel Name="Red" Preset="IntensityRed"/>
+<Channel Name="Zoom" Preset="BeamFocusNearFar"/>
+<Channel Name="Strobe"><Group Byte="0">Shutter</Group><Capability Min="0" Max="9">No function</Capability><Capability Min="10" Max="255">Strobe slow to fast</Capability></Channel>
+<Channel Name="Gobo"><Group Byte="0">Gobo</Group><Capability Min="0" Max="9">Open</Capability><Capability Min="10" Max="19">Gobo 1</Capability><Capability Min="20" Max="29">Gobo 2</Capability></Channel>
+<Channel Name="Gobo rotation"><Group Byte="0">Gobo</Group><Capability Min="0" Max="127">Stop</Capability><Capability Min="128" Max="255">Rotate</Capability></Channel>
+<Channel Name="Prism"><Group Byte="0">Prism</Group><Capability Min="0" Max="127">No prism</Capability><Capability Min="128" Max="255">3-facet prism</Capability></Channel>
+<Mode Name="M"><Channel Number="0">Pan</Channel><Channel Number="1">Tilt</Channel><Channel Number="2">Dimmer</Channel><Channel Number="3">Red</Channel><Channel Number="4">Zoom</Channel><Channel Number="5">Strobe</Channel><Channel Number="6">Gobo</Channel><Channel Number="7">Gobo rotation</Channel><Channel Number="8">Prism</Channel></Mode>
+</FixtureDefinition>`);
+  const p = buildProfile(def, "M");
+  assert.equal(p.zoom?.channel, 4);
+  assert.equal(p.gobo?.channel, 6, "the gobo wheel, not its rotation");
+  assert.equal(p.prism?.channel, 8);
+  assert.deepEqual(strobeRange(p), { channel: 5, min: 10, max: 255, fastFirst: false });
+  // A head whose strobe channel has no "open" value stops strobing at "No function".
+  assert.equal(strobeOffValue(p, 5), 0);
+  assert.equal(openGobo(p.gobo!.capabilities)?.name, "Open");
+  assert.equal(prismRange(p.prism!.capabilities, true)?.min, 128);
+  assert.equal(prismRange(p.prism!.capabilities, false)?.min, 0);
 });

@@ -208,6 +208,12 @@ export interface FixtureProfile {
   tiltFine?: number;
   ptSpeed?: { channel: number; fastIsLow: boolean };
   shutters: ShutterInfo[];
+  /** A zoom (or a focus channel the definition calls "zoom"); wideIsLow when 0 is the widest beam. */
+  zoom?: { channel: number; wideIsLow: boolean };
+  /** A gobo wheel with named slots. */
+  gobo?: { channel: number; capabilities: Capability[] };
+  /** A prism, with named on/off ranges. */
+  prism?: { channel: number; capabilities: Capability[] };
   isMover: boolean;
   /** At least one head has red, green and blue. */
   hasRgb: boolean;
@@ -228,6 +234,18 @@ export function buildProfile(def: FixtureDef, modeName: string): FixtureProfile 
   for (let i = 0; i < count; i++) {
     const ch = kindAt(i);
     if (!ch) continue;
+    // Beam channels: zoom, gobo wheel and prism. Skip fine, rotation and index channels.
+    const preset = ch.preset ?? "";
+    const plain = !preset.endsWith("Fine") && !/fine|rotat|index|shake|speed/i.test(ch.name);
+    if (plain && profile.zoom === undefined && (preset.startsWith("BeamZoom") || (/zoom/i.test(ch.name) && (preset.startsWith("BeamFocus") || ch.group === "Beam")))) {
+      profile.zoom = { channel: i, wideIsLow: preset === "BeamZoomBigSmall" };
+    }
+    if (plain && profile.gobo === undefined && (ch.group === "Gobo" || preset === "GoboWheel") && ch.capabilities.length > 1) {
+      profile.gobo = { channel: i, capabilities: ch.capabilities };
+    }
+    if (plain && profile.prism === undefined && ch.group === "Prism" && ch.capabilities.length > 1) {
+      profile.prism = { channel: i, capabilities: ch.capabilities };
+    }
     switch (ch.kind) {
       case "masterDimmer":
         profile.masterDimmer ??= i;
@@ -288,4 +306,46 @@ export function shutterValueMeaning(sh: ShutterInfo, value: number): "open" | "c
   if (p === "ShutterClose") return "closed";
   if (p.startsWith("Strobe") || p.startsWith("Pulse") || /strobe/i.test(cap.name)) return "strobe";
   return "unknown";
+}
+
+// ---------------------------------------------------------------- beam values
+
+/** The strobe range of a fixture's shutter channel, if it has one. */
+export function strobeRange(p: FixtureProfile): { channel: number; min: number; max: number; fastFirst: boolean } | undefined {
+  for (const sh of p.shutters) {
+    const cap = sh.capabilities.find((c) => shutterValueMeaning(sh, c.min) === "strobe");
+    if (cap) return { channel: sh.channel, min: cap.min, max: cap.max, fastFirst: /fast.*slow/i.test(cap.name) || /FastSlow$/.test(cap.preset ?? "") };
+  }
+  return undefined;
+}
+
+/**
+ * The value that stops a strobe: an "open" range if the definition has one,
+ * else the range it calls "no function" or "off" (strobe channels on many
+ * cheap heads work that way), else nothing safe to write.
+ */
+export function strobeOffValue(p: FixtureProfile, channel: number): number | undefined {
+  const sh = p.shutters.find((s) => s.channel === channel);
+  if (!sh) return undefined;
+  const open = sh.capabilities.find((c) => c.preset === "ShutterOpen" || /^open$|shutter open/i.test(c.name));
+  if (open) return open.min;
+  const off = sh.capabilities.find((c) => /no function|^off$|no strobe|^none$/i.test(c.name.trim()) && shutterValueMeaning(sh, c.min) !== "closed");
+  return off?.min;
+}
+
+/** A gobo slot or prism range by name; "open" (no gobo) and "off" (no prism) are looked up the same way. */
+export function capabilityNamed(caps: Capability[], name: string): Capability | undefined {
+  return caps.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+}
+
+/** The "no gobo" slot: named open or none, or else the first range. */
+export function openGobo(caps: Capability[]): Capability | undefined {
+  return caps.find((c) => /open|none|no gobo/i.test(c.name)) ?? caps[0];
+}
+
+/** Prism in or out. */
+export function prismRange(caps: Capability[], on: boolean): Capability | undefined {
+  const off = caps.find((c) => /no prism|prism off|^off$|open|none|no function/i.test(c.name.trim()));
+  if (!on) return off ?? caps[0];
+  return caps.find((c) => c !== off && /prism|on|facet/i.test(c.name)) ?? caps.find((c) => c !== off);
 }

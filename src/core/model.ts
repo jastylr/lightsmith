@@ -99,6 +99,18 @@ export type ColorTarget = "mix" | "white" | number;
 export const DEFAULT_COLOR_LAYOUT: Record<ColorJob, ColorTarget> = { backdrop: "mix", side: "mix", mover: "mix", front: "white" };
 export type Transition = "snap" | "fade" | "build";
 
+export type StrobeSpeed = "slow" | "medium" | "fast";
+
+/** Moving-head beam settings for a section. Anything missing is left as the fixture has it. */
+export interface BeamSettings {
+  /** 0 = narrowest, 1 = widest. */
+  zoom?: number;
+  strobe?: StrobeSpeed;
+  /** A gobo slot, by its name in the fixture definition. Missing = open. */
+  gobo?: string;
+  prism?: boolean;
+}
+
 export interface SectionEffects {
   lightning?: boolean;
   lightningDelaySec?: number;
@@ -135,6 +147,8 @@ export interface Section {
   movement: string; // MOVEMENTS id, or "mood"
   /** Where the moving heads point (an AimPosition id); missing = each head's home position. */
   aim?: string;
+  /** Zoom, strobe, gobo and prism for the moving heads that have them. */
+  beam?: BeamSettings;
   moverSpread: MoverSpread;
   focus: Focus;
   effects: SectionEffects;
@@ -193,7 +207,7 @@ export function newSection(type: string, bpm: number): Section {
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
   // Sections saved before patterns could be chosen followed the mood's; keep that look.
-  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };

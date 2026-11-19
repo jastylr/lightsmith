@@ -58,6 +58,7 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
   }, [section]);
 
   const { pal, pattern, period, beat, movement, level, en } = view;
+  const beam = section.beam ?? {};
   // Each kind of light's brightness (the section's own, or automatic); vis()
   // keeps dim lights visible on screen while still showing the difference.
   const lv = lightLevels(section);
@@ -409,6 +410,12 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         const lean = Math.max(-60, Math.min(60, Math.sin(tiltRad) * Math.cos(panRad) * 60)) * (f.facesBack ? -1 : 1);
         const rotateAnim = (cx: number, cy: number) =>
           animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
+        // Zoom widens or narrows the beam; a strobe flickers it.
+        const spread = beam.zoom === undefined ? 1 : 0.45 + 1.3 * beam.zoom;
+        const flicker =
+          animate && beam.strobe ? (
+            <animate attributeName="opacity" values="1;0.04;0.04" keyTimes="0;0.3;1" dur={`${beam.strobe === "fast" ? 0.09 : beam.strobe === "medium" ? 0.22 : 0.5}s`} repeatCount="indefinite" />
+          ) : null;
         if (mountOf(f) === "truss") {
           // Hung upside down: the beam points down at the stage and sweeps across it.
           const top = HANG_Y;
@@ -417,10 +424,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
           return (
             <g key={f.fixtureId}>
               <g transform={`rotate(${-lean} ${fx} ${hh})`}>
-                <path d={`M${fx - 2.5} ${hh} L${fx - 15} ${hh + len} L${fx + 15} ${hh + len} L${fx + 2.5} ${hh} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beamDown")}>
+                {flicker}
+                <path d={`M${fx - 2.5} ${hh} L${fx - 15 * spread} ${hh + len} L${fx + 15 * spread} ${hh + len} L${fx + 2.5} ${hh} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beamDown")}>
                   {c.anim}
                 </path>
-                <ellipse cx={fx} cy={hh + len} rx={18 * sc} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={url("soft")}>
+                <ellipse cx={fx} cy={hh + len} rx={18 * sc * spread} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={url("soft")}>
                   {c.anim}
                 </ellipse>
                 {rotateAnim(fx, hh)}
@@ -442,7 +450,8 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
               {c.anim}
             </ellipse>
             <g transform={`rotate(${lean} ${fx} ${hy})`}>
-              <path d={`M${fx - 2.5} ${hy} L${fx - 16} ${hy - 230} L${fx + 16} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beam")}>
+              {flicker}
+              <path d={`M${fx - 2.5} ${hy} L${fx - 16 * spread} ${hy - 230} L${fx + 16 * spread} ${hy - 230} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beam")}>
                 {c.anim}
               </path>
               {rotateAnim(fx, hy)}

@@ -399,6 +399,7 @@ flowchart LR
 - **Dragging.** Moving a light changes only where it is, never its job.
 - **The tray.** Lights not in use.
 - **The inspector.** The selected light's details, job buttons, where it is in metres or feet, "Put it back where QLC+ has it", mounting, which way a bar stands, which way a moving head faces (with an arrow on the plan), moving-head home pan/tilt, and the reverse switch.
+- **Where the moving heads point:** naming positions such as "X over the drums", each head's pan and tilt, and "Match" (`mirroredAim`).
 - **Hung lights** show a hanger from above and hang from the truss from the audience; hung moving heads are drawn upside down.
 - **Writing back.** On export, lights moved here are moved in QLC+'s 3D view too (`writePlaces`).
 
@@ -514,12 +515,12 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **Pattern:** the grouped pattern list and **Runs on**.
-- **Moving heads:** movement, spread and speed (hidden when the rig has none).
+- **Moving heads:** where they point (a saved position or home), movement, spread and speed, and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none).
 - **Focus:** spotlighting a player, with sides disabled when no lights can do it.
 
-**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply.
+**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply. Saved positions (`AimPosition`, `aimOf`): data that belongs to the rig but is chosen per section, and what happens when a position is deleted. Finding beam channels from presets, groups and capability names (`zoom`, `gobo`, `prism`, `strobeRange`), and the hardware rule for stopping a strobe safely (`strobeOffValue`); why a setting used in one section must be reset in the others (LTP channels hold their last value).
 
-**Files.** `src/ui/LightPicker.tsx`, `src/ui/SongsPage.tsx` (pattern, mover and focus cards), `src/core/rig.ts`.
+**Files.** `src/ui/LightPicker.tsx`, `src/ui/SongsPage.tsx` (pattern, mover and focus cards, `BeamControls`), `src/ui/PositionsCard.tsx`, `src/core/rig.ts`, `src/core/fixture.ts` (beam channels).
 
 ---
 
