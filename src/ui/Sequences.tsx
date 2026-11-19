@@ -186,7 +186,7 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
   const lightSet = new Set(st?.lights ?? []);
   const toggle = (l: Light) => patch({ lights: lightSet.has(l.id) ? st!.lights.filter((x) => x !== l.id) : [...st!.lights, l.id] });
   const byRole = (role: string) => lights.filter((l) => l.role === role).map((l) => l.id);
-  const colorChoices = ["white", ...palette.filter((c, k) => palette.indexOf(c) === k)];
+  const colorChoices = ["white", ...palette.filter((c, k) => c !== "white" && palette.indexOf(c) === k)];
   const defaultHold = q.units === "ms" ? 100 : 1;
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { forwardRef, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
   EFFECTS,
@@ -826,7 +826,7 @@ function Group({
   description: string;
   children: ReactNode;
   aside?: ReactNode;
-  card?: { closed: boolean; onToggle: () => void; summary: string; changed: boolean };
+  card?: { id: string; closed: boolean; onToggle: () => void; summary: string; changed: boolean };
 }) {
   const bodyId = useId();
   const closed = !!card?.closed;
@@ -849,7 +849,7 @@ function Group({
     </>
   );
   return (
-    <section className={closed ? "group closed" : "group"}>
+    <section className={closed ? "group closed" : "group"} id={card ? `card-${card.id}` : undefined} data-card={card?.id}>
       <header className="group-head">
         {card ? (
           <button type="button" className="group-toggle-head" aria-expanded={!closed} aria-controls={bodyId} onClick={card.onToggle} title={closed ? `Open ${title}` : `Close ${title}`}>
@@ -1046,8 +1046,9 @@ function ColorLayoutEditor({
 }
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
-function SectionPreview({ s, rig, sequences, replay }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay }) {
-  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} />;
+function SectionPreview({ s, rig, sequences, replay, compact }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean }) {
+  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} />;
+  if (compact) return <div className="blackout-preview compact"><Icon name="moon" size={18} /></div>;
   return (
     <div className="blackout-preview">
       <Icon name="moon" size={26} />
@@ -1213,16 +1214,22 @@ function LookEditor({
     timing: { summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}`, changed: s.transition !== typeDefault || s.autoAdvance },
   };
   const visibleCards = blackout ? ["timing"] : Object.keys(cards);
+  const [oneCard, setOneCard] = useOneCard();
   const card = (id: string) => ({
     ...cards[id]!,
+    id,
     closed: closed.has(id),
     onToggle: () => {
-      const next = new Set(closed);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      setClosed(next);
+      if (closed.has(id)) openCard(id);
+      else setClosed(new Set(closed).add(id));
     },
   });
+  /** Open a card; with "One card at a time" on, every other card closes. */
+  const openCard = (id: string) => {
+    const next = oneCard ? new Set(visibleCards.filter((x) => x !== id)) : new Set(closed);
+    next.delete(id);
+    setClosed(next);
+  };
   const allClosed = visibleCards.every((id) => closed.has(id));
 
   // ---- Simple / Standard / Pro: what shows. Hidden settings keep working;
@@ -1248,6 +1255,81 @@ function LookEditor({
   };
   const showLightsCard = sees("lights", "standard") || Object.keys(s.lights ?? {}).length > 0;
   const showSequencesCard = sees("sequences", "standard") || (s.sequences ?? []).length > 0;
+
+  // ---- the bar that stays at the top: jump to a card, see which one you're in,
+  // and a small copy of the preview once the big one has scrolled away.
+  const navIds = visibleCards.filter((id) => (id === "lights" ? showLightsCard : id === "sequences" ? showSequencesCard : true));
+  const navRef = useRef<HTMLDivElement>(null);
+  const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [previewGone, setPreviewGone] = useState(false);
+  const navKey = navIds.join(",");
+  // After a jump, the card you picked stays lit even if the page can't scroll
+  // far enough to bring it to the top; scrolling yourself lets the bar follow again.
+  const jumpedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const release = () => (jumpedRef.current = null);
+    window.addEventListener("wheel", release, { passive: true });
+    window.addEventListener("touchmove", release, { passive: true });
+    window.addEventListener("keydown", release);
+    return () => {
+      window.removeEventListener("wheel", release);
+      window.removeEventListener("touchmove", release);
+      window.removeEventListener("keydown", release);
+    };
+  }, []);
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setPreviewGone(false);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setPreviewGone(!!e && e.intersectionRatio < 0.35 && e.boundingClientRect.top < 0), { threshold: [0, 0.35, 1] });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [popped]);
+  useEffect(() => {
+    let frame = 0;
+    const spy = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const line = (navRef.current?.getBoundingClientRect().bottom ?? 0) + 48;
+        if (jumpedRef.current) return setActiveCard(jumpedRef.current);
+        let current: string | null = null;
+        for (const id of navKey.split(",")) {
+          const el = document.getElementById(`card-${id}`);
+          if (el && el.getBoundingClientRect().top <= line) current = id;
+        }
+        setActiveCard(current);
+      });
+    };
+    spy();
+    window.addEventListener("scroll", spy, { passive: true });
+    window.addEventListener("resize", spy);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", spy);
+      window.removeEventListener("resize", spy);
+    };
+  }, [navKey]);
+  const jumpTo = (id: string) => {
+    openCard(id);
+    jumpedRef.current = id;
+    setActiveCard(id);
+    const behavior: ScrollBehavior = reduceMotionPref() ? "auto" : "smooth";
+    const place = (how: ScrollBehavior) => {
+      const el = document.getElementById(`card-${id}`);
+      const nav = navRef.current?.getBoundingClientRect().height ?? 0;
+      if (!el) return 0;
+      const off = el.getBoundingClientRect().top - nav - 14;
+      if (Math.abs(off) > 6) window.scrollTo({ top: window.scrollY + off, behavior: how });
+      return off;
+    };
+    // After the card opens (and the small preview may have appeared), land it just under the bar.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      place(behavior);
+      window.setTimeout(() => place("auto"), behavior === "smooth" ? 650 : 50);
+    }));
+  };
 
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
@@ -1322,6 +1404,20 @@ function LookEditor({
         </div>
 
         <div className="editor-controls">
+          <CardNav
+            ref={navRef}
+            items={navIds.map((id) => ({ id, label: CARD_LABELS[id]?.label ?? id, icon: CARD_LABELS[id]?.icon ?? "list", changed: cards[id]!.changed, summary: cards[id]!.summary }))}
+            active={activeCard}
+            onJump={jumpTo}
+            mini={
+              previewGone && !popped ? (
+                <button type="button" className="card-nav-mini" onClick={() => previewRef.current?.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" })} title="Back up to the full preview">
+                  <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} compact />
+                </button>
+              ) : null
+            }
+            onPlay={previewGone || popped ? () => onReplay(false) : undefined}
+          />
           {!blackout && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
           <div className="cards-bar">
             <button
@@ -1339,6 +1435,18 @@ function LookEditor({
               <Icon name={allClosed ? "chevronDown" : "chevronUp"} size={16} />
               {allClosed ? "Expand all" : "Collapse all"}
             </button>
+            <Toggle
+              checked={oneCard}
+              onChange={(on) => {
+                setOneCard(on);
+                // Turning it on: keep only the card you're in (or the first open one) open.
+                if (on) {
+                  const keep = (activeCard && !closed.has(activeCard) ? activeCard : null) ?? navIds.find((id) => !closed.has(id)) ?? navIds[0];
+                  setClosed(new Set(visibleCards.filter((id) => id !== keep)));
+                }
+              }}
+              label="One card at a time"
+            />
           </div>
           {!blackout && (
             <>
@@ -1691,3 +1799,85 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
     </div>
   );
 }
+
+/** "One card at a time": opening a settings card closes the others. Remembered in this browser. */
+const ONE_CARD_KEY = "lightsmith.oneCard.v1";
+function useOneCard() {
+  const [on, setOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(ONE_CARD_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(ONE_CARD_KEY, v ? "1" : "0");
+    } catch {
+      /* not remembered; fine */
+    }
+  };
+  return [on, set] as const;
+}
+
+/** Short names and icons for the settings cards, as the bar at the top shows them. */
+const CARD_LABELS: Record<string, { label: string; icon: IconName }> = {
+  mood: { label: "Mood", icon: "sun" },
+  colors: { label: "Colors", icon: "palette" },
+  lights: { label: "Lights", icon: "stage" },
+  pattern: { label: "Pattern", icon: "backdrop" },
+  movers: { label: "Moving heads", icon: "mover" },
+  focus: { label: "Focus", icon: "focus" },
+  effects: { label: "Effects", icon: "sparkle" },
+  sequences: { label: "Sequences", icon: "list" },
+  timing: { label: "Start and end", icon: "play" },
+};
+
+/**
+ * The bar that stays at the top of the settings while you scroll: one button
+ * per card (a dot when it has settings of its own), the card you're in lit up,
+ * and a small copy of the preview once the big one has scrolled out of view.
+ */
+const CardNav = forwardRef<
+  HTMLDivElement,
+  {
+    items: { id: string; label: string; icon: IconName; changed: boolean; summary: string }[];
+    active: string | null;
+    onJump: (id: string) => void;
+    mini: ReactNode;
+    onPlay?: () => void;
+  }
+>(function CardNav({ items, active, onJump, mini, onPlay }, ref) {
+  return (
+    <div className={mini ? "card-nav with-mini" : "card-nav"} ref={ref}>
+      {mini && (
+        <div className="card-nav-preview">
+          {mini}
+          {onPlay && (
+            <button type="button" className="card-nav-play" onClick={onPlay} title="Play this section from the start">
+              <Icon name="play" size={14} /> Play
+            </button>
+          )}
+        </div>
+      )}
+      <nav className="card-nav-links" aria-label="Jump to settings">
+        {items.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            data-card={it.id}
+            className={active === it.id ? "card-link on" : "card-link"}
+            aria-current={active === it.id ? "true" : undefined}
+            onClick={() => onJump(it.id)}
+            title={`${it.label}: ${it.summary}`}
+          >
+            <Icon name={it.icon} size={15} />
+            <span>{it.label}</span>
+            {it.changed && <span className="card-link-dot" aria-label="has settings of its own" />}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+});
