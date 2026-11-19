@@ -336,7 +336,7 @@ function SequenceEditor({ q, bpm, lights, palette, onChange, onDelete, onPlay }:
                 </Field>
               </div>
               <p className="hint">
-                {q.units === "beats" ? `At this section's ${bpm} BPM, a beat is ${Math.round(60000 / bpm)} ms. ` : ""}Changes apply everywhere this sequence is used.
+                {q.units === "beats" ? `At this section's ${bpm} BPM, a beat is ${Math.round(60000 / bpm)} ms. ` : ""}Changes apply everywhere this sequence is used. Pop out the preview to keep it beside you while you edit.
               </p>
             </div>
           </div>

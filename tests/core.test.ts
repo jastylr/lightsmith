@@ -674,3 +674,14 @@ test("sequences: quick starts, beats at the section's tempo, and a delayed loop"
   assert.match(xml, /Name="Sequence: Chase across \(after 2s\)"[\s\S]*?<Step Number="0" FadeIn="0" Hold="2000"/);
   assert.match(xml, /Name="Sequence: Chase across"[^>]*>[\s\S]*?<RunOrder>Loop<\/RunOrder>[\s\S]*?Hold="500"/);
 });
+
+test("a backdrop set to one color runs its pattern in that color too", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("intro", 120), mood: "dark", colors: ["indigo", "white"], colorLayout: { backdrop: 1 }, pattern: "drizzle" };
+  generateSong({ ws, profiles, rig, song: { id: "s", title: "White rain", bpm: 120, sections: [s] } });
+  const matrix = serializeWorkspace(ws).match(/Type="RGBMatrix" Name="[^"]*Pattern[^"]*"[\s\S]*?<\/Function>/)?.[0] ?? "";
+  const colors = [...matrix.matchAll(/<Color Index="\d+">(\d+)<\/Color>/g)].map((m) => Number(m[1]) & 0xffffff);
+  assert.deepEqual(colors, [0xffffff], "white rain, not the next color in the palette");
+});

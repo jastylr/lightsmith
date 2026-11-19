@@ -50,7 +50,13 @@ import { cssColor, PaletteEditor } from "./ColorPicker";
 import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
 import { SequencesCard } from "./Sequences";
 
-type Replay = { n: number; skip: boolean };
+/**
+ * Restarting the preview: `skip` starts sequences at once; `at` starts the
+ * animations that many seconds into `section` (playing the song from the middle).
+ */
+const reduceMotionPref = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+type Replay = { n: number; skip: boolean; at?: number; section?: string };
 import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
@@ -254,7 +260,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} gesture={gesture} />
+          <Timeline song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -379,7 +385,10 @@ function Timeline({
   onDelete,
   addButton,
   gesture,
+  onPlayFrom,
 }: {
+  /** Playback started (or jumped) to `at` seconds into a section: restart the preview there. */
+  onPlayFrom: (section: string, at: number) => void;
   song: Song;
   selected: string | null;
   onSelect: (id: string) => void;
@@ -459,7 +468,14 @@ function Timeline({
     return () => cancelAnimationFrame(raf);
   }, [playing]);
   const togglePlay = () => {
-    if (!playing) seek(posRef.current >= totalMs - 1 ? 0 : posRef.current);
+    if (!playing) {
+      const from = posRef.current >= totalMs - 1 ? 0 : posRef.current;
+      seek(from);
+      // Start the preview's clock at the playhead, so sequences and patterns line up with the song.
+      let start = 0;
+      const s = song.sections.find((x) => (start += sectionMs(x)) > from) ?? song.sections[0];
+      if (s) onPlayFrom(s.id, Math.max(0, (from - (start - sectionMs(s))) / 1000));
+    }
     setPlaying((p) => !p);
   };
   // Space plays and pauses, unless you're typing or on a control.
@@ -925,7 +941,7 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
 function SectionPreview({ s, rig, sequences, replay }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay }) {
-  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} />;
+  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} />;
   return (
     <div className="blackout-preview">
       <Icon name="moon" size={26} />
@@ -1015,6 +1031,20 @@ function LookEditor({
   const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
   const ownLights = Object.keys(s.lights ?? {}).length;
   const usedSequences = (s.sequences ?? []).flatMap((u) => sequences.filter((q) => q.id === u.id));
+  // Playing from further down the page: bring the preview into view first, then play.
+  const previewRef = useRef<HTMLElement>(null);
+  const playInView = (skipDelay: boolean) => {
+    const el = previewRef.current;
+    if (!popped && el) {
+      const r = el.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) {
+        el.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" });
+        window.setTimeout(() => onReplay(skipDelay), 450);
+        return;
+      }
+    }
+    onReplay(skipDelay);
+  };
   const effectsOn = EFFECTS.filter((e) => s.effects[e.id]);
   const beamBits = [
     s.beam?.zoom !== undefined ? `${ZOOMS.reduce((a, b) => (Math.abs((b.zoom ?? 9) - s.beam!.zoom!) < Math.abs((a.zoom ?? 9) - s.beam!.zoom!) ? b : a)).label.toLowerCase()} zoom` : "",
@@ -1075,7 +1105,7 @@ function LookEditor({
               </button>
             </div>
           ) : (
-            <figure className="preview-figure">
+            <figure className="preview-figure" ref={previewRef}>
               <div className="preview-frame">
                 <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} />
                 <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
@@ -1296,7 +1326,7 @@ function LookEditor({
           </Group>
 
           <Group card={card("sequences")} icon="list" title="Sequences" description="Your own chasers, built step by step or imported from your show file, running on top of this section's look.">
-            <SequencesCard s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={onReplay} />
+            <SequencesCard s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
           </Group>
 
             </>

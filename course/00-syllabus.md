@@ -491,7 +491,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **Mood and energy:** the mood dropdown with groups, the energy meter, and per-kind **Brightness** sliders (Auto and Reset).
-- **Colors:** the palette chips; adding a gel or a custom color (the color wheel); "Which lights get which color" (Mix, single colors, warm white); switching between colors.
+- **Colors:** the palette chips; adding a gel or a custom color (the color wheel); "Which lights get which color" (Mix, single colors, warm white), where one color for the backdrop also colors its pattern; switching between colors.
 - **Individual lights:**
   - A mini stage for picking lights: click, Shift-click, or "All moving heads"; dots mark lights with their own settings.
   - Settings for the selected lights: color (Auto, palette colors, warm white, any gel or a custom color), brightness, and "Off for this section".
@@ -534,7 +534,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Concepts.** Equal-height grids; choice cards as accessible radio groups; wording settings in user terms rather than QLC+ terms; how each choice becomes engine output (previewed here, implemented in Chapter 22).
 
-**Concepts (sequences).** Data shared by the whole project but used per section, each use with its own delay. Turning steps into QLC+ scenes (one per distinct look) and a chaser; why a looping sequence waits in an outer one-shot chaser; beats converted at the section's tempo (`toMs`). Reading someone else's work: importing a chaser from the show file, including chasers inside chasers, deciding what a scene lights (`sceneLook`), turning an opening pause into the delay, and reporting what didn't come across. Worked example: the band's "Hands Intro Lightning Sequence", imported step for step. Previewing a timeline with SMIL `keyTimes`, and replaying it.
+**Concepts (sequences).** Data shared by the whole project but used per section, each use with its own delay. Turning steps into QLC+ scenes (one per distinct look) and a chaser; why a looping sequence waits in an outer one-shot chaser; beats converted at the section's tempo (`toMs`). Reading someone else's work: importing a chaser from the show file, including chasers inside chasers, deciding what a scene lights (`sceneLook`), turning an opening pause into the delay, and reporting what didn't come across. Worked example: the band's "Hands Intro Lightning Sequence", imported step for step. Previewing a timeline with SMIL `keyTimes`, and replaying it: restarting the preview's clock at the playhead (`setCurrentTime`) so song playback and sequences line up, and bringing the preview into view before playing from further down the page.
 
 **Files.** `src/ui/SongsPage.tsx` (effects grid, `ChoiceCards`), `src/ui/Sequences.tsx`, `src/core/sequences.ts`, `src/core/presets.ts` (`EFFECTS`), `src/core/rig.ts` (`effectTargets`).
 

@@ -464,11 +464,11 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
       const fo = toBlack ?? (withFades ? beat : 0);
       const p0 = pal[0]!;
       const fixed = typeof layout.backdrop === "number" ? layout.backdrop : null;
-      // The pattern's color: the one after the backdrop's chosen color, or the second color.
-      // With the backdrop set to warm white, the pattern is warm white too.
+      // The pattern's color: with "mix", the second color over the others; with the
+      // backdrop set to one color (or warm white), the pattern is that color too.
       const white = layout.backdrop === "white";
       const main = white ? WARM_WHITE : fixed !== null ? pal[fixed % pal.length]! : p0;
-      const accent = white ? WARM_WHITE : fixed !== null ? pal[(fixed + 1) % pal.length]! : (pal[1] ?? p0);
+      const accent = white || fixed !== null ? main : (pal[1] ?? p0);
 
       if (backdrop.length) {
         const v: Vals = new Map();

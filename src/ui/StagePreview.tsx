@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { COLOR_CHANGES, aimOf, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -41,7 +41,28 @@ const FAMILY: Record<string, Family> = {
  */
 const cells = 9;
 
-export function StagePreview({ section, rig, compact = false, sequences = [], skipDelay = false }: { section: Section; rig: Rig; compact?: boolean; sequences?: Sequence[]; skipDelay?: boolean }) {
+export function StagePreview({
+  section,
+  rig,
+  compact = false,
+  sequences = [],
+  skipDelay = false,
+  startAt = 0,
+}: {
+  section: Section;
+  rig: Rig;
+  compact?: boolean;
+  sequences?: Sequence[];
+  skipDelay?: boolean;
+  /** Seconds into the section to start the animations at (when the song plays from the middle of it). */
+  startAt?: number;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  useEffect(() => {
+    if (startAt > 0) svgRef.current?.setCurrentTime?.(startAt);
+    // Only on mount: replaying remounts the preview.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const view = useMemo(() => {
     const mood = moodById(section.mood);
     const en = energyOf(section.energy);
@@ -121,7 +142,8 @@ export function StagePreview({ section, rig, compact = false, sequences = [], sk
   const fixedBack = typeof layout.backdrop === "number" ? layout.backdrop : null;
   const whiteBack = layout.backdrop === "white";
   const main = whiteBack ? WARM : fixedBack !== null ? pal[fixedBack % pal.length]! : p0;
-  const accent = whiteBack ? WARM : fixedBack !== null ? pal[(fixedBack + 1) % pal.length]! : p1;
+  // One color for the backdrop means the pattern is that color too, as in the export.
+  const accent = whiteBack || fixedBack !== null ? main : p1;
   /** Rain and snow are lightened towards white, as in the export. */
   const whiten = (c: string) => (pattern.whiten ? `color-mix(in srgb, ${c} ${Math.round((1 - pattern.whiten) * 100)}%, white)` : c);
   // Rain: streaks run down each bar, each bar at its own moment.
@@ -145,7 +167,7 @@ export function StagePreview({ section, rig, compact = false, sequences = [], sk
   const url = (name: string) => `url(#${u(name)})`;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact" : "preview"} role="img" aria-label={`Preview of ${section.name}`}>
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact" : "preview"} role="img" aria-label={`Preview of ${section.name}`}>
       <defs>
         <linearGradient id={u("wall")} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#0e0c11" />
