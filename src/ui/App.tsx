@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { REPO_URL } from "../config";
 import { ConfirmHost } from "./ConfirmDialog";
+import { LEVELS, useLevel, type Level } from "./level";
 import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
 import { useLightsmith } from "./store";
@@ -64,6 +65,7 @@ export function App() {
             <Icon name="redo" size={15} /> Redo
           </button>
         </div>
+        <LevelSwitch />
         <nav aria-label="Steps">
           <ol className="rail-steps">
             {steps.map((s, i) => (
@@ -131,6 +133,23 @@ export function App() {
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}
       </main>
       <ConfirmHost />
+    </div>
+  );
+}
+
+/** How much of the app shows: Simple, Standard or Pro. Only hides controls; the show never changes. */
+function LevelSwitch() {
+  const { level, setLevel } = useLevel();
+  return (
+    <div className="level-switch" role="radiogroup" aria-label="How much to show">
+      <span className="level-label">Show</span>
+      <div className="level-options">
+        {LEVELS.map((l) => (
+          <button key={l.value} type="button" role="radio" aria-checked={level === l.value} className={level === l.value ? "on" : ""} title={l.title} onClick={() => setLevel(l.value as Level)}>
+            {l.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -255,7 +255,7 @@ flowchart LR
 
 **Goals.** Build the frame every page lives in: the left menu, the steps, the main area, and the design system.
 
-**On screen.** The logo and tagline, Undo and Redo (wired up in Chapter 10), the four numbered steps with their status lines, and the main content area.
+**On screen.** The logo and tagline, Undo and Redo (wired up in Chapter 10), the **Show** switch (Simple, Standard, Pro), the four numbered steps with their status lines, and the main content area.
 
 **Concepts.**
 - The shell component: which step is showing, and how a page is chosen. (No router: step state is enough for a four-page app, and you'll see what Next.js's router changes in Part 2.)
@@ -265,8 +265,9 @@ flowchart LR
 - One global stylesheet: how it's organized by page, and its main risk (the real `.brightness` name collision).
 - The icon set as SVG paths, the logo, accessible icon-only buttons.
 - App-wide keyboard shortcuts and where to register them.
+- Levels with React context (`LevelProvider`, `useLevel`, `atLeast`): Simple, Standard and Pro only hide controls, never change the show. The level is a preference of the browser, not of the project, so it is saved on its own (`lightsmith.level.v1`), and someone who already has sections starts on Standard so nothing they use disappears. Hidden controls are one "More options" click away, and the link says when hidden settings are in use (`MoreOptions`).
 
-**Files.** `src/ui/App.tsx`, `src/ui/styles.css` (tokens and shell), `src/ui/icons.tsx`, `src/ui/Logo.tsx`, `public/favicon.svg`.
+**Files.** `src/ui/App.tsx` (`LevelSwitch`), `src/ui/level.tsx`, `src/ui/styles.css` (tokens and shell), `src/ui/icons.tsx`, `src/ui/Logo.tsx`, `public/favicon.svg`.
 
 **Build it.** Build the shell with four placeholder pages and a working step menu.
 
@@ -518,12 +519,12 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **Pattern:** the grouped pattern list and **Runs on**. New sections start as a plain "Solid wash"; the mood's suggested pattern is one choice in the list ("The mood's pattern"), and older saved sections keep following it (`normalizeSection`).
-- **Moving heads:** **Where they point**, listing home, your positions and suggested new ones; picking a new one creates it, and the chosen position's pan and tilt are set right there for every head (`PositionEditor`, shared with the Stage page). Then movement, how they move together, and speed (Auto from the energy, or one movement every 16 to 1 beats, `moverCycleBeats`), and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none).
+- **Moving heads:** **Where they point**, listing home, your positions and suggested new ones; picking a new one creates it, and the chosen position's pan and tilt are set right there for every head (`PositionEditor`, shared with the Stage page). Then movement, **Size** (Small, Medium, Large, Huge at every level), how they move together, and speed (Auto from the energy, or one movement every 16 to 1 beats, `moverCycleBeats`), and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none). At Pro, **Exact shape** gives QLC+'s own EFX numbers with their QLC+ names: width, height, rotation, pan and tilt nudge (X and Y offset), and the fan between heads, each with an Auto button (`ShapeControls`).
 - **Focus:** spotlighting a player, with sides disabled when no lights can do it.
 
-**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply. Saved positions (`AimPosition`, `aimOf`): data that belongs to the rig but is chosen, created and edited from a section, one component reused on two pages, and what happens when a position is deleted. A lesson from testing: buttons that add something must not look like things that already exist. Finding beam channels from presets, groups and capability names (`zoom`, `gobo`, `prism`, `strobeRange`), and the hardware rule for stopping a strobe safely (`strobeOffValue`); why a head's position goes in its own scene with no fade and full pan/tilt speed (found when "X over the drums" crawled into place in QLC+); why a setting used in one section must be reset in the others (LTP channels hold their last value).
+**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply. Saved positions (`AimPosition`, `aimOf`): data that belongs to the rig but is chosen, created and edited from a section, one component reused on two pages, and what happens when a position is deleted. A lesson from testing: buttons that add something must not look like things that already exist. Finding beam channels from presets, groups and capability names (`zoom`, `gobo`, `prism`, `strobeRange`), and the hardware rule for stopping a strobe safely (`strobeOffValue`); why a head's position goes in its own scene with no fade and full pan/tilt speed (found when "X over the drums" crawled into place in QLC+); why a setting used in one section must be reset in the others (LTP channels hold their last value). One function for the movement's shape (`MoverShape`, `moverShapeAt`) used by both the export and the preview, so they can't disagree; keeping the shape inside 0–255 around where the heads point, so a big circle near the edge doesn't get cut flat; how fan becomes each head's EFX start offset.
 
-**Files.** `src/ui/LightPicker.tsx`, `src/ui/SongsPage.tsx` (pattern, mover and focus cards, `BeamControls`), `src/ui/PositionsCard.tsx`, `src/core/rig.ts`, `src/core/fixture.ts` (beam channels).
+**Files.** `src/ui/LightPicker.tsx`, `src/ui/SongsPage.tsx` (pattern, mover and focus cards, `BeamControls`, `ShapeControls`, `MOVER_SIZES`), `src/ui/PositionsCard.tsx`, `src/core/rig.ts`, `src/core/fixture.ts` (beam channels).
 
 ---
 

@@ -3636,3 +3636,89 @@ body.is-resizing * {
 .lo-rate .dropdown-list {
   min-width: 15rem;
 }
+
+/* Rail: Simple / Standard / Pro */
+.level-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0.9rem;
+}
+.level-label {
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+.level-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.level-options button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.level-options button + button {
+  border-left: 1px solid var(--line);
+}
+.level-options button.on {
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten-hi);
+  font-weight: 650;
+}
+.level-options button:focus-visible {
+  outline: 2px solid var(--tungsten);
+  outline-offset: -2px;
+}
+
+/* Levels: "More options" inside a card */
+.more-options {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+.more-options:hover {
+  color: var(--text);
+}
+.more-options.used {
+  color: var(--tungsten-hi);
+}
+
+/* Pro: exact movement shape */
+.shape-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line-soft);
+}
+.shape-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) 1fr 6.5rem auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+.shape-label {
+  font-size: 0.9rem;
+}
+.shape-label small {
+  color: var(--faint);
+  font-size: 0.75rem;
+}
+.shape-row .number input {
+  width: 3.4rem;
+}

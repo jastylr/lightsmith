@@ -14,7 +14,7 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { aimOf, moverCycleBeats, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
+import { aimOf, moverCycleBeats, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
@@ -138,16 +138,17 @@ class Builder {
     return this.fn("Collection", name, path, ids.map((id, n) => textEl("Step", id, { Number: n })));
   }
 
-  efx(name: string, path: string, opts: { algorithm: string; movers: RigFixture[]; width: number; height: number; x: number; y: number; durationMs: number; propagation?: string }): number {
+  efx(name: string, path: string, opts: { algorithm: string; movers: RigFixture[]; width: number; height: number; x: number; y: number; durationMs: number; propagation?: string; rotation?: number; fan?: number }): number {
     const kids: XmlElement[] = [];
-    for (const m of opts.movers) {
+    for (const [i, m] of opts.movers.entries()) {
       kids.push(
         el("Fixture", {}, [
           textEl("ID", m.fixtureId),
           textEl("Head", 0),
           textEl("Mode", 0),
           textEl("Direction", m.reverse ? "Backward" : "Forward"),
-          textEl("StartOffset", 0),
+          // A fan: each head starts that many degrees further round the shape.
+          textEl("StartOffset", opts.fan ? Math.round((i * opts.fan) % 360) : 0),
         ]),
       );
     }
@@ -159,7 +160,7 @@ class Builder {
       textEl("Algorithm", opts.algorithm),
       textEl("Width", opts.width),
       textEl("Height", opts.height),
-      textEl("Rotation", 0),
+      textEl("Rotation", opts.rotation ?? 0),
       textEl("StartOffset", 0),
       textEl("IsRelative", 0),
       el("Axis", { Name: "X" }, [textEl("Offset", opts.x), textEl("Frequency", 2), textEl("Phase", 90)]),
@@ -586,11 +587,25 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
         const k = `${h.pan},${h.tilt}`;
         byHome.set(k, [...(byHome.get(k) ?? []), r]);
       }
+      // A fan in degrees (Pro) replaces QLC+'s own even spread.
+      const fan = s.moverSpread === "offset" && s.moverShape?.fan ? s.moverShape.fan : 0;
       for (const [k, rs] of byHome) {
-        const [x, y] = k.split(",").map(Number) as [number, number];
-        const w = Math.min(mv.width, 2 * Math.min(x, 255 - x));
-        const h = Math.min(mv.height, 2 * Math.min(y, 255 - y));
-        parts.push(b.efx(`Movers ${mv.label.toLowerCase()}`, path, { algorithm: mv.algorithm, movers: rs, width: w, height: h, x, y, durationMs: moverCycleBeats(s, mv.bars) * beat, propagation: spread.propagation }));
+        const [pan, tilt] = k.split(",").map(Number) as [number, number];
+        const at = moverShapeAt(s.moverShape, mv, { pan, tilt });
+        parts.push(
+          b.efx(`Movers ${mv.label.toLowerCase()}`, path, {
+            algorithm: mv.algorithm,
+            movers: rs,
+            width: at.width,
+            height: at.height,
+            x: at.x,
+            y: at.y,
+            rotation: at.rotation,
+            fan,
+            durationMs: moverCycleBeats(s, mv.bars) * beat,
+            propagation: fan ? "Parallel" : spread.propagation,
+          }),
+        );
       }
     }
 

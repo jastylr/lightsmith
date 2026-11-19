@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from "react";
-import { COLOR_CHANGES, aimOf, moverCycleBeats, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, moverCycleBeats, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -435,21 +435,25 @@ export function StagePreview({
         // A head turned to face the back mirrors one facing the audience for the
         // same pan and tilt, so its sweep (and its lean) runs the other way.
         const mirror = (f.reverse ? -1 : 1) * (f.facesBack ? -1 : 1);
-        const swing = movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24;
+        // The shape's size scales the swing, as width does in the export.
+        const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f));
+        const sizeScale = movement.width ? Math.min(2.4, shaped.width / movement.width) : 1;
+        const swing = (movement.id === "sweep" ? 32 : movement.id === "ballyhoo" ? 40 : movement.id === "static" ? 0 : 24) * sizeScale;
         const values =
           movement.id === "figure8" || movement.id === "ballyhoo"
             ? `${-swing * mirror};${swing * mirror};${-swing * mirror * 0.4};${swing * mirror * 0.4};${-swing * mirror}`
             : `${-swing * mirror};${swing * mirror};${-swing * mirror}`;
         // Match the export: "Together" moves every head as one; the other spreads
         // stagger the heads across the shape, stage left first.
-        const phase = section.moverSpread === "together" ? 0 : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
+        const fan = section.moverSpread === "offset" && section.moverShape?.fan ? section.moverShape.fan : 0;
+        const phase = section.moverSpread === "together" ? 0 : fan ? -((stageIndex(movers, i) * fan) % 360) / 360 * dur : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
         // Where the head points at rest (its section position or home). Only a
         // sketch: pan swings the beam left or right, and tilt away from the
         // middle shortens it, as if leaning towards or away from the audience.
         // Pan below the middle swings a head that faces the audience towards
         // stage left (checked against a real pair: pan 42, tilt 70 on both, one
         // turned to face the back, makes an X). A head facing the back mirrors it.
-        const home = aimOf(section, rig, f);
+        const home = movement.id === "static" ? aimOf(section, rig, f) : { pan: shaped.x, tilt: shaped.y };
         const lean = Math.max(-70, Math.min(70, ((128 - home.pan) / 128) * 70)) * (f.facesBack ? -1 : 1);
         const reach = 1 - 0.45 * Math.min(1, Math.abs(home.tilt - 128) / 128);
         const rotateAnim = (cx: number, cy: number) =>

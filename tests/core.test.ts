@@ -7,6 +7,7 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  moverShapeAt,
   colorRateOf,
   ratePeriodMs,
   lookOf,
@@ -798,4 +799,26 @@ test("each kind of light can switch colors at its own rate", () => {
   assert.equal(chasers.length, 2);
   const holds = chasers.map((m) => Number(/Hold="(\d+)"/.exec(m[0])![1])).sort((a, b) => a - b);
   assert.deepEqual(holds, [2000, 4000]);
+});
+
+test("movement shape: size, exact width and height, rotation, nudges and fan", () => {
+  const circle = { width: 70, height: 50 };
+  assert.deepEqual(moverShapeAt(undefined, circle, { pan: 128, tilt: 128 }), { x: 128, y: 128, width: 70, height: 50, rotation: 0 });
+  assert.deepEqual(moverShapeAt({ size: 0.5 }, circle, { pan: 128, tilt: 128 }), { x: 128, y: 128, width: 35, height: 25, rotation: 0 });
+  // Exact width wins over size; the shape stays inside 0-255 around its middle.
+  const near = moverShapeAt({ size: 2, width: 200, panNudge: -100, rotation: 450 }, circle, { pan: 120, tilt: 128 });
+  assert.equal(near.x, 20);
+  assert.equal(near.width, 40, "only 20 steps of room either side");
+  assert.equal(near.rotation, 90);
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("verse", 120), movement: "circle", moverSpread: "offset" as const, moverShape: { size: 1.5, rotation: 30, fan: 90 } };
+  generateSong({ ws, profiles, rig, song: { id: "e", title: "Shape", bpm: 120, sections: [s] } });
+  const efx = serializeWorkspace(ws).match(/Type="EFX"[\s\S]*?<\/Function>/)![0];
+  assert.match(efx, /<Width>105<\/Width>/);
+  assert.match(efx, /<Rotation>30<\/Rotation>/);
+  assert.match(efx, /<PropagationMode>Parallel<\/PropagationMode>/, "an exact fan replaces QLC+'s own spread");
+  const offsets = [...efx.matchAll(/<Fixture>[\s\S]*?<StartOffset>(\d+)<\/StartOffset>/g)].map((m) => Number(m[1]));
+  if (offsets.length > 1) assert.deepEqual(offsets.slice(0, 2), [0, 90]);
 });

@@ -67,6 +67,38 @@ export interface Rig {
 }
 
 /**
+ * The size and placement of a movement's shape. Size scales the movement's
+ * own width and height; width and height (0-255, as in QLC+) replace them.
+ */
+export interface MoverShape {
+  /** 0.5 small, 1 as designed, 1.5 large, 2 huge. */
+  size?: number;
+  width?: number;
+  height?: number;
+  /** Degrees the shape is turned (QLC+'s EFX rotation). */
+  rotation?: number;
+  /** Nudge the shape's middle from the section's position, in DMX steps. */
+  panNudge?: number;
+  tiltNudge?: number;
+  /** With heads spread across the shape: degrees between one head and the next. */
+  fan?: number;
+}
+
+/**
+ * A movement's actual shape around a head's aim: width and height clamped so
+ * the shape stays inside 0-255, the middle moved by the nudges, and the turn.
+ */
+export function moverShapeAt(shape: MoverShape | undefined, movement: { width: number; height: number }, aim: { pan: number; tilt: number }) {
+  const sh = shape ?? {};
+  const size = sh.size ?? 1;
+  const x = Math.max(0, Math.min(255, Math.round(aim.pan + (sh.panNudge ?? 0))));
+  const y = Math.max(0, Math.min(255, Math.round(aim.tilt + (sh.tiltNudge ?? 0))));
+  const w = Math.min(Math.round(sh.width ?? movement.width * size), 255, 2 * Math.min(x, 255 - x));
+  const h = Math.min(Math.round(sh.height ?? movement.height * size), 255, 2 * Math.min(y, 255 - y));
+  return { x, y, width: Math.max(0, w), height: Math.max(0, h), rotation: Math.round(((sh.rotation ?? 0) % 360 + 360) % 360) };
+}
+
+/**
  * How many beats one full moving-head movement takes in a section: the
  * section's own choice, or the movement's length at energy 3, sped up or
  * slowed down by the section's energy.
@@ -167,6 +199,8 @@ export interface Section {
   aim?: string;
   /** Beats for one full movement; missing = from the movement and the energy. */
   moverBeats?: number;
+  /** The size and placement of the moving heads' shape; missing parts = the movement's own. */
+  moverShape?: MoverShape;
   /** Zoom, strobe, gobo and prism for the moving heads that have them. */
   beam?: BeamSettings;
   /** Sequences that run in this section. */
@@ -243,6 +277,7 @@ export const LOOK_KEYS = [
   "movement",
   "moverSpread",
   "moverBeats",
+  "moverShape",
   "aim",
   "beam",
   "focus",
@@ -331,7 +366,7 @@ export function newSection(type: string, bpm: number): Section {
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
   // Sections saved before patterns could be chosen followed the mood's; keep that look.
-  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), ...(s.colorSwitch ? { colorSwitch: { ...s.colorSwitch } } : {}), ...(s.colorRates ? { colorRates: { ...s.colorRates } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), ...(s.colorSwitch ? { colorSwitch: { ...s.colorSwitch } } : {}), ...(s.colorRates ? { colorRates: { ...s.colorRates } } : {}), ...(s.moverShape ? { moverShape: { ...s.moverShape } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
