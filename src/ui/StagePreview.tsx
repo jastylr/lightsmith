@@ -86,7 +86,6 @@ export function StagePreview({
   const lv = lightLevels(section);
   const vis = (l: number) => 0.3 + 0.7 * l;
   const p0 = pal[0]!;
-  const p1 = pal[1] ?? p0;
   // Color steps, as in the export: only the kinds of light that switch move on.
   const steps = colorSteps(section, view.ids, period > 0);
   const rotating = steps > 1;
