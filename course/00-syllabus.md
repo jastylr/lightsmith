@@ -399,7 +399,7 @@ flowchart LR
 - **Dragging.** Moving a light changes only where it is, never its job.
 - **The tray.** Lights not in use.
 - **The inspector.** The selected light's details, job buttons, where it is in metres or feet, "Put it back where QLC+ has it", mounting, which way a bar stands, which way a moving head faces (with an arrow on the plan), moving-head home pan/tilt, and the reverse switch.
-- **Where the moving heads point:** naming positions such as "X over the drums", each head's pan and tilt, and "Match" (`mirroredAim`).
+- **Moving-head positions:** managing the rig's saved positions (renaming, adjusting, deleting), each head's pan and tilt, "Match" (`mirroredAim`), and an "Add a position" row.
 - **Hung lights** show a hanger from above and hang from the truss from the audience; hung moving heads are drawn upside down.
 - **Writing back.** On export, lights moved here are moved in QLC+'s 3D view too (`writePlaces`).
 
@@ -479,7 +479,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Mirroring the export's rules so the preview tells the truth.
 - Hung lights: bodies hanging from the truss, cones pointing down to pools on the floor, and moving-head beams that sweep from above.
 - Drawing each light at its real depth, and bars lying flat on their side.
-- Aiming a resting moving head from its home pan and tilt, and mirroring one that faces the back: why the same DMX values make an X when two heads face opposite ways.
+- Aiming a resting moving head from its position or home: pan swings the beam, tilt shortens it, and a head facing the back mirrors one facing the audience. Why the same DMX values make an X when two heads face opposite ways, and calibrating the sketch's direction against a real rig (pan 42, tilt 70).
 - Floating windows through portals, with a remembered position.
 - The settings-card pattern (`Group`) that every section below uses.
 
@@ -506,6 +506,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Copying settings across sections as a single undo step.
 - Reusing a component (the mini stage) in a second place by adding optional props.
 - Designing explanations into the interface.
+- Visual hierarchy inside a card: card title, then part titles (`.subhead`, for "Brightness" and "Which lights get which color"), then field labels, each a clear step apart, with generous padding.
 
 **Files.** `src/ui/SongsPage.tsx` (`BrightnessEditor`, `ColorLayoutEditor`, `copyLights`), `src/ui/IndividualLights.tsx`, `src/ui/LightPicker.tsx` (`MiniStage`), `src/ui/ColorPicker.tsx` (`ColorWheel`, `PaletteEditor`), `src/core/model.ts` (`colorLayoutOf`, `lightLevels`, `LightSetting`, `sitsOut`), `src/core/presets.ts` (`MOODS`, `COLORS`, `COLOR_CHANGES`).
 
@@ -514,11 +515,11 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ### Chapter 20. Songs: Pattern, Moving heads and Focus
 
 **On screen.**
-- **Pattern:** the grouped pattern list and **Runs on**.
-- **Moving heads:** where they point (a saved position or home), movement, spread and speed, and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none).
+- **Pattern:** the grouped pattern list and **Runs on**. New sections start as a plain "Solid wash"; the mood's suggested pattern is one choice in the list ("The mood's pattern"), and older saved sections keep following it (`normalizeSection`).
+- **Moving heads:** **Where they point**, listing home, your positions and suggested new ones; picking a new one creates it, and the chosen position's pan and tilt are set right there for every head (`PositionEditor`, shared with the Stage page). Then movement, spread and speed, and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none).
 - **Focus:** spotlighting a player, with sides disabled when no lights can do it.
 
-**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply. Saved positions (`AimPosition`, `aimOf`): data that belongs to the rig but is chosen per section, and what happens when a position is deleted. Finding beam channels from presets, groups and capability names (`zoom`, `gobo`, `prism`, `strobeRange`), and the hardware rule for stopping a strobe safely (`strobeOffValue`); why a setting used in one section must be reset in the others (LTP channels hold their last value).
+**Concepts.** The light-picker chip and popover with a mini stage and a list view, tri-state "Select all", and positioning that flips and stays on screen; rules that adapt to any rig (`patternTargets`, `focusLights`); hiding what doesn't apply. Saved positions (`AimPosition`, `aimOf`): data that belongs to the rig but is chosen, created and edited from a section, one component reused on two pages, and what happens when a position is deleted. A lesson from testing: buttons that add something must not look like things that already exist. Finding beam channels from presets, groups and capability names (`zoom`, `gobo`, `prism`, `strobeRange`), and the hardware rule for stopping a strobe safely (`strobeOffValue`); why a setting used in one section must be reset in the others (LTP channels hold their last value).
 
 **Files.** `src/ui/LightPicker.tsx`, `src/ui/SongsPage.tsx` (pattern, mover and focus cards, `BeamControls`), `src/ui/PositionsCard.tsx`, `src/core/rig.ts`, `src/core/fixture.ts` (beam channels).
 

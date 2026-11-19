@@ -169,7 +169,8 @@ Lightsmith has four steps, shown in the left menu, and you go through them in or
 
 1. **The stage,** seen from above or from the audience, with every light where QLC+'s 3D view has it. Each light has a job (Backdrop, Moving head, Wash light or Front light), shown as a colored ring. Lightsmith guesses the jobs; the user can change them, and can drag a light to move it. Where a light is decides which side of the stage it's on, but never its job.
 2. **The tray** for lights that aren't used.
-3. **The inspector.** Details of the selected light, its job, moving-head home positions and more. With nothing selected, it shows a summary of the rig.
+3. **The inspector.** Details of the selected light: its job, where it is, mounting, which way a moving head faces, home position and more. With nothing selected, it shows a summary of the rig.
+4. **Moving-head positions,** below the stage: named places for the heads to point, such as "X over the drums", picked per section on the Songs page.
 
 **Takes in:** the light profiles and QLC+'s 3D view. **Produces:** the **rig**: each light's job, and its position, height, side and order.
 
@@ -178,11 +179,11 @@ Lightsmith has four steps, shown in the left menu, and you go through them in or
 ![The Songs page](images/ch01-songs.png)
 
 1. **The song list,** under "3. Songs" in the menu.
-2. **The song header:** title, add and delete buttons, song tempo, length and section count.
+2. **The song header:** title, add and delete buttons, song tempo (with a Tap button), length and section count.
 3. **The timeline.** One block per section, sized by length, with taller blocks for more energy. Drag to reorder, drag a block's edge to resize it, and use Play to watch the song.
 4. **The section list.** The same sections as numbered tiles, with duplicate and delete buttons.
-5. **The selected section's stage preview** and its basic settings (type, tempo, length, beats per bar). The preview is an animated sketch on the user's own rig, and can pop out into a floating window.
-6. **The section's settings cards,** below the preview: Mood and energy, Colors, Individual lights, Pattern, Moving heads, Focus, Effects, and Start and end.
+5. **The selected section's stage preview** and its basic settings (type, tempo with Tap, length in bars or seconds, beats per bar). The preview is an animated sketch on the user's own rig, and can pop out into a floating window.
+6. **The section's settings cards,** below the preview: Mood and energy, Colors, Individual lights, Pattern, Moving heads (where they point, movement and beam), Focus, Effects, and Start and end.
 
 **Takes in:** the rig. **Produces:** **songs**, each a list of **sections** with all their settings.
 

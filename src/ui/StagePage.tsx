@@ -482,7 +482,7 @@ function FixtureGlyph({
           </g>
         )}
       </g>
-      <text y={(kind === "bar" && upright ? 52 : 40) * scale} className="glyph-label">
+      <text y={(kind === "bar" && upright ? 52 : view === "above" && kind === "mover" && !rf.facesBack ? 54 : 40) * scale} className="glyph-label">
         {shortName(name)}
       </text>
     </g>
