@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from "react";
-import { COLOR_CHANGES, aimOf, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, moverCycleBeats, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -419,7 +419,7 @@ export function StagePreview({
         const o = ownOf(f.fixtureId);
         const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
         const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
-        const dur = movement.bars ? (movement.bars * beat * section.beatsPerBar) / en.speed : 0;
+        const dur = movement.bars ? moverCycleBeats(section, movement.bars) * beat : 0;
         // A head turned to face the back mirrors one facing the audience for the
         // same pan and tilt, so its sweep (and its lean) runs the other way.
         const mirror = (f.reverse ? -1 : 1) * (f.facesBack ? -1 : 1);

@@ -67,6 +67,16 @@ export interface Rig {
 }
 
 /**
+ * How many beats one full moving-head movement takes in a section: the
+ * section's own choice, or the movement's length at energy 3, sped up or
+ * slowed down by the section's energy.
+ */
+export function moverCycleBeats(s: Pick<Section, "moverBeats" | "beatsPerBar" | "energy">, movementBars: number): number {
+  if (s.moverBeats && s.moverBeats > 0) return s.moverBeats;
+  return (movementBars * s.beatsPerBar) / energyOf(s.energy).speed;
+}
+
+/**
  * Where a moving head points in a section: the section's saved position if it
  * has one for this head, otherwise the head's home position.
  */
@@ -147,6 +157,8 @@ export interface Section {
   movement: string; // MOVEMENTS id, or "mood"
   /** Where the moving heads point (an AimPosition id); missing = each head's home position. */
   aim?: string;
+  /** Beats for one full movement; missing = from the movement and the energy. */
+  moverBeats?: number;
   /** Zoom, strobe, gobo and prism for the moving heads that have them. */
   beam?: BeamSettings;
   /** Sequences that run in this section. */

@@ -14,6 +14,7 @@ import {
   newSection,
   patternById,
   sectionMs,
+  moverCycleBeats,
   barsForSeconds,
   openGobo,
   strobeRange,
@@ -1019,6 +1020,7 @@ function LookEditor({
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
   const positions = rig.positions ?? [];
   const aimed = s.aim ? positions.find((p) => p.id === s.aim) : undefined;
+  const cycleBeats = moverCycleBeats(s, MOVEMENTS.find((m) => m.id === moveId)?.bars ?? 0);
   const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
@@ -1063,8 +1065,10 @@ function LookEditor({
     lights: { summary: ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : "Every light follows the settings above", changed: ownLights > 0 },
     pattern: { summary: pattern.algorithm ? `${pattern.label} on ${patternTargets(s, rig).length} lights` : pattern.label, changed: s.pattern !== "solid" },
     movers: {
-      summary: hasMovers ? [aimed?.name ?? "Home position", MOVEMENTS.find((m) => m.id === moveId)?.label ?? "", ...beamBits].filter(Boolean).join(" · ") : "No moving heads on your stage",
-      changed: !!s.aim || s.movement !== "mood" || s.moverSpread !== "together" || !!s.beam,
+      summary: hasMovers
+        ? [aimed?.name ?? "Home position", MOVEMENTS.find((m) => m.id === moveId)?.label ?? "", moveId !== "static" && s.moverBeats ? `${MOVER_SPEEDS.find((m) => m.beats === s.moverBeats)?.label.toLowerCase() ?? `${s.moverBeats} beats`}` : "", ...beamBits].filter(Boolean).join(" · ")
+        : "No moving heads on your stage",
+      changed: !!s.aim || s.movement !== "mood" || s.moverSpread !== "together" || !!s.beam || !!s.moverBeats,
     },
     focus: { summary: s.focus === "all" ? "No focus" : `Spotlight on ${lower(sideName[s.focus])}`, changed: s.focus !== "all" },
     effects: { summary: effectsOn.length ? effectsOn.map((e) => e.label).join(", ") : "None", changed: effectsOn.length > 0 },
@@ -1248,7 +1252,21 @@ function LookEditor({
                 <Field label="Movement">
                   <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 </Field>
-                {moveId !== "static" && <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />}
+                {moveId !== "static" && (
+                  <Field label="How they move together">
+                    <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />
+                  </Field>
+                )}
+                {moveId !== "static" && (
+                  <Field label="Speed" hint={`One full movement every ${fmtBeats(cycleBeats)} ${cycleBeats === 1 ? "beat" : "beats"} (${(cycleBeats * 60 / s.bpm).toFixed(1)} s at ${s.bpm} BPM).${s.moverBeats ? "" : " Auto follows the movement and the section's energy."}`}>
+                    <Segmented
+                      label="Movement speed"
+                      value={s.moverBeats ? String(s.moverBeats) : "auto"}
+                      onChange={(v: string) => onChange({ moverBeats: v === "auto" ? undefined : Number(v) })}
+                      options={[{ value: "auto", label: "Auto" }, ...MOVER_SPEEDS.map((m) => ({ value: String(m.beats), label: m.label, title: `One movement every ${m.beats} beat${m.beats === 1 ? "" : "s"}` }))]}
+                    />
+                  </Field>
+                )}
                 <BeamControls beam={s.beam ?? {}} heads={moverProfiles} onChange={(beam) => onChange({ beam })} />
               </>
             ) : (
@@ -1372,6 +1390,16 @@ function LookEditor({
     </article>
   );
 }
+
+/** Moving-head speeds: beats for one full movement. */
+const MOVER_SPEEDS = [
+  { beats: 16, label: "Very slow" },
+  { beats: 8, label: "Slow" },
+  { beats: 4, label: "Medium" },
+  { beats: 2, label: "Fast" },
+  { beats: 1, label: "Very fast" },
+];
+const fmtBeats = (b: number) => String(Math.round(b * 10) / 10);
 
 const ZOOMS: { value: string; label: string; zoom?: number }[] = [
   { value: "asis", label: "As set" },

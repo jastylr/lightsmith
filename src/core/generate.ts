@@ -14,7 +14,7 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { aimOf, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
+import { aimOf, moverCycleBeats, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
@@ -579,7 +579,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
         const [x, y] = k.split(",").map(Number) as [number, number];
         const w = Math.min(mv.width, 2 * Math.min(x, 255 - x));
         const h = Math.min(mv.height, 2 * Math.min(y, 255 - y));
-        parts.push(b.efx(`Movers ${mv.label.toLowerCase()}`, path, { algorithm: mv.algorithm, movers: rs, width: w, height: h, x, y, durationMs: (mv.bars * bar) / speed, propagation: spread.propagation }));
+        parts.push(b.efx(`Movers ${mv.label.toLowerCase()}`, path, { algorithm: mv.algorithm, movers: rs, width: w, height: h, x, y, durationMs: moverCycleBeats(s, mv.bars) * beat, propagation: spread.propagation }));
       }
     }
 

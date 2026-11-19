@@ -7,6 +7,7 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  moverCycleBeats,
   chasersIn,
   importChaser,
   quickStart,
@@ -712,4 +713,16 @@ test("a side-to-side swap changes brightness, not each light's color", () => {
   const b = colorOf(scene("Side lights B"));
   // The same lights are lit in the same channels in both halves of the swap (only the level differs).
   assert.deepEqual([...a.entries()], [...b.entries()]);
+});
+
+test("moving-head speed: automatic from the energy, or set per section in beats", () => {
+  const auto = newSection("verse", 120);
+  assert.equal(moverCycleBeats({ ...auto, energy: 3 }, 4), 16, "a 4-bar circle at energy 3");
+  assert.equal(moverCycleBeats({ ...auto, energy: 5 }, 4), 8, "maximum energy doubles the speed");
+  assert.equal(moverCycleBeats({ ...auto, moverBeats: 2 }, 4), 2);
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "m", title: "Fast", bpm: 120, sections: [{ ...auto, movement: "circle", moverBeats: 2 }] } });
+  assert.match(serializeWorkspace(ws), /Type="EFX"[\s\S]*?<Speed FadeIn="0" FadeOut="0" Duration="1000"\/>/, "2 beats at 120 BPM is one second");
 });
