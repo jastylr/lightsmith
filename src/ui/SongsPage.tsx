@@ -23,6 +23,7 @@ import {
   openGobo,
   strobeRange,
   type BeamSettings,
+  type ColorChange,
   type FixtureProfile,
   type LookPreset,
   type Sequence,
@@ -964,19 +965,31 @@ function ColorLayoutEditor({
     const next = now.includes(c) ? now.filter((x) => x !== c) : [...now, c];
     if (next.length) set(job, palette.filter((x) => next.includes(x)));
   };
-  const setSwitch = (job: ColorJob, on: boolean) => onChange({ colorSwitch: { ...(s.colorSwitch ?? {}), [job]: on } });
+  /** Steady, with the section, or at this kind of light's own rate. */
+  const setRate = (job: ColorJob, v: string) => {
+    const rates = { ...(s.colorRates ?? {}) };
+    delete rates[job];
+    if (v !== "steady" && v !== "section") rates[job] = v as ColorChange;
+    onChange({ colorSwitch: { ...(s.colorSwitch ?? {}), [job]: v !== "steady" }, colorRates: rates });
+  };
+  const sectionRate = COLOR_CHANGES.find((c) => c.id === (s.colorChange === "mood" ? moodById(s.mood).colorChange : s.colorChange));
+  const rateOptions: Option<string>[] = [
+    { value: "steady", label: "Steady", description: "These lights keep their colors" },
+    { value: "section", label: "With the section", description: `Change when the section's colors do (${changing ? sectionRate?.label.toLowerCase() ?? "" : "they're steady now"})` },
+    ...COLOR_CHANGES.filter((c) => c.id !== "hold").map((c) => ({ value: c.id, label: c.label, description: "Their own rate", group: "Their own rate" })),
+  ];
   return (
     <div className="color-layout">
       <h4 className="subhead">Which lights get which color</h4>
       <p className="hint layout-hint">
         Mix spreads all your colors across those lights. Or click colors to pick just the ones they use: one color puts them all in it, several spread just those. The last swatch is warm white.
- Switch or Steady decides which kinds of light change color as the section goes.
+ The menu at the end of each row sets how often those lights change color: steady, with the section, or at their own rate.
       </p>
       {jobs.map((job) => {
         const v = layout[job];
         const mode = v === "mix" ? "mix" : v === "white" ? "white" : "pick";
         const chosen = mode === "pick" ? (jobPalette(v, palette) as string[]) : [];
-        const switching = switchesColors(s, job);
+        const rateNow = !switchesColors(s, job) ? "steady" : s.colorRates?.[job] ?? "section";
         const several = mode === "mix" ? palette.length > 1 : chosen.length > 1;
         return (
           <div key={job} className="layout-row">
@@ -1015,17 +1028,9 @@ function ColorLayoutEditor({
                 onAdd={(c) => onAddToJob(job, c)}
               />
               {several && (
-                <button
-                  type="button"
-                  aria-pressed={changing && switching}
-                  disabled={!changing}
-                  className={changing && switching ? "lo lo-switch on" : "lo lo-switch"}
-                  onClick={() => setSwitch(job, !switching)}
-                  title={!changing ? "Colors don't change in this section yet: pick how often under \"Switch between colors\"" : switching ? "These lights change color as the section goes; click to hold them steady" : "These lights hold their colors; click to let them change"}
-                >
-                  <Icon name="reset" size={14} />
-                  {changing && switching ? "Switch" : "Steady"}
-                </button>
+                <span className="lo-rate" title={`How often ${JOB_LABEL[job].toLowerCase()} change color`}>
+                  <Dropdown label={`How often ${JOB_LABEL[job].toLowerCase()} change color`} value={rateNow} options={rateOptions} onChange={(v) => setRate(job, v)} />
+                </span>
               )}
             </div>
           </div>
@@ -1317,7 +1322,7 @@ function LookEditor({
           <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color just for those lights.`}>
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
             <div className="row">
-              <Field label="Switch between colors" hint={changeId === "hold" ? "Pick how often to switch, then choose below which lights switch and which stay steady." : undefined}>
+              <Field label="Switch between colors" hint="For lights that change with the section. Each row below can also stay steady or have its own rate.">
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
               </Field>
               {changeId !== "hold" && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}

@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  colorRateOf,
+  ratePeriodMs,
   lookOf,
   applyLook,
   jobPalette,
@@ -777,4 +779,23 @@ test("presets keep a section's whole look and apply it to any section", () => {
   // Settings the preset didn't have go back to their defaults.
   assert.equal(out.focus, "all");
   assert.equal(out.aim, undefined);
+});
+
+test("each kind of light can switch colors at its own rate", () => {
+  const s = { ...newSection("chorus", 120), colors: ["magenta", "cyan", "amber"], colorChange: "bar" as const, colorRates: { mover: "2bars" as const }, colorSwitch: { front: false } };
+  assert.equal(colorRateOf(s, "side"), "bar", "with the section");
+  assert.equal(colorRateOf(s, "mover"), "2bars", "its own rate");
+  assert.equal(colorRateOf(s, "front"), "hold", "steady");
+  assert.equal(colorRateOf({ ...s, colorChange: "hold" }, "mover"), "2bars", "its own rate even when the section holds");
+  assert.equal(ratePeriodMs("2bars", 120, 4), 4000);
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "r", title: "Rates", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  // Two chasers: one for the lights at the section's rate (a bar, 2 s), one for the movers (2 bars, 4 s).
+  const chasers = [...xml.matchAll(/Type="Chaser" Name="Color changes([^"]*)"[\s\S]*?<\/Function>/g)];
+  assert.equal(chasers.length, 2);
+  const holds = chasers.map((m) => Number(/Hold="(\d+)"/.exec(m[0])![1])).sort((a, b) => a - b);
+  assert.deepEqual(holds, [2000, 4000]);
 });

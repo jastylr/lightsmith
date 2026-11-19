@@ -14,10 +14,10 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { aimOf, moverCycleBeats, colorLayoutOf, colorSteps, jobColorAt, jobPalette, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
+import { aimOf, moverCycleBeats, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
-import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
+import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, writePlaces, type Workspace } from "./workspace";
@@ -78,6 +78,7 @@ function mix(a: RGB, b: RGB, t: number): RGB {
 }
 
 const WHITE: RGB = [255, 255, 255];
+const JOB_NAME: Record<ColorJob, string> = { backdrop: "backdrop", side: "wash", mover: "movers", front: "front" };
 const WARM_WHITE = colorById("warmWhite").rgb;
 /** With Focus on, lights outside the spotlight run at this share of their level. */
 export const FOCUS_DIM = 0.5;
@@ -426,9 +427,6 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
     const bar = beat * s.beatsPerBar;
     const fade = s.transition === "snap" ? 0 : s.transition === "fade" ? beat : Math.min(sectionMs(s), bar * 4);
     const pattern = patternById(s.pattern === "mood" ? mood.pattern : s.pattern);
-    const changeId = s.colorChange === "mood" ? mood.colorChange : s.colorChange;
-    const change = COLOR_CHANGES.find((c) => c.id === changeId) ?? COLOR_CHANGES[0]!;
-    const period = change.beats === 0 ? 0 : change.beats > 0 ? change.beats * beat : -change.beats * bar;
     const moveId = s.movement === "mood" ? mood.movement : s.movement;
     const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
     const parts: number[] = [];
@@ -451,7 +449,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
     const patternGroup = pattern.algorithm ? groupFor(patternLights) : undefined;
 
     /** Everything that depends on color, for one arrangement of the palette. */
-    const look = (step: number, tag: string, withFades: boolean): number[] => {
+    const look = (step: number, tag: string, withFades: boolean, jobs: Set<ColorJob> = new Set(COLOR_JOBS)): number[] => {
       /** The color for the k-th light (stage left first) of a kind, at this color step. */
       const colorFor = (job: ColorJob, k: number, mixOffset: number): RGB => rgbOf(jobColorAt(s, layout, paletteIds, job, k, step, mixOffset));
       // The backdrop's own colors, moved on by this step when it switches.
@@ -472,7 +470,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
       const main = p0;
       const accent = pal[1] ?? p0;
 
-      if (backdrop.length) {
+      if (backdrop.length && jobs.has("backdrop")) {
         const v: Vals = new Map();
         // With "mix", spread the palette across the bars, keeping the pattern's color for the pattern.
         const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
@@ -489,7 +487,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
         });
         out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
       }
-      if (patternGroup !== undefined && pattern.algorithm) {
+      if (patternGroup !== undefined && pattern.algorithm && jobs.has("backdrop")) {
         const single = pattern.whiten ? mix(pattern.floor > 0 ? accent : main, WHITE, pattern.whiten) : pattern.floor > 0 ? accent : main;
         const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [main, accent] : pal.slice(0, 5);
         const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
@@ -519,7 +517,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
         }
         return v;
       };
-      if (sides.length) {
+      if (sides.length && jobs.has("side")) {
         if (focusing || mood.side === "static") {
           out.push(b.scene(named("Side lights"), path, floorLook(sides, "side", null), fi, fo));
         } else {
@@ -530,8 +528,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
           out.push(b.chaser(named("Side lights swap"), path, [{ id: a, fadeIn: sf, hold: swap - sf }, { id: c, fadeIn: sf, hold: swap - sf }]));
         }
       }
-      if (fronts.length) out.push(b.scene(named("Front light"), path, floorLook(fronts, "front", null), fi, fo));
-      if (movers.length) {
+      if (fronts.length && jobs.has("front")) out.push(b.scene(named("Front light"), path, floorLook(fronts, "front", null), fi, fo));
+      if (movers.length && jobs.has("mover")) {
         const v: Vals = new Map();
         // Where the heads point goes in its own scene with no fade, at full
         // pan/tilt speed: a scene's fade (or a slow motor) would make the heads
@@ -559,13 +557,24 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
       return out;
     };
 
-    const steps = colorSteps(s, paletteIds, period > 0);
-    if (steps > 1) {
-      const looks = Array.from({ length: steps }, (_, k) => b.collection(`Colors ${k + 1}`, path, look(k, `(colors ${k + 1})`, false)));
-      const cf = s.colorFade ? Math.min(period / 2, 1500) : 0;
-      parts.push(b.chaser("Color changes", path, looks.map((id) => ({ id, fadeIn: cf, hold: period - cf }))));
-    } else {
-      parts.push(...look(0, "", true));
+    // Color changes: kinds of light that switch at the same rate share a
+    // chaser of color looks; each other rate gets its own; the rest are steady.
+    const byRate = new Map<number, ColorJob[]>();
+    const steady = new Set<ColorJob>();
+    for (const j of COLOR_JOBS) {
+      const ms = ratePeriodMs(colorRateOf(s, j), s.bpm, s.beatsPerBar);
+      if (ms > 0 && stepsFor(s, paletteIds, [j]) > 1) byRate.set(ms, [...(byRate.get(ms) ?? []), j]);
+      else steady.add(j);
+    }
+    if (steady.size) parts.push(...look(0, "", true, steady));
+    const rateTag = (jobs: ColorJob[]) => (byRate.size > 1 ? ` (${jobs.map((j) => JOB_NAME[j]).join(", ")})` : "");
+    for (const [ms, jobs] of byRate) {
+      const set = new Set(jobs);
+      const steps = stepsFor(s, paletteIds, jobs);
+      const tag = rateTag(jobs);
+      const looks = Array.from({ length: steps }, (_, k) => b.collection(`Colors ${k + 1}${tag}`, path, look(k, `(colors ${k + 1})${tag}`, false, set)));
+      const cf = s.colorFade ? Math.min(ms / 2, 1500) : 0;
+      parts.push(b.chaser(`Color changes${tag}`, path, looks.map((id) => ({ id, fadeIn: cf, hold: ms - cf }))));
     }
 
     // ---- movement

@@ -2,7 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
-import { energyOf, moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
+import { COLOR_CHANGES, energyOf, moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
 export type Side = "SL" | "C" | "SR";
@@ -152,6 +152,8 @@ export interface Section {
   colorLayout?: Partial<Record<ColorJob, ColorTarget>>;
   /** Which kinds of light switch between their colors when the section's colors change (missing = yes). */
   colorSwitch?: Partial<Record<ColorJob, boolean>>;
+  /** A kind of light's own rate for switching colors (a COLOR_CHANGES id); missing = the section's. */
+  colorRates?: Partial<Record<ColorJob, ColorChange>>;
   /** Brightness (0–1) per kind of light; missing = automatic, from the mood and energy. */
   brightness?: Partial<Record<ColorJob, number>>;
   /** Settings for individual lights, by fixture ID. They win over everything above. */
@@ -232,6 +234,7 @@ export const LOOK_KEYS = [
   "colors",
   "colorLayout",
   "colorSwitch",
+  "colorRates",
   "colorChange",
   "colorFade",
   "brightness",
@@ -328,7 +331,7 @@ export function newSection(type: string, bpm: number): Section {
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
   // Sections saved before patterns could be chosen followed the mood's; keep that look.
-  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), ...(s.colorSwitch ? { colorSwitch: { ...s.colorSwitch } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), ...(s.colorSwitch ? { colorSwitch: { ...s.colorSwitch } } : {}), ...(s.colorRates ? { colorRates: { ...s.colorRates } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
@@ -470,6 +473,37 @@ export function jobColorAt(s: Pick<Section, "colorSwitch">, layout: Record<Color
 }
 
 export const COLOR_JOBS: ColorJob[] = ["backdrop", "side", "mover", "front"];
+
+/**
+ * How often a kind of light switches colors (a COLOR_CHANGES id; "hold"
+ * when it doesn't): Steady holds; its own rate wins; otherwise the
+ * section's (or its mood's).
+ */
+export function colorRateOf(s: Pick<Section, "colorSwitch" | "colorRates" | "colorChange" | "mood">, job: ColorJob): ColorChange {
+  if (!switchesColors(s, job)) return "hold";
+  const own = s.colorRates?.[job];
+  if (own) return own;
+  return (s.colorChange === "mood" ? moodById(s.mood).colorChange : s.colorChange) as ColorChange;
+}
+
+/** Milliseconds between color changes for a rate (0 = they don't change). */
+export function ratePeriodMs(rate: string, bpm: number, beatsPerBar: number): number {
+  const c = COLOR_CHANGES.find((x) => x.id === rate);
+  if (!c || c.beats === 0) return 0;
+  const beat = 60000 / bpm;
+  return c.beats > 0 ? c.beats * beat : -c.beats * beat * beatsPerBar;
+}
+
+/** Color steps for a group of kinds of light switching together: enough for each to come back round (at most 12). */
+export function stepsFor(s: Pick<Section, "colorLayout" | "mood">, palette: string[], jobs: ColorJob[]): number {
+  const layout = colorLayoutOf(s);
+  const lengths = jobs.map((j) => {
+    const set = jobPalette(layout[j], palette);
+    return set === "white" ? 1 : set.length;
+  }).filter((n) => n > 1);
+  if (!lengths.length) return 0;
+  return Math.min(12, lengths.reduce((a, b) => (a * b) / gcd(a, b)));
+}
 
 /** A Blackout section: every light off, for a gap, a pause or a dramatic stop. */
 export const isBlackout = (s: Pick<Section, "type">) => s.type === "blackout";

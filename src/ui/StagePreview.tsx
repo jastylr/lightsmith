@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from "react";
-import { COLOR_CHANGES, aimOf, moverCycleBeats, colorSteps, jobColorAt, jobPalette, switchesColors, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, moverCycleBeats, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -87,8 +87,9 @@ export function StagePreview({
   const vis = (l: number) => 0.3 + 0.7 * l;
   const p0 = pal[0]!;
   // Color steps, as in the export: only the kinds of light that switch move on.
-  const steps = colorSteps(section, view.ids, period > 0);
-  const rotating = steps > 1;
+  // Each kind of light switches at its own rate (or the section's), as in the export.
+  const rateOf = (job: ColorJob) => ratePeriodMs(colorRateOf(section, job), section.bpm, section.beatsPerBar) / 1000;
+  const rotating = COLOR_JOBS.some((j) => rateOf(j) > 0 && stepsFor(section, view.ids, [j]) > 1);
   const animate = !reduceMotion;
 
   // Fixtures from the rig, placed by their stage-plan position (audience view).
@@ -113,13 +114,15 @@ export function StagePreview({
   const DARK_LENS = "#2c2832";
   const WARM = "#ffd9a8";
 
-  /** A fill that steps through a series of colors (one per color step). */
-  const series = (at: (k: number) => string) => {
-    const values = rotating ? Array.from({ length: steps }, (_, k) => at(k)) : [at(0)];
+  /** A fill that steps through a kind of light's colors at its rate. */
+  const series = (job: ColorJob, at: (k: number) => string) => {
+    const every = rateOf(job);
+    const n = every > 0 ? stepsFor(section, view.ids, [job]) : 0;
+    const values = n > 1 ? Array.from({ length: n }, (_, k) => at(k)) : [at(0)];
     const changes = animate && values.some((v) => v !== values[0]);
     return {
       fill: values[0]!,
-      anim: changes ? <animate attributeName="fill" values={[...values, values[0]].join(";")} dur={`${period * values.length}s`} calcMode={section.colorFade ? "linear" : "discrete"} repeatCount="indefinite" /> : null,
+      anim: changes ? <animate attributeName="fill" values={[...values, values[0]].join(";")} dur={`${every * values.length}s`} calcMode={section.colorFade ? "linear" : "discrete"} repeatCount="indefinite" /> : null,
     };
   };
 
@@ -134,7 +137,7 @@ export function StagePreview({
   /** Same rules as the export: each kind of light spreads its own colors, moved on at each color step. */
   const colorAt = (job: ColorJob, k: number, step: number, offset: number) => (jobPalette(layout[job], view.ids) === "white" ? WARM : css(jobColorAt(section, layout, view.ids, job, k, step, offset)));
   const colorFor = (job: ColorJob, k: number, offset: number) => colorAt(job, k, 0, offset);
-  const fillJob = (job: ColorJob, k: number, offset: number) => series((step) => colorAt(job, k, step, offset));
+  const fillJob = (job: ColorJob, k: number, offset: number) => series(job, (step) => colorAt(job, k, step, offset));
   // The backdrop's colors: the pattern runs in the second over the others, or
   // in the one color when there's only one (as in the export).
   const bset = (() => {
@@ -217,7 +220,7 @@ export function StagePreview({
       {/* The room: back wall, truss, floor and the front of the stage */}
       <rect width={W} height={BACK} fill={url("wall")} />
       <rect width={W} height={H} fill={url("haze")}>
-        {animate && rotating && <animate attributeName="opacity" values="1;0.75;1" dur={`${period}s`} repeatCount="indefinite" />}
+        {animate && rotating && <animate attributeName="opacity" values="1;0.75;1" dur={`${period || 2}s`} repeatCount="indefinite" />}
       </rect>
       <g stroke="#2b2731" strokeWidth="1" fill="none">
         <line x1="0" y1="10" x2={W} y2="10" />
@@ -356,7 +359,7 @@ export function StagePreview({
           const k = backFx.length ? stageIndex(backFx, i) : i;
           const runsPattern = !!pattern.algorithm && patternOn.has(bar.id);
           const o = ownOf(bar.id);
-          const base = o.color ? { fill: o.color, anim: null } : series((step) => barColor(k, step));
+          const base = o.color ? { fill: o.color, anim: null } : series("backdrop", (step) => barColor(k, step));
           const backLevel = o.off ? 0 : (o.level ?? lv.backdrop.level);
           const floorLevel = o.off ? 0.04 : runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
           // A bar lying flat is drawn turned on its side: along the truss when
@@ -375,7 +378,7 @@ export function StagePreview({
               {bar.upright && <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />}
               {Array.from({ length: cells }, (_, c) => {
                 const y = topY + c * cellH;
-                const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : series((step) => (pattern.colors === 2 && c % 2 ? bMain(step) : bAccent(step)));
+                const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : series("backdrop", (step) => (pattern.colors === 2 && c % 2 ? bMain(step) : bAccent(step)));
                 let begin = 0;
                 const phase = rnd(i * 17 + 3) * rainDur;
                 if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
