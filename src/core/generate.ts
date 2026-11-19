@@ -14,7 +14,7 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { aimOf, moverCycleBeats, colorLayoutOf, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
+import { aimOf, moverCycleBeats, colorLayoutOf, colorSteps, jobColorAt, jobPalette, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
@@ -419,7 +419,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
     const toBlack = next && isBlackout(next) ? (next.transition === "snap" ? 0 : (60000 / next.bpm) * next.beatsPerBar) : undefined;
     const mood = moodById(s.mood);
     const en = energyOf(s.energy);
-    const palette: RGB[] = (s.colors.length ? s.colors : mood.colors).map((c) => colorById(c).rgb);
+    const paletteIds = s.colors.length ? s.colors : mood.colors;
     const levels = lightLevels(s);
     const speed = en.speed;
     const beat = 60000 / s.bpm;
@@ -437,13 +437,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
     const focusSet = new Set(s.focus === "all" ? [] : focusLights({ fixtures: usedLights }, s.focus));
     const focusing = focusSet.size > 0;
     const layout = colorLayoutOf(s);
-    /** The color for the k-th light (stage left first) of a kind, given the palette arrangement. */
-    const colorFor = (pal: RGB[], job: ColorJob, k: number, mixOffset: number): RGB => {
-      const t = layout[job];
-      if (t === "white") return WARM_WHITE;
-      if (typeof t === "number") return pal[t % pal.length]!;
-      return pal[(k + mixOffset) % pal.length]!;
-    };
+    const rgbOf = (c: string): RGB => colorById(c).rgb;
     /** A light's own settings: its color, brightness and whether it's off. */
     const own = (r: RigFixture) => {
       const l = lightSetting(s, r.fixtureId);
@@ -457,18 +451,26 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
     const patternGroup = pattern.algorithm ? groupFor(patternLights) : undefined;
 
     /** Everything that depends on color, for one arrangement of the palette. */
-    const look = (pal: RGB[], tag: string, withFades: boolean): number[] => {
+    const look = (step: number, tag: string, withFades: boolean): number[] => {
+      /** The color for the k-th light (stage left first) of a kind, at this color step. */
+      const colorFor = (job: ColorJob, k: number, mixOffset: number): RGB => rgbOf(jobColorAt(s, layout, paletteIds, job, k, step, mixOffset));
+      // The backdrop's own colors, moved on by this step when it switches.
+      const bset = (() => {
+        const set = jobPalette(layout.backdrop, paletteIds);
+        return set === "white" ? [WARM_WHITE] : set.map(rgbOf);
+      })();
+      const bn = bset.length;
+      const br = switchesColors(s, "backdrop") ? step : 0;
+      const pal = bset.map((_, i) => bset[(i + br) % bn]!);
       const out: number[] = [];
       const named = (n: string) => (tag ? `${n} ${tag}` : n);
       const fi = withFades ? fade : 0;
       const fo = toBlack ?? (withFades ? beat : 0);
       const p0 = pal[0]!;
-      const fixed = typeof layout.backdrop === "number" ? layout.backdrop : null;
-      // The pattern's color: with "mix", the second color over the others; with the
-      // backdrop set to one color (or warm white), the pattern is that color too.
-      const white = layout.backdrop === "white";
-      const main = white ? WARM_WHITE : fixed !== null ? pal[fixed % pal.length]! : p0;
-      const accent = white || fixed !== null ? main : (pal[1] ?? p0);
+      // The pattern's color: with several backdrop colors, the second over the
+      // others; with one color (or warm white), the pattern is that color too.
+      const main = p0;
+      const accent = pal[1] ?? p0;
 
       if (backdrop.length) {
         const v: Vals = new Map();
@@ -478,7 +480,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
           const p = prof(r);
           const o = own(r);
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : (o.level ?? levels.backdrop.level));
-          const auto = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!) : colorFor(pal, "backdrop", i, 0);
+          const auto = pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!;
           const color = o.off ? BLACK : (o.color ?? auto);
           // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
           const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
@@ -508,7 +510,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
           const lv = o.off ? 0 : focused ? 1 : (o.level ?? (isHot ? base : base * 0.35)) * (focusing ? FOCUS_DIM : 1);
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
           // A side-to-side swap changes brightness only; each light keeps its color.
-          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, job, k, 0));
+          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(job, k, 0));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
             if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
@@ -540,7 +542,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
           const o = own(r);
           const focused = focusSet.has(r.fixtureId);
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : focused ? 1 : (o.level ?? levels.mover.level) * (focusing ? FOCUS_DIM : 1));
-          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(pal, "mover", k, 1)), sc);
+          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor("mover", k, 1)), sc);
           if (p.ptSpeed) setVal(aimVals, r.fixtureId, p.ptSpeed.channel, p.ptSpeed.fastIsLow ? 0 : 255);
           if (!o.off) beamValues(v, r.fixtureId, p, s.beam ?? {});
           if (!mv.algorithm) {
@@ -557,13 +559,13 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
       return out;
     };
 
-    if (period > 0 && palette.length > 1) {
-      const rotations = palette.map((_, k) => [...palette.slice(k), ...palette.slice(0, k)]);
-      const looks = rotations.map((pal, k) => b.collection(`Colors ${k + 1}`, path, look(pal, `(colors ${k + 1})`, false)));
+    const steps = colorSteps(s, paletteIds, period > 0);
+    if (steps > 1) {
+      const looks = Array.from({ length: steps }, (_, k) => b.collection(`Colors ${k + 1}`, path, look(k, `(colors ${k + 1})`, false)));
       const cf = s.colorFade ? Math.min(period / 2, 1500) : 0;
       parts.push(b.chaser("Color changes", path, looks.map((id) => ({ id, fadeIn: cf, hold: period - cf }))));
     } else {
-      parts.push(...look(palette, "", true));
+      parts.push(...look(0, "", true));
     }
 
     // ---- movement

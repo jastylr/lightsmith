@@ -15,6 +15,9 @@ import {
   patternById,
   sectionMs,
   moverCycleBeats,
+  COLOR_JOBS,
+  jobPalette,
+  switchesColors,
   barsForSeconds,
   openGobo,
   strobeRange,
@@ -902,36 +905,67 @@ function BrightnessEditor({ s, rig, onChange, gesture }: { s: Section; rig: Stor
   );
 }
 
-function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; onChange: (p: Partial<Section>) => void }) {
-  const jobs = (["backdrop", "side", "mover", "front"] as ColorJob[]).filter((j) => rig.fixtures.some((f) => f.role === j));
+function ColorLayoutEditor({ s, rig, palette, changing, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; changing: boolean; onChange: (p: Partial<Section>) => void }) {
+  const jobs = COLOR_JOBS.filter((j) => rig.fixtures.some((f) => f.role === j));
   if (!jobs.length) return null;
   const layout = colorLayoutOf(s);
   const set = (job: ColorJob, t: ColorTarget) => onChange({ colorLayout: { ...(s.colorLayout ?? {}), [job]: t } });
+  /** Click a color: from Mix or white, use just that color; otherwise add it or take it out (keeping at least one). */
+  const toggle = (job: ColorJob, c: string) => {
+    const v = layout[job];
+    const now = v === "mix" || v === "white" ? [] : (jobPalette(v, palette) as string[]);
+    if (!now.length) return set(job, [c]);
+    const next = now.includes(c) ? now.filter((x) => x !== c) : [...now, c];
+    if (next.length) set(job, palette.filter((x) => next.includes(x)));
+  };
+  const setSwitch = (job: ColorJob, on: boolean) => onChange({ colorSwitch: { ...(s.colorSwitch ?? {}), [job]: on } });
   return (
     <div className="color-layout">
       <h4 className="subhead">Which lights get which color</h4>
-      <p className="hint layout-hint">Mix spreads all your colors across those lights; a swatch puts them all in that one color; the last swatch is warm white.</p>
+      <p className="hint layout-hint">
+        Mix spreads all your colors across those lights. Or click colors to pick just the ones they use: one color puts them all in it, several spread just those. The last swatch is warm white.
+        {changing && " Switch decides which kinds of light change color as the section goes."}
+      </p>
       {jobs.map((job) => {
         const v = layout[job];
-        const current = typeof v === "number" ? v % palette.length : v;
+        const mode = v === "mix" ? "mix" : v === "white" ? "white" : "pick";
+        const chosen = mode === "pick" ? (jobPalette(v, palette) as string[]) : [];
+        const switching = switchesColors(s, job);
+        const canSwitch = changing && (mode === "mix" ? palette.length > 1 : chosen.length > 1);
         return (
           <div key={job} className="layout-row">
             <span className="layout-job">{JOB_LABEL[job]}</span>
-            <div className="layout-options" role="radiogroup" aria-label={`Color for ${JOB_LABEL[job]}`}>
-              <button type="button" role="radio" aria-checked={current === "mix"} className={current === "mix" ? "lo on" : "lo"} onClick={() => set(job, "mix")} title="Spread all the colors across these lights">
+            <div className="layout-options" role="group" aria-label={`Colors for ${JOB_LABEL[job]}`}>
+              <button type="button" aria-pressed={mode === "mix"} className={mode === "mix" ? "lo on" : "lo"} onClick={() => set(job, "mix")} title="Spread all the colors across these lights">
                 <span className="lo-mix" style={{ background: `conic-gradient(${palette.map(cssColor).join(", ")}, ${cssColor(palette[0]!)})` }} />
                 Mix
               </button>
-              {palette.map((c, i) => (
-                <button key={`${c}-${i}`} type="button" role="radio" aria-checked={current === i} className={current === i ? "lo on" : "lo"} onClick={() => set(job, i)} title={`All ${JOB_LABEL[job].toLowerCase()} lights in ${colorById(c).label.toLowerCase()}`}>
-                  <span className="lo-swatch" style={{ background: cssColor(c) }} />
-                  <span className="visually-hidden">{colorById(c).label}</span>
-                </button>
-              ))}
-              <button type="button" role="radio" aria-checked={current === "white"} className={current === "white" ? "lo on" : "lo"} onClick={() => set(job, "white")} title="Warm white">
+              {palette.map((c, i) => {
+                const on = chosen.includes(c);
+                return (
+                  <button
+                    key={`${c}-${i}`}
+                    type="button"
+                    aria-pressed={on}
+                    className={on ? "lo on" : "lo"}
+                    onClick={() => toggle(job, c)}
+                    title={on ? `Stop using ${colorById(c).label.toLowerCase()} on ${JOB_LABEL[job].toLowerCase()}` : `Use ${colorById(c).label.toLowerCase()} on ${JOB_LABEL[job].toLowerCase()}`}
+                  >
+                    <span className="lo-swatch" style={{ background: cssColor(c) }} />
+                    <span className="visually-hidden">{colorById(c).label}</span>
+                  </button>
+                );
+              })}
+              <button type="button" aria-pressed={mode === "white"} className={mode === "white" ? "lo on" : "lo"} onClick={() => set(job, "white")} title="Warm white">
                 <span className="lo-swatch" style={{ background: "#ffd9a8" }} />
                 <span className="visually-hidden">Warm white</span>
               </button>
+              {canSwitch && (
+                <button type="button" aria-pressed={switching} className={switching ? "lo lo-switch on" : "lo lo-switch"} onClick={() => setSwitch(job, !switching)} title={switching ? "These lights change color as the section goes; click to hold them steady" : "These lights hold their colors; click to let them change"}>
+                  <Icon name="reset" size={14} />
+                  {switching ? "Switch" : "Steady"}
+                </button>
+              )}
             </div>
           </div>
         );
@@ -1020,6 +1054,16 @@ function LookEditor({
   const hasMovers = rig.fixtures.some((f) => f.role === "mover");
   const positions = rig.positions ?? [];
   const aimed = s.aim ? positions.find((p) => p.id === s.aim) : undefined;
+  // A new color isn't handed to every light on "Mix": those keep the colors
+  // they had, and the new one goes only where it's picked.
+  const setColors = (colors: string[]) => {
+    const added = colors.some((c) => !palette.includes(c));
+    if (!added || !palette.length) return onChange({ colors });
+    const layoutNow = colorLayoutOf(s);
+    const kept = { ...(s.colorLayout ?? {}) };
+    for (const j of COLOR_JOBS) if (layoutNow[j] === "mix") kept[j] = [...palette];
+    onChange({ colors, colorLayout: kept });
+  };
   const cycleBeats = moverCycleBeats(s, MOVEMENTS.find((m) => m.id === moveId)?.bars ?? 0);
   const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
@@ -1060,7 +1104,7 @@ function LookEditor({
     mood: { summary: `${mood.label}, ${lower(energyOf(s.energy).label)} energy${Object.keys(s.brightness ?? {}).length ? ", own brightness" : ""}`, changed: Object.keys(s.brightness ?? {}).length > 0 },
     colors: {
       summary: `${palette.map((c) => colorById(c).label).join(", ")} · ${lower(COLOR_CHANGES.find((c) => c.id === changeId)?.label ?? "")}`,
-      changed: s.colors.length > 0 || Object.keys(s.colorLayout ?? {}).length > 0 || s.colorChange !== "mood" || s.colorFade,
+      changed: s.colors.length > 0 || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || s.colorChange !== "mood" || s.colorFade,
     },
     lights: { summary: ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : "Every light follows the settings above", changed: ownLights > 0 },
     pattern: { summary: pattern.algorithm ? `${pattern.label} on ${patternTargets(s, rig).length} lights` : pattern.label, changed: s.pattern !== "solid" },
@@ -1190,8 +1234,8 @@ function LookEditor({
           </Group>
 
           <Group card={card("colors")} icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">
-            <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={(colors) => onChange({ colors })} />
-            <ColorLayoutEditor s={s} rig={rig} palette={palette} onChange={onChange} />
+            <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
+            <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} />
             <div className="row">
               <Field label="Switch between colors">
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />

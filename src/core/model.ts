@@ -104,8 +104,12 @@ export type Focus = "all" | Side;
 
 /** The kinds of light that colors can be assigned to. */
 export type ColorJob = "backdrop" | "side" | "mover" | "front";
-/** "mix" spreads the palette across those lights, a number picks one palette color, "white" is warm white. */
-export type ColorTarget = "mix" | "white" | number;
+/**
+ * Which colors a kind of light uses: "mix" spreads the whole palette across
+ * them, a list spreads just those colors (palette entries), a number picks one
+ * palette color (older projects), and "white" is warm white.
+ */
+export type ColorTarget = "mix" | "white" | number | string[];
 export const DEFAULT_COLOR_LAYOUT: Record<ColorJob, ColorTarget> = { backdrop: "mix", side: "mix", mover: "mix", front: "white" };
 export type Transition = "snap" | "fade" | "build";
 
@@ -146,6 +150,8 @@ export interface Section {
   colorFade: boolean;
   /** Which palette color each kind of light uses (missing = DEFAULT_COLOR_LAYOUT). */
   colorLayout?: Partial<Record<ColorJob, ColorTarget>>;
+  /** Which kinds of light switch between their colors when the section's colors change (missing = yes). */
+  colorSwitch?: Partial<Record<ColorJob, boolean>>;
   /** Brightness (0–1) per kind of light; missing = automatic, from the mood and energy. */
   brightness?: Partial<Record<ColorJob, number>>;
   /** Settings for individual lights, by fixture ID. They win over everything above. */
@@ -260,7 +266,7 @@ export function newSection(type: string, bpm: number): Section {
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
   // Sections saved before patterns could be chosen followed the mood's; keep that look.
-  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, ...(s.beam ? { beam: { ...s.beam } } : {}), ...(s.sequences ? { sequences: s.sequences.map((u) => ({ ...u })) } : {}), ...(s.colorSwitch ? { colorSwitch: { ...s.colorSwitch } } : {}), lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };
@@ -356,6 +362,51 @@ export function sitsOut(s: Pick<Section, "lights">, fixtureId: number, what: "pa
 export function colorLayoutOf(s: Pick<Section, "mood" | "colorLayout">): Record<ColorJob, ColorTarget> {
   return { ...DEFAULT_COLOR_LAYOUT, ...(moodById(s.mood).layout ?? {}), ...(s.colorLayout ?? {}) };
 }
+
+/** The colors a kind of light uses, in palette order, or "white" for warm white. Never empty. */
+export function jobPalette(t: ColorTarget, palette: string[]): string[] | "white" {
+  if (t === "white") return "white";
+  if (typeof t === "number") return [palette[t % palette.length]!];
+  if (Array.isArray(t)) {
+    const chosen = palette.filter((c) => t.includes(c));
+    return chosen.length ? chosen : [palette[0]!];
+  }
+  return palette;
+}
+
+/** Whether a kind of light switches between its colors when the section's colors change. */
+export const switchesColors = (s: Pick<Section, "colorSwitch">, job: ColorJob) => s.colorSwitch?.[job] ?? true;
+
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+
+/**
+ * How many color steps a section's color changes go through: enough for
+ * every kind of light that switches to come back round (at most 12), or 0
+ * when nothing switches.
+ */
+export function colorSteps(s: Pick<Section, "colorSwitch" | "colorLayout" | "mood">, palette: string[], changes: boolean): number {
+  if (!changes) return 0;
+  const layout = colorLayoutOf(s);
+  const lengths = COLOR_JOBS.filter((j) => switchesColors(s, j)).map((j) => {
+    const set = jobPalette(layout[j], palette);
+    return set === "white" ? 1 : set.length;
+  }).filter((n) => n > 1);
+  if (!lengths.length) return 0;
+  return Math.min(12, lengths.reduce((a, b) => (a * b) / gcd(a, b)));
+}
+
+/**
+ * A light's color at a color step: the i-th light of a kind (stage left
+ * first) takes the i-th of its colors, moved on by `k` when it switches.
+ */
+export function jobColorAt(s: Pick<Section, "colorSwitch">, layout: Record<ColorJob, ColorTarget>, palette: string[], job: ColorJob, i: number, k: number, offset = 0): string {
+  const set = jobPalette(layout[job], palette);
+  if (set === "white") return "warmWhite";
+  const step = switchesColors(s, job) ? k : 0;
+  return set[(((i + offset + step) % set.length) + set.length) % set.length]!;
+}
+
+export const COLOR_JOBS: ColorJob[] = ["backdrop", "side", "mover", "front"];
 
 /** A Blackout section: every light off, for a gap, a pause or a dramatic stop. */
 export const isBlackout = (s: Pick<Section, "type">) => s.type === "blackout";

@@ -491,7 +491,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **Mood and energy:** the mood dropdown with groups, the energy meter, and per-kind **Brightness** sliders (Auto and Reset).
-- **Colors:** the palette chips; adding a gel or a custom color (the color wheel); "Which lights get which color" (Mix, single colors, warm white), where one color for the backdrop also colors its pattern; switching between colors.
+- **Colors:** the palette chips; adding a gel or a custom color (the color wheel); "Which lights get which color": Mix (all colors), or the colors you pick for each kind of light (one or several), or warm white; one color for the backdrop also colors its pattern; a new color is only used where you pick it; switching between colors, and Switch or Steady for each kind of light (`jobPalette`, `jobColorAt`, `colorSteps`, `switchesColors`). The design problem: a palette shared by the section, but chosen per kind of light, and stored by color rather than by position so removing a color doesn't scramble the rest.
 - **Individual lights:**
   - A mini stage for picking lights: click, Shift-click, or "All moving heads"; dots mark lights with their own settings.
   - Settings for the selected lights: color (Auto, palette colors, warm white, any gel or a custom color), brightness, and "Off for this section".

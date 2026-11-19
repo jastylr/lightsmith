@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from "react";
-import { COLOR_CHANGES, aimOf, moverCycleBeats, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, moverCycleBeats, colorSteps, jobColorAt, jobPalette, switchesColors, colorById, mountOf, toMs, type Sequence, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -66,7 +66,8 @@ export function StagePreview({
   const view = useMemo(() => {
     const mood = moodById(section.mood);
     const en = energyOf(section.energy);
-    const pal = (section.colors.length ? section.colors : mood.colors).map(css);
+    const ids = section.colors.length ? section.colors : mood.colors;
+    const pal = ids.map(css);
     const pattern = patternById(section.pattern === "mood" ? mood.pattern : section.pattern);
     const changeId = section.colorChange === "mood" ? mood.colorChange : section.colorChange;
     const change = COLOR_CHANGES.find((c) => c.id === changeId)!;
@@ -75,7 +76,7 @@ export function StagePreview({
     const moveId = section.movement === "mood" ? mood.movement : section.movement;
     const movement = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;
     const level = Math.max(0.2, Math.min(1, mood.intensity * en.level));
-    return { mood, en, pal, pattern, period, beat, movement, level };
+    return { mood, en, pal, ids, pattern, period, beat, movement, level };
   }, [section]);
 
   const { pal, pattern, period, beat, movement, level, en } = view;
@@ -86,7 +87,9 @@ export function StagePreview({
   const vis = (l: number) => 0.3 + 0.7 * l;
   const p0 = pal[0]!;
   const p1 = pal[1] ?? p0;
-  const rotating = period > 0 && pal.length > 1;
+  // Color steps, as in the export: only the kinds of light that switch move on.
+  const steps = colorSteps(section, view.ids, period > 0);
+  const rotating = steps > 1;
   const animate = !reduceMotion;
 
   // Fixtures from the rig, placed by their stage-plan position (audience view).
@@ -100,7 +103,6 @@ export function StagePreview({
   // Colors are handed out stage left first, the same way the export does it.
   const stageIndex = (list: { pos?: { x: number } }[], i: number) =>
     [...list.keys()].sort((a, b) => (list[b]!.pos?.x ?? 0) - (list[a]!.pos?.x ?? 0)).indexOf(i);
-  const under = pal.length > 2 ? pal.filter((_, k) => k !== 1) : [p0];
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
   const twinkles = (id: number) => sparkleOn.has(id);
   /** A light's own settings for this section (they win over everything else). */
@@ -112,15 +114,13 @@ export function StagePreview({
   const DARK_LENS = "#2c2832";
   const WARM = "#ffd9a8";
 
-  /** A fill that steps through the palette when colors change. */
-  const fill = (base: string, offset: number) => {
-    if (!rotating || !animate) return { fill: base, anim: null };
-    const k = pal.indexOf(base);
-    const order = [...pal.slice(k >= 0 ? k + offset : offset), ...pal.slice(0, k >= 0 ? k + offset : offset)];
-    const values = [...order, order[0]].join(";");
+  /** A fill that steps through a series of colors (one per color step). */
+  const series = (at: (k: number) => string) => {
+    const values = rotating ? Array.from({ length: steps }, (_, k) => at(k)) : [at(0)];
+    const changes = animate && values.some((v) => v !== values[0]);
     return {
-      fill: base,
-      anim: <animate attributeName="fill" values={values} dur={`${period * pal.length}s`} calcMode={section.colorFade ? "linear" : "discrete"} repeatCount="indefinite" />,
+      fill: values[0]!,
+      anim: changes ? <animate attributeName="fill" values={[...values, values[0]].join(";")} dur={`${period * values.length}s`} calcMode={section.colorFade ? "linear" : "discrete"} repeatCount="indefinite" /> : null,
     };
   };
 
@@ -132,18 +132,29 @@ export function StagePreview({
   const focusSet = new Set(section.focus === "all" ? [] : focusLights({ fixtures: rig.fixtures.filter((f) => f.role !== "ignore") }, section.focus));
   const focusing = focusSet.size > 0;
   const layout = colorLayoutOf(section);
-  /** Same rules as the export: mix spreads the palette; a number picks one color; "white" is warm white. */
-  const colorFor = (job: ColorJob, k: number, offset: number) => {
-    const t = layout[job];
-    if (t === "white") return WARM;
-    if (typeof t === "number") return pal[t % pal.length]!;
-    return pal[(k + offset) % pal.length]!;
+  /** Same rules as the export: each kind of light spreads its own colors, moved on at each color step. */
+  const colorAt = (job: ColorJob, k: number, step: number, offset: number) => (jobPalette(layout[job], view.ids) === "white" ? WARM : css(jobColorAt(section, layout, view.ids, job, k, step, offset)));
+  const colorFor = (job: ColorJob, k: number, offset: number) => colorAt(job, k, 0, offset);
+  const fillJob = (job: ColorJob, k: number, offset: number) => series((step) => colorAt(job, k, step, offset));
+  // The backdrop's colors: the pattern runs in the second over the others, or
+  // in the one color when there's only one (as in the export).
+  const bset = (() => {
+    const set = jobPalette(layout.backdrop, view.ids);
+    return set === "white" ? [WARM] : set.map(css);
+  })();
+  const bpal = (step: number) => {
+    const r = switchesColors(section, "backdrop") ? step : 0;
+    return bset.map((_, i) => bset[(i + r) % bset.length]!);
   };
-  const fixedBack = typeof layout.backdrop === "number" ? layout.backdrop : null;
-  const whiteBack = layout.backdrop === "white";
-  const main = whiteBack ? WARM : fixedBack !== null ? pal[fixedBack % pal.length]! : p0;
-  // One color for the backdrop means the pattern is that color too, as in the export.
-  const accent = whiteBack || fixedBack !== null ? main : p1;
+  const bMain = (step: number) => bpal(step)[0]!;
+  const bAccent = (step: number) => bpal(step)[1] ?? bpal(step)[0]!;
+  const bUnder = (step: number) => {
+    const p = bpal(step);
+    return p.length > 2 ? p.filter((_, j) => j !== 1) : [p[0]!];
+  };
+  const barColor = (i: number, step: number) => (pattern.id === "solid" ? bpal(step)[i % bset.length]! : bUnder(step)[i % bUnder(step).length]!);
+  const main = bMain(0);
+  const accent = bAccent(0);
   /** Rain and snow are lightened towards white, as in the export. */
   const whiten = (c: string) => (pattern.whiten ? `color-mix(in srgb, ${c} ${Math.round((1 - pattern.whiten) * 100)}%, white)` : c);
   // Rain: streaks run down each bar, each bar at its own moment.
@@ -245,7 +256,7 @@ export function StagePreview({
         const steady = focused || !!o.color;
         const dir = fx < W / 2 ? 1 : -1;
         const tx = fx + dir * Math.min(110, Math.abs(W / 2 - fx) * 0.5 + 30);
-        const c = fill(color, 0);
+        const c = fillJob("side", stageIndex(sides, i), 0);
         const paint = o.off ? DARK_LENS : steady ? color : c.fill;
         const anim = steady || o.off ? null : c.anim;
         const sideLevel = o.off ? 0 : focused ? 1 : (o.level ?? lv.side.level) * (focusing ? FOCUS_DIM : 1);
@@ -346,8 +357,7 @@ export function StagePreview({
           const k = backFx.length ? stageIndex(backFx, i) : i;
           const runsPattern = !!pattern.algorithm && patternOn.has(bar.id);
           const o = ownOf(bar.id);
-          const solidColor = layout.backdrop === "mix" ? (pattern.id === "solid" ? pal[k % pal.length]! : under[k % under.length]!) : colorFor("backdrop", k, 0);
-          const base = o.color ? { fill: o.color, anim: null } : fill(solidColor, 0);
+          const base = o.color ? { fill: o.color, anim: null } : series((step) => barColor(k, step));
           const backLevel = o.off ? 0 : (o.level ?? lv.backdrop.level);
           const floorLevel = o.off ? 0.04 : runsPattern ? Math.max(0.12, pattern.floor) * vis(backLevel) : vis(backLevel);
           // A bar lying flat is drawn turned on its side: along the truss when
@@ -366,7 +376,7 @@ export function StagePreview({
               {bar.upright && <rect x={x + barW / 2 - 4} y={topY + cells * cellH + 1.5} width="8" height={BACK - topY - cells * cellH - 1.5} fill="#141217" />}
               {Array.from({ length: cells }, (_, c) => {
                 const y = topY + c * cellH;
-                const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : fill(pattern.colors === 2 && c % 2 ? main : accent, 1);
+                const over = family === "rain" ? { fill: whiten(pattern.floor > 0 ? accent : main), anim: null } : series((step) => (pattern.colors === 2 && c % 2 ? bMain(step) : bAccent(step)));
                 let begin = 0;
                 const phase = rnd(i * 17 + 3) * rainDur;
                 if (family === "wave") begin = (Math.abs(c - (cells - 1) / 2) / cells) * cycle;
@@ -417,7 +427,7 @@ export function StagePreview({
         const hy = fy - 12 * sc;
         const moverFocused = focusSet.has(f.fixtureId);
         const o = ownOf(f.fixtureId);
-        const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fill(colorFor("mover", stageIndex(movers, i), 1), 0);
+        const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fillJob("mover", stageIndex(movers, i), 1);
         const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
         const dur = movement.bars ? moverCycleBeats(section, movement.bars) * beat : 0;
         // A head turned to face the back mirrors one facing the audience for the

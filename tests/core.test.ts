@@ -7,6 +7,9 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  jobPalette,
+  jobColorAt,
+  colorSteps,
   moverCycleBeats,
   chasersIn,
   importChaser,
@@ -725,4 +728,28 @@ test("moving-head speed: automatic from the energy, or set per section in beats"
   const rig = guessRig(ws.fixtures, profiles);
   generateSong({ ws, profiles, rig, song: { id: "m", title: "Fast", bpm: 120, sections: [{ ...auto, movement: "circle", moverBeats: 2 }] } });
   assert.match(serializeWorkspace(ws), /Type="EFX"[\s\S]*?<Speed FadeIn="0" FadeOut="0" Duration="1000"\/>/, "2 beats at 120 BPM is one second");
+});
+
+test("each kind of light can use just some colors, and only some kinds switch", () => {
+  const palette = ["magenta", "cyan", "amber", "blue"];
+  // Just two of the four colors.
+  assert.deepEqual(jobPalette(["cyan", "magenta"], palette), ["magenta", "cyan"], "kept in palette order");
+  assert.deepEqual(jobPalette(["gone"], palette), ["magenta"], "never empty");
+  const s = { ...newSection("chorus", 120), colors: palette, colorChange: "bar" as const, colorLayout: { backdrop: ["magenta", "cyan"], side: "mix" as const, front: "white" as const }, colorSwitch: { side: false } };
+  const layout = colorLayoutOf(s);
+  // Backdrop switches between its two colors; the side lights hold theirs.
+  assert.equal(jobColorAt(s, layout, palette, "backdrop", 0, 0), "magenta");
+  assert.equal(jobColorAt(s, layout, palette, "backdrop", 0, 1), "cyan");
+  assert.equal(jobColorAt(s, layout, palette, "side", 1, 0), "cyan");
+  assert.equal(jobColorAt(s, layout, palette, "side", 1, 3), "cyan");
+  // Movers (mix of 4) and backdrop (2) switch: 4 steps bring both round.
+  assert.equal(colorSteps(s, palette, true), 4);
+  assert.equal(colorSteps({ ...s, colorSwitch: { side: false, mover: false, backdrop: false } }, palette, true), 0, "nothing switches");
+  // The export makes one look per step.
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "c", title: "Picked colors", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.equal((xml.match(/Type="Collection" Name="Colors \d+"/g) ?? []).length, 4);
 });

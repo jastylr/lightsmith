@@ -3530,3 +3530,12 @@ body.is-resizing * {
   box-shadow: none;
   border: 1px dashed var(--faint);
 }
+
+.lo.lo-switch {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.7rem;
+  color: var(--muted);
+}
+.lo.lo-switch.on {
+  color: var(--text);
+}
