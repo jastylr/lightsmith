@@ -3519,3 +3519,14 @@ body.is-resizing * {
     grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
   }
 }
+.seq-step.seq-wait {
+  width: 3.6rem;
+  cursor: default;
+  border-style: dashed;
+  background: transparent;
+}
+.seq-step.seq-wait i {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--faint);
+}

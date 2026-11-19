@@ -134,7 +134,7 @@ export function SequencesCard({
                 <Icon name="x" size={15} />
               </button>
             </div>
-            {isOpen && <SequenceEditor q={q} bpm={s.bpm} lights={lights} palette={palette} onChange={replace} onDelete={() => destroy(q)} onPlay={() => onPlay(true)} />}
+            {isOpen && <SequenceEditor q={q} delay={u.delay} bpm={s.bpm} lights={lights} palette={palette} onChange={replace} onDelete={() => destroy(q)} onPlay={() => onPlay(true)} />}
           </div>
         );
       })}
@@ -159,7 +159,7 @@ export function SequencesCard({
 }
 
 /** Edit one sequence: its timing units and run order, and each step. */
-function SequenceEditor({ q, bpm, lights, palette, onChange, onDelete, onPlay }: { q: Sequence; bpm: number; lights: Light[]; palette: string[]; onChange: (q: Sequence) => void; onDelete: () => void; onPlay: () => void }) {
+function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, onPlay }: { q: Sequence; delay: number; bpm: number; lights: Light[]; palette: string[]; onChange: (q: Sequence) => void; onDelete: () => void; onPlay: () => void }) {
   const [sel, setSel] = useState(0);
   const i = Math.min(sel, q.steps.length - 1);
   const st = q.steps[i];
@@ -224,6 +224,13 @@ function SequenceEditor({ q, bpm, lights, palette, onChange, onDelete, onPlay }:
       </div>
 
       <div className="seq-strip" role="listbox" aria-label="Steps">
+        {delay > 0 && (
+          <div className="seq-step seq-wait" title={`In this section, the sequence starts ${delay} s in. Change it with "Starts after" above; the export puts it back as a first step.`}>
+            <span className="seq-step-n">Wait</span>
+            <i aria-hidden="true" />
+            <small>{delay} s</small>
+          </div>
+        )}
         {q.steps.map((x, k) => (
           <button
             key={x.id}
