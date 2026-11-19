@@ -3,7 +3,7 @@
  * fixture is used on stage. The user corrects the guess in the Rig step.
  */
 import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "./fixture";
-import { DEFAULT_HOME, sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
+import { defaultHome, isDefaultHome, sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
 import type { Placement, StageSize, WsFixture } from "./workspace";
 import type { FixtureSize } from "./fixture";
@@ -102,8 +102,6 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     const kept = old?.userSet ? old : undefined;
     const role = kept?.role ?? (p ? guessRole(p, f.place) : "ignore");
     const rf: RigFixture = kept ? { ...kept } : { fixtureId: f.id, role, side: "C", order: 0 };
-    // Keep a head's home when the rig is guessed again; only a new head gets the default.
-    if (role === "mover") rf.home = rf.home ?? old?.home ?? { ...DEFAULT_HOME };
     if (old?.moved) {
       rf.pos = old.pos;
       rf.height = old.height;
@@ -126,6 +124,13 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
       rf.height = undefined;
     }
     if (rf.upright === undefined && isBar(p)) rf.upright = true;
+    // Keep a head's home when the rig is guessed again; only a new head gets
+    // the default, leaning over the crowd whichever way it faces.
+    if (role === "mover") {
+      rf.home = rf.home ?? old?.home ?? defaultHome(rf.facesBack);
+      // A home still on the default follows the head if it now faces the other way.
+      if (old && !!old.facesBack !== !!rf.facesBack && isDefaultHome(rf.home, old.facesBack)) rf.home = defaultHome(rf.facesBack);
+    }
     delete rf.mount;
     out.push(rf);
   }

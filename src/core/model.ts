@@ -92,9 +92,19 @@ export interface MoverShape {
  * Where a new moving head rests until you set it. Tilt 128 is the middle of
  * the range, which points a head straight up (or down, hung), and a head
  * pointing straight up can only spin its beam in place. So it starts tilted
- * well away from the middle, near the tilt that worked on a real rig (70).
+ * well away from the middle, over the crowd: on a real rig (JCYW Flody) a
+ * tilt below 128 leans a head the way its base faces, so a head turned round
+ * to face the backdrop needs the mirror value (above 128) to lean forwards.
  */
 export const DEFAULT_HOME: PanTilt = { pan: 128, tilt: 80 };
+export function defaultHome(facesBack?: boolean): PanTilt {
+  return facesBack ? { pan: DEFAULT_HOME.pan, tilt: 256 - DEFAULT_HOME.tilt } : { ...DEFAULT_HOME };
+}
+/** True when a home is still the untouched default for one facing or the other. */
+export function isDefaultHome(home: PanTilt | undefined, facesBack?: boolean): boolean {
+  const d = defaultHome(facesBack);
+  return !!home && home.pan === d.pan && home.tilt === d.tilt;
+}
 
 /** Tilt within this of 128 points a floor-standing head (nearly) straight up. */
 export const UPRIGHT_TILT = 24;
@@ -129,9 +139,9 @@ export function moverCycleBeats(s: Pick<Section, "moverBeats" | "beatsPerBar" | 
  * Where a moving head points in a section: the section's saved position if it
  * has one for this head, otherwise the head's home position.
  */
-export function aimOf(s: Pick<Section, "aim">, rig: Pick<Rig, "positions">, f: Pick<RigFixture, "fixtureId" | "home">): PanTilt {
+export function aimOf(s: Pick<Section, "aim">, rig: Pick<Rig, "positions">, f: Pick<RigFixture, "fixtureId" | "home" | "facesBack">): PanTilt {
   const pos = s.aim ? rig.positions?.find((p) => p.id === s.aim) : undefined;
-  return pos?.aims[String(f.fixtureId)] ?? f.home ?? DEFAULT_HOME;
+  return pos?.aims[String(f.fixtureId)] ?? f.home ?? defaultHome(f.facesBack);
 }
 
 /**

@@ -9,6 +9,8 @@ import {
   guessRig,
   moverShapeAt,
   DEFAULT_HOME,
+  defaultHome,
+  isDefaultHome,
   UPRIGHT_TILT,
   colorRateOf,
   ratePeriodMs,
@@ -827,14 +829,17 @@ test("movement shape: size, exact width and height, rotation, nudges and fan", (
   if (offsets.length > 1) assert.deepEqual(offsets.slice(0, 2), [0, 90]);
 });
 
-test("a new moving head starts aimed away from straight up, and keeps its home when the rig is guessed again", () => {
+test("a new moving head starts leaning over the crowd, and keeps its home when the rig is guessed again", () => {
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles);
   const heads = rig.fixtures.filter((f) => f.role === "mover");
   if (!heads.length) return;
-  assert.deepEqual(heads[0]!.home, DEFAULT_HOME);
+  assert.deepEqual(heads[0]!.home, heads[0]!.facesBack ? defaultHome(true) : DEFAULT_HOME);
   assert.ok(Math.abs(DEFAULT_HOME.tilt - 128) >= UPRIGHT_TILT, "not pointing straight up");
+  // A head turned to face the backdrop gets the mirror tilt, so it leans forwards too.
+  assert.deepEqual(defaultHome(true), { pan: 128, tilt: 176 });
+  assert.ok(isDefaultHome({ pan: 128, tilt: 176 }, true) && !isDefaultHome({ pan: 128, tilt: 176 }, false));
   const own = { ...rig, fixtures: rig.fixtures.map((f) => (f.role === "mover" ? { ...f, home: { pan: 128, tilt: 128 } } : f)) };
   const again = guessRig(ws.fixtures, profiles, own);
   assert.deepEqual(again.fixtures.find((f) => f.role === "mover")!.home, { pan: 128, tilt: 128 }, "an existing rig is left as it was");

@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { DEFAULT_HOME, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { PositionsCard } from "./PositionsCard";
@@ -108,7 +108,7 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
       const p = store.profiles.get(id);
       const role = p ? guessRole(p, patch.pos) : "ignore";
       patch.role = role;
-      if (role === "mover") patch.home = f.home ?? DEFAULT_HOME;
+      if (role === "mover") patch.home = f.home ?? defaultHome(f.facesBack);
     }
     update(id, patch);
     setSelected(id);
@@ -535,7 +535,7 @@ function Inspector({
               style={{ "--job": ROLE_INFO[r].color } as CSSProperties}
               disabled={!canBe(r)}
               aria-pressed={rf.role === r}
-              onClick={() => onChange({ role: r, home: r === "mover" ? rf.home ?? DEFAULT_HOME : rf.home })}
+              onClick={() => onChange({ role: r, home: r === "mover" ? rf.home ?? defaultHome(rf.facesBack) : rf.home })}
             >
               <Icon name={ROLE_INFO[r].icon} size={20} />
               <span>{ROLE_INFO[r].label}</span>
@@ -606,7 +606,12 @@ function Inspector({
           <Segmented
             label="Which way it faces"
             value={rf.facesBack ? "back" : "front"}
-            onChange={(v: "front" | "back") => onChange({ facesBack: v === "back", moved: true })}
+            onChange={(v: "front" | "back") => {
+              const back = v === "back";
+              // A home still on the default follows the head round, so it keeps leaning over the crowd.
+              const home = isDefaultHome(rf.home, rf.facesBack) ? defaultHome(back) : rf.home;
+              onChange({ facesBack: back, moved: true, home });
+            }}
             options={[
               { value: "front", label: "The audience" },
               { value: "back", label: "The back" },
@@ -629,11 +634,11 @@ function Inspector({
                 type="range"
                 min={0}
                 max={255}
-                value={rf.home?.[axis] ?? 128}
+                value={(rf.home ?? defaultHome(rf.facesBack))[axis]}
                 aria-label={axis}
-                onChange={(e) => onChange({ home: { pan: rf.home?.pan ?? 128, tilt: rf.home?.tilt ?? 128, [axis]: +e.target.value } })}
+                onChange={(e) => onChange({ home: { ...(rf.home ?? defaultHome(rf.facesBack)), [axis]: +e.target.value } })}
               />
-              <NumberInput label={`${axis} value`} value={rf.home?.[axis] ?? 128} min={0} max={255} onChange={(v) => onChange({ home: { pan: rf.home?.pan ?? 128, tilt: rf.home?.tilt ?? 128, [axis]: Math.round(v) } })} />
+              <NumberInput label={`${axis} value`} value={(rf.home ?? defaultHome(rf.facesBack))[axis]} min={0} max={255} onChange={(v) => onChange({ home: { ...(rf.home ?? defaultHome(rf.facesBack)), [axis]: Math.round(v) } })} />
             </div>
           ))}
           <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="Runs each movement's shape the other way round, for example clockwise instead of anticlockwise." />
