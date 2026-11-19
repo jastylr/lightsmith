@@ -404,9 +404,11 @@ export function StagePreview({ section, rig, compact = false }: { section: Secti
         // Where the head points at rest (its section position or home). Only a
         // sketch: pan swings the beam left or right, and tilt away from the
         // middle shortens it, as if leaning towards or away from the audience.
-        // A head facing the back mirrors one facing the audience.
+        // Pan below the middle swings a head that faces the audience towards
+        // stage left (checked against a real pair: pan 42, tilt 70 on both, one
+        // turned to face the back, makes an X). A head facing the back mirrors it.
         const home = aimOf(section, rig, f);
-        const lean = Math.max(-70, Math.min(70, ((home.pan - 128) / 128) * 70)) * (f.facesBack ? -1 : 1);
+        const lean = Math.max(-70, Math.min(70, ((128 - home.pan) / 128) * 70)) * (f.facesBack ? -1 : 1);
         const reach = 1 - 0.45 * Math.min(1, Math.abs(home.tilt - 128) / 128);
         const rotateAnim = (cx: number, cy: number) =>
           animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;

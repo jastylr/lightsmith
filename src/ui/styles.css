@@ -1608,7 +1608,7 @@ body.is-resizing * {
   gap: 0.8rem;
 }
 .editor-controls {
-  padding: 1.2rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -1617,16 +1617,16 @@ body.is-resizing * {
   background: var(--house);
   border: 1px solid var(--line-soft);
   border-radius: 14px;
-  padding: 1.1rem 1.2rem 1.2rem;
+  padding: 1.5rem 1.75rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1.1rem;
 }
 .group-head {
   display: flex;
-  gap: 0.8rem;
+  gap: 0.9rem;
   align-items: flex-start;
-  padding-bottom: 0.85rem;
+  padding-bottom: 1.1rem;
   border-bottom: 1px solid var(--line-soft);
 }
 .group-icon {
@@ -1653,7 +1653,7 @@ body.is-resizing * {
 .group-body {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1.1rem;
 }
 .hint.center {
   text-align: center;
@@ -1722,7 +1722,7 @@ body.is-resizing * {
   align-items: flex-start;
   text-align: left;
   gap: 0.65rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.95rem 1.1rem;
   background: var(--deck);
 }
 .choice span:last-child {
@@ -1782,7 +1782,7 @@ body.is-resizing * {
   align-items: flex-start;
   text-align: left;
   gap: 0.6rem;
-  padding: 0.6rem 0.7rem;
+  padding: 0.85rem 1rem;
   color: var(--muted);
 }
 .effect > button span {
@@ -1826,7 +1826,7 @@ body.is-resizing * {
   align-items: center;
   gap: 0.4rem;
   height: 2.6rem;
-  padding: 0 0.7rem 0.75rem;
+  padding: 0 1rem 0.9rem;
   min-width: 0;
 }
 .effect-extra > .lights-chip {
@@ -2829,7 +2829,7 @@ body.is-resizing * {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0.9rem 1rem;
+  padding: 1.1rem 1.2rem;
   border: 1px solid var(--tungsten);
   border-radius: var(--r-md);
   background: rgba(242, 167, 59, 0.05);
@@ -3129,7 +3129,7 @@ body.is-resizing * {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--deck);
-  padding: 0.75rem;
+  padding: 1.1rem 1.2rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -3208,7 +3208,7 @@ body.is-resizing * {
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--deck);
-  padding: 0.75rem;
+  padding: 1.1rem 1.2rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
