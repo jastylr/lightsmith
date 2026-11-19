@@ -490,6 +490,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ### Chapter 19. Songs: Mood and energy, Colors, and Individual lights
 
 **On screen.**
+- **Your presets** (above the cards): save a section's whole look under a name, start any section from one (or add a new section from one in the Add menu), and update or delete the preset a section came from.
 - **Mood and energy:** the mood dropdown with groups, the energy meter, and per-kind **Brightness** sliders (Auto and Reset).
 - **Colors:** the palette chips (up to 10); adding a gel or a custom color (the color wheel, one `AddColor` popover reused on every row); a + on each row that adds a color for just that kind of light; "Which lights get which color": Mix (all colors), or the colors you pick for each kind of light (one or several), or warm white; one color for the backdrop also colors its pattern; a new color is only used where you pick it; switching between colors, and Switch or Steady for each kind of light (`jobPalette`, `jobColorAt`, `colorSteps`, `switchesColors`). The design problem: a palette shared by the section, but chosen per kind of light, and stored by color rather than by position so removing a color doesn't scramble the rest.
 - **Individual lights:**
@@ -500,6 +501,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Concepts.**
 - Settings that layer from general to specific (mood → kind of light → individual light), and showing "Auto" honestly.
+- Presets as data: which fields make up a "look" (`LOOK_KEYS`, `lookOf`) and which belong to the song (name, length, tempo); applying one so settings it doesn't have go back to their defaults (`applyLook`); deep copies so a preset never shares objects with a section (`structuredClone`).
 - A generic `Dropdown` with swatches and groups; HSV color math for the wheel; range inputs styled to match.
 - Selection state, including multi-select with modifier keys, and showing "Mixed" when the selected lights differ.
 - Updating a map of settings without leaving empty entries behind.

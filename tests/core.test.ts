@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  lookOf,
+  applyLook,
   jobPalette,
   jobColorAt,
   colorSteps,
@@ -752,4 +754,27 @@ test("each kind of light can use just some colors, and only some kinds switch", 
   generateSong({ ws, profiles, rig, song: { id: "c", title: "Picked colors", bpm: 120, sections: [s] } });
   const xml = serializeWorkspace(ws);
   assert.equal((xml.match(/Type="Collection" Name="Colors \d+"/g) ?? []).length, 4);
+});
+
+test("presets keep a section's whole look and apply it to any section", () => {
+  const src = { ...newSection("chorus", 140), name: "Chorus 1", bars: 16, mood: "colorful", colors: ["magenta", "cyan"], colorLayout: { backdrop: ["magenta"] }, moverBeats: 2, effects: { strobe: true } };
+  const p = { id: "p1", name: "Big chorus", type: src.type, look: lookOf(src) };
+  assert.equal((p.look as Record<string, unknown>).bars, undefined, "length isn't part of a look");
+  assert.equal((p.look as Record<string, unknown>).name, undefined);
+  // The preset doesn't share anything with the section it came from.
+  src.colors.push("amber");
+  assert.deepEqual(p.look.colors, ["magenta", "cyan"]);
+  // Applied to a verse: the look comes across; name, length and tempo stay.
+  const verse = { ...newSection("verse", 100), name: "Verse 2", bars: 8, focus: "SL" as const, aim: "pos1" };
+  const out = applyLook(verse, p);
+  assert.equal(out.mood, "colorful");
+  assert.deepEqual(out.colorLayout, { backdrop: ["magenta"] });
+  assert.equal(out.moverBeats, 2);
+  assert.equal(out.name, "Verse 2");
+  assert.equal(out.bars, 8);
+  assert.equal(out.bpm, 100);
+  assert.equal(out.preset, "p1");
+  // Settings the preset didn't have go back to their defaults.
+  assert.equal(out.focus, "all");
+  assert.equal(out.aim, undefined);
 });

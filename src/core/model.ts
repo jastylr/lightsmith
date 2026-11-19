@@ -169,6 +169,8 @@ export interface Section {
   beam?: BeamSettings;
   /** Sequences that run in this section. */
   sequences?: SequenceUse[];
+  /** The preset this section's look came from, if any. */
+  preset?: string;
   moverSpread: MoverSpread;
   focus: Focus;
   effects: SectionEffects;
@@ -223,12 +225,72 @@ export interface SequenceUse {
   delay: number;
 }
 
+/** The parts of a section a preset keeps: its whole look, but not its name, length or tempo. */
+export const LOOK_KEYS = [
+  "mood",
+  "energy",
+  "colors",
+  "colorLayout",
+  "colorSwitch",
+  "colorChange",
+  "colorFade",
+  "brightness",
+  "pattern",
+  "patternTargets",
+  "movement",
+  "moverSpread",
+  "moverBeats",
+  "aim",
+  "beam",
+  "focus",
+  "effects",
+  "effectTargets",
+  "lights",
+  "sequences",
+  "transition",
+] as const satisfies readonly (keyof Section)[];
+export type SectionLook = Partial<Pick<Section, (typeof LOOK_KEYS)[number]>>;
+
+/** A look the user saved, to start any section from. */
+export interface LookPreset {
+  id: string;
+  name: string;
+  /** The section type it was saved from, used when adding a section from it. */
+  type: string;
+  look: SectionLook;
+}
+
 export interface Project {
   version: 1;
   rig: Rig;
   songs: Song[];
   /** Sequences, shared by every song. */
   sequences?: Sequence[];
+  /** The user's own presets, shared by every song. */
+  presets?: LookPreset[];
+}
+
+/** A section's look, copied so the preset doesn't share anything with the section. */
+export function lookOf(s: Section): SectionLook {
+  const out: Record<string, unknown> = {};
+  for (const k of LOOK_KEYS) if (s[k] !== undefined) out[k] = structuredClone(s[k]);
+  return out as SectionLook;
+}
+
+/**
+ * A section with a preset's look applied: everything the preset keeps is
+ * replaced (settings it doesn't have go back to their defaults); the name,
+ * type, length and tempo stay.
+ */
+export function applyLook(s: Section, p: LookPreset): Section {
+  const fresh = newSection(s.type, s.bpm);
+  const next: Record<string, unknown> = { ...s };
+  for (const k of LOOK_KEYS) {
+    const v = p.look[k] ?? (fresh as unknown as Record<string, unknown>)[k];
+    if (v === undefined) delete next[k];
+    else next[k] = structuredClone(v);
+  }
+  return { ...(next as unknown as Section), preset: p.id };
 }
 
 let counter = 0;
@@ -287,6 +349,7 @@ export function normalizeProject(p: Project): Project {
     rig: { ...(p.rig ?? {}), fixtures: [...(p.rig?.fixtures ?? [])] },
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
     ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights] })) })) } : {}),
+    ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
   };
 }
 

@@ -14,6 +14,7 @@ import {
   newSection,
   patternById,
   sectionMs,
+  applyLook,
   moverCycleBeats,
   COLOR_JOBS,
   jobPalette,
@@ -23,6 +24,7 @@ import {
   strobeRange,
   type BeamSettings,
   type FixtureProfile,
+  type LookPreset,
   type Sequence,
   type StrobeSpeed,
   type Workspace,
@@ -53,6 +55,7 @@ import {
 import { AddColor, cssColor, MAX_COLORS, PaletteEditor } from "./ColorPicker";
 import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
 import { SequencesCard } from "./Sequences";
+import { PresetBar } from "./PresetBar";
 
 /**
  * Restarting the preview: `skip` starts sequences at once; `at` starts the
@@ -140,6 +143,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const move = (from: number, to: number) => set({ sections: moveItem(song.sections, from, to) });
   const add = (type: string) => {
     const s = newSection(type, song.bpm);
+    set({ sections: [...song.sections, s] });
+    setSelected(s.id);
+  };
+  const addFromPreset = (p: LookPreset) => {
+    const s = applyLook(newSection(p.type, song.bpm), p);
     set({ sections: [...song.sections, s] });
     setSelected(s.id);
   };
@@ -264,7 +272,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} />} gesture={gesture} />
+          <Timeline song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -274,7 +282,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -333,7 +341,7 @@ function SongStarter({ onAdd, onTemplate }: { onAdd: (type: string) => void; onT
   );
 }
 
-function AddSectionMenu({ onAdd }: { onAdd: (type: string) => void }) {
+function AddSectionMenu({ onAdd, presets = [], onAddPreset }: { onAdd: (type: string) => void; presets?: LookPreset[]; onAddPreset?: (p: LookPreset) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
@@ -366,6 +374,29 @@ function AddSectionMenu({ onAdd }: { onAdd: (type: string) => void }) {
               <small>{t.id === "blackout" ? "All lights off" : moodById(t.mood).label}</small>
             </button>
           ))}
+          {presets.length > 0 && onAddPreset && (
+            <>
+              <span className="menu-group">Your presets</span>
+              {presets.map((p) => (
+                <button
+                  key={p.id}
+                  role="menuitem"
+                  onClick={() => {
+                    onAddPreset(p);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="swatch-row">
+                    {(p.look.colors?.length ? p.look.colors : moodById(p.look.mood ?? "dark").colors).slice(0, 4).map((c, i) => (
+                      <i key={`${c}-${i}`} style={{ background: cssColor(c) }} />
+                    ))}
+                  </span>
+                  {p.name}
+                  <small>{sectionTypeById(p.type).label}</small>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1030,7 +1061,11 @@ function LookEditor({
   showFile,
   replay,
   onReplay,
+  presets,
+  onPresets,
 }: {
+  presets: LookPreset[];
+  onPresets: (next: LookPreset[]) => void;
   sequences: Sequence[];
   onSequences: (next: Sequence[]) => void;
   showFile: Workspace | null;
@@ -1246,6 +1281,7 @@ function LookEditor({
         </div>
 
         <div className="editor-controls">
+          {!blackout && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
           <div className="cards-bar">
             <button
               type="button"
