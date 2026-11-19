@@ -3539,3 +3539,19 @@ body.is-resizing * {
 .lo.lo-switch.on {
   color: var(--text);
 }
+.lo.lo-add {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  border-style: dashed;
+}
+.lo.lo-add:hover {
+  color: var(--text);
+  border-color: var(--tungsten);
+}
+.layout-options .popover-anchor {
+  display: inline-flex;
+}

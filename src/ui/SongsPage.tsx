@@ -50,7 +50,7 @@ import {
   type Song,
   type Transition,
 } from "../core";
-import { cssColor, PaletteEditor } from "./ColorPicker";
+import { AddColor, cssColor, MAX_COLORS, PaletteEditor } from "./ColorPicker";
 import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
 import { SequencesCard } from "./Sequences";
 
@@ -905,7 +905,22 @@ function BrightnessEditor({ s, rig, onChange, gesture }: { s: Section; rig: Stor
   );
 }
 
-function ColorLayoutEditor({ s, rig, palette, changing, onChange }: { s: Section; rig: Store["project"]["rig"]; palette: string[]; changing: boolean; onChange: (p: Partial<Section>) => void }) {
+function ColorLayoutEditor({
+  s,
+  rig,
+  palette,
+  changing,
+  onChange,
+  onAddToJob,
+}: {
+  s: Section;
+  rig: Store["project"]["rig"];
+  palette: string[];
+  changing: boolean;
+  onChange: (p: Partial<Section>) => void;
+  /** Add a color (new to the section or not) to just one kind of light. */
+  onAddToJob: (job: ColorJob, color: string) => void;
+}) {
   const jobs = COLOR_JOBS.filter((j) => rig.fixtures.some((f) => f.role === j));
   if (!jobs.length) return null;
   const layout = colorLayoutOf(s);
@@ -960,6 +975,14 @@ function ColorLayoutEditor({ s, rig, palette, changing, onChange }: { s: Section
                 <span className="lo-swatch" style={{ background: "#ffd9a8" }} />
                 <span className="visually-hidden">Warm white</span>
               </button>
+              <AddColor
+                compact
+                label={`Add a color for ${JOB_LABEL[job].toLowerCase()}`}
+                title={`Add a color just for ${JOB_LABEL[job].toLowerCase()}`}
+                chosen={mode === "mix" ? palette : chosen}
+                full={palette.length >= MAX_COLORS}
+                onAdd={(c) => onAddToJob(job, c)}
+              />
               {canSwitch && (
                 <button type="button" aria-pressed={switching} className={switching ? "lo lo-switch on" : "lo lo-switch"} onClick={() => setSwitch(job, !switching)} title={switching ? "These lights change color as the section goes; click to hold them steady" : "These lights hold their colors; click to let them change"}>
                   <Icon name="reset" size={14} />
@@ -1063,6 +1086,21 @@ function LookEditor({
     const kept = { ...(s.colorLayout ?? {}) };
     for (const j of COLOR_JOBS) if (layoutNow[j] === "mix") kept[j] = [...palette];
     onChange({ colors, colorLayout: kept });
+  };
+  /** A color for one kind of light only: added to the section's colors if it's new, and picked for that row. */
+  const addToJob = (job: ColorJob, c: string) => {
+    const layoutNow = colorLayoutOf(s);
+    const v = layoutNow[job];
+    const current = v === "white" ? [] : v === "mix" ? [...palette] : (jobPalette(v, palette) as string[]);
+    if (current.includes(c)) return;
+    const isNew = !palette.includes(c);
+    if (isNew && palette.length >= MAX_COLORS) return;
+    const colors = isNew ? [...palette, c] : palette;
+    const next = { ...(s.colorLayout ?? {}) };
+    // Rows on Mix keep the colors they had, so the new one goes only here.
+    if (isNew) for (const j of COLOR_JOBS) if (j !== job && layoutNow[j] === "mix") next[j] = [...palette];
+    next[job] = colors.filter((x) => current.includes(x) || x === c);
+    onChange({ colors, colorLayout: next });
   };
   const cycleBeats = moverCycleBeats(s, MOVEMENTS.find((m) => m.id === moveId)?.bars ?? 0);
   const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
@@ -1233,9 +1271,9 @@ function LookEditor({
             <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />
           </Group>
 
-          <Group card={card("colors")} icon="palette" title="Colors" description="Pick up to 6 colors, then choose which lights use them and whether they change over time.">
+          <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color just for those lights.`}>
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
-            <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} />
+            <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} onAddToJob={addToJob} />
             <div className="row">
               <Field label="Switch between colors">
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />

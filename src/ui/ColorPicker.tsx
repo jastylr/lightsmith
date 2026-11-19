@@ -8,7 +8,8 @@ export const cssColor = (id: string) => {
   return `rgb(${r},${g},${b})`;
 };
 
-const MAX_COLORS = 6;
+/** Colors in one section. QLC+ itself has no such limit; a pattern uses up to five of them. */
+export const MAX_COLORS = 10;
 
 function hsvToRgb(h: number, s: number, v: number): RGB {
   const f = (n: number) => {
@@ -74,13 +75,113 @@ function ColorWheel({ value, onChange }: { value: RGB; onChange: (rgb: RGB) => v
 }
 
 /** The section's palette: gels or custom colors, with a picker to add more. */
-export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]; fallback: string[]; onChange: (c: string[]) => void }) {
+/**
+ * "Add color": a popover with the gel list and a color wheel. `chosen` marks
+ * colors already in use; picking one of those takes it out again, when
+ * `onRemove` is given.
+ */
+export function AddColor({
+  chosen,
+  full,
+  onAdd,
+  onRemove,
+  label = "Add color",
+  compact = false,
+  title,
+}: {
+  chosen: string[];
+  full: boolean;
+  onAdd: (id: string) => void;
+  onRemove?: (id: string) => void;
+  label?: string;
+  compact?: boolean;
+  title?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"gels" | "custom">("gels");
   const [custom, setCustom] = useState<RGB>([255, 120, 40]);
   const [hex, setHex] = useState("#ff7828");
   const pop = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), pop);
+  return (
+    <div className="popover-anchor" ref={pop}>
+      <button
+        type="button"
+        className={compact ? "lo lo-add" : "ghost small"}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        disabled={full && !onRemove}
+        title={title ?? (full ? `Up to ${MAX_COLORS} colors` : undefined)}
+        aria-label={compact ? label : undefined}
+      >
+        <Icon name="plus" size={14} />
+        {!compact && ` ${label}`}
+      </button>
+      {open && (
+        <div className="popover color-popover" role="dialog" aria-label={label}>
+          <div className="tabs">
+            <button type="button" className={tab === "gels" ? "on" : ""} onClick={() => setTab("gels")}>
+              <Icon name="palette" size={15} /> Gels
+            </button>
+            <button type="button" className={tab === "custom" ? "on" : ""} onClick={() => setTab("custom")}>
+              <Icon name="wheel" size={15} /> Color wheel
+            </button>
+          </div>
+          {tab === "gels" ? (
+            <div className="gel-grid">
+              {COLORS.map((c) => {
+                const on = chosen.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={on ? "gel on" : "gel"}
+                    style={{ "--c": cssColor(c.id) } as CSSProperties}
+                    disabled={!on && full}
+                    onClick={() => (on ? onRemove?.(c.id) : onAdd(c.id))}
+                    aria-pressed={on}
+                  >
+                    <i />
+                    <span>{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="custom-color">
+              <ColorWheel
+                value={custom}
+                onChange={(rgb) => {
+                  setCustom(rgb);
+                  setHex(rgbToHex(rgb));
+                }}
+              />
+              <div className="custom-row">
+                <span className="custom-preview" style={{ background: rgbToHex(custom) }} />
+                <input
+                  aria-label="Hex color"
+                  value={hex}
+                  onChange={(e) => {
+                    setHex(e.target.value);
+                    const rgb = hexToRgb(e.target.value);
+                    if (rgb) setCustom(rgb);
+                  }}
+                  spellCheck={false}
+                />
+                <button type="button" className="primary small" disabled={full} onClick={() => onAdd(rgbToHex(custom))}>
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+          <p className="popover-foot">Up to {MAX_COLORS} colors in a section. Each kind of light uses the ones you pick for it below.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]; fallback: string[]; onChange: (c: string[]) => void }) {
   const using = colors.length ? colors : fallback;
   const add = (id: string) => {
     // Adding to the mood's colors starts from them, so nothing disappears.
@@ -118,63 +219,7 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
             )}
           </span>
         ))}
-        <div className="popover-anchor" ref={pop}>
-          <button type="button" className="ghost small" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={colors.length >= MAX_COLORS}>
-            <Icon name="plus" size={14} /> Add color
-          </button>
-          {open && (
-            <div className="popover color-popover" role="dialog" aria-label="Add a color">
-              <div className="tabs">
-                <button type="button" className={tab === "gels" ? "on" : ""} onClick={() => setTab("gels")}>
-                  <Icon name="palette" size={15} /> Gels
-                </button>
-                <button type="button" className={tab === "custom" ? "on" : ""} onClick={() => setTab("custom")}>
-                  <Icon name="wheel" size={15} /> Color wheel
-                </button>
-              </div>
-              {tab === "gels" ? (
-                <div className="gel-grid">
-                  {COLORS.map((c) => {
-                    const on = colors.includes(c.id);
-                    return (
-                      <button key={c.id} type="button" className={on ? "gel on" : "gel"} style={{ "--c": cssColor(c.id) } as CSSProperties} onClick={() => (on ? onChange(colors.filter((x) => x !== c.id)) : add(c.id))} aria-pressed={on}>
-                        <i />
-                        <span>{c.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="custom-color">
-                  <ColorWheel
-                    value={custom}
-                    onChange={(rgb) => {
-                      setCustom(rgb);
-                      setHex(rgbToHex(rgb));
-                    }}
-                  />
-                  <div className="custom-row">
-                    <span className="custom-preview" style={{ background: rgbToHex(custom) }} />
-                    <input
-                      aria-label="Hex color"
-                      value={hex}
-                      onChange={(e) => {
-                        setHex(e.target.value);
-                        const rgb = hexToRgb(e.target.value);
-                        if (rgb) setCustom(rgb);
-                      }}
-                      spellCheck={false}
-                    />
-                    <button type="button" className="primary small" onClick={() => add(rgbToHex(custom))}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-              )}
-              <p className="popover-foot">Up to {MAX_COLORS} colors. They're spread across your lights; to cycle them over time, choose how often to switch below.</p>
-            </div>
-          )}
-        </div>
+        <AddColor chosen={colors} full={using.length >= MAX_COLORS} onAdd={add} onRemove={colors.length ? (id) => onChange(colors.filter((x) => x !== id)) : undefined} />
         {colors.length > 0 && (
           <button type="button" className="link small" onClick={() => onChange([])}>
             Use the mood's colors
