@@ -14,7 +14,7 @@ import type { FixtureProfile, HeadProfile } from "./fixture";
 import { colorLayoutOf, lightLevels, lightSetting, type ColorJob, type Rig, type RigFixture, type Song } from "./model";
 import { isBlackout, sectionMs } from "./model";
 import { COLOR_CHANGES, colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
-import { effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
+import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, writePlaces, type Workspace } from "./workspace";
 
@@ -198,7 +198,20 @@ export function generateSong({ ws, profiles, rig, song }: GenerateInput): Genera
   const engine = ws.engine;
 
   // 0. Lights moved in Lightsmith: move them in QLC+'s 3D view too.
-  writePlaces(ws, new Map(rig.fixtures.filter((f) => f.moved && f.pos).map((f) => [f.fixtureId, { x: f.pos!.x, y: f.pos!.y, height: f.height ?? 0, upright: f.upright, facesBack: profiles.get(f.fixtureId)?.isMover ? !!f.facesBack : undefined }])));
+  // QLC+ places a fixture by its corner, Lightsmith by its middle.
+  const stage = ws.stage;
+  if (stage)
+    writePlaces(
+      ws,
+      new Map(
+        rig.fixtures
+          .filter((f) => f.moved && f.pos)
+          .map((f) => {
+            const p = profiles.get(f.fixtureId);
+            return [f.fixtureId, { ...cornerOf(f, p, stage), upright: f.upright, facesBack: p?.isMover ? !!f.facesBack : undefined }];
+          }),
+      ),
+    );
 
   // 1. Remove what a previous export of this song created.
   let removed = removeWhere(engine, (e) => {

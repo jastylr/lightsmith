@@ -892,7 +892,7 @@ function LookEditor({
 
   const moodOptions: Option<string>[] = MOODS.map((m) => ({ value: m.id, label: m.label, description: m.description, swatches: m.colors.map(cssColor), group: m.group ?? "Moods" }));
   const patternOptions: Option<string>[] = [
-    { value: "mood", label: `Follow the mood (${moodPattern.label})`, description: moodPattern.description },
+    { value: "mood", label: `The mood's pattern (${moodPattern.label})`, description: `${moodPattern.description}, the pattern the ${mood.label} mood suggests` },
     ...PATTERNS.map((p) => ({ value: p.id, label: p.label, description: p.description, group: PATTERN_GROUP[p.id] ?? "More" })),
   ];
   const moveIcon = (path: string) => (
@@ -973,7 +973,7 @@ function LookEditor({
         <div className="editor-controls">
           {!blackout && (
             <>
-          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors, a pattern and movement; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
+          <Group icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
             <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />

@@ -560,7 +560,7 @@ function Inspector({
             <button
               type="button"
               className="ghost small"
-              onClick={() => onChange({ pos: { x: fixture.place!.x, y: fixture.place!.y }, height: fixture.place!.height, upright: isBar(profile) ? fixture.place!.upright : rf.upright, moved: false })}
+              onClick={() => onChange({ moved: false })}
             >
               Put it back where QLC+ has it
             </button>

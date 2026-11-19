@@ -139,7 +139,8 @@ export function newSection(type: string, bpm: number): Section {
     colors: [],
     colorChange: "mood",
     colorFade: false,
-    pattern: "mood",
+    // A plain wash until the user picks a pattern; each mood suggests one.
+    pattern: "solid",
     movement: "mood",
     moverSpread: "together",
     focus: "all",
@@ -152,7 +153,8 @@ export function newSection(type: string, bpm: number): Section {
 /** Fill in fields added after a section was saved. */
 export function normalizeSection(s: Partial<Section> & { id: string }): Section {
   const base = newSection(s.type ?? "custom", s.bpm ?? 120);
-  const out: Section = { ...base, ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
+  // Sections saved before patterns could be chosen followed the mood's; keep that look.
+  const out: Section = { ...base, pattern: "mood", ...s, effects: { ...(s.effects ?? {}) }, colors: [...(s.colors ?? [])], effectTargets: { ...(s.effectTargets ?? {}) }, colorLayout: { ...(s.colorLayout ?? {}) }, brightness: { ...(s.brightness ?? {}) }, lights: Object.fromEntries(Object.entries(s.lights ?? {}).map(([k, v]) => [k, { ...v }])) };
   // Version 0.2 had a "Rain" effect; it's now the Drizzle pattern. Keep the
   // drizzle where there was no other pattern, on the same lights.
   const old = out.effects as SectionEffects & { rain?: boolean };

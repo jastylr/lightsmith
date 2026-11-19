@@ -6,6 +6,7 @@ import { buildProfile, fixtureKey, type FixtureDef, type FixtureProfile } from "
 import { sideFromX, sitsOut, type Rig, type RigFixture, type Role, type Section, type Side } from "./model";
 import type { EffectId } from "./presets";
 import type { Placement, StageSize, WsFixture } from "./workspace";
+import type { FixtureSize } from "./fixture";
 
 export interface ProfileResult {
   profiles: Map<number, FixtureProfile>;
@@ -51,6 +52,34 @@ export function guessRole(p: FixtureProfile, place?: Pick<Placement, "y">): Role
   return "side";
 }
 
+/** QLC+'s size for a fixture whose definition doesn't give one, in millimetres. */
+const UNKNOWN_SIZE_MM = 300;
+
+/** A fixture's size in millimetres: its mode's, else its definition's, else a guess. */
+export function fixtureSize(p: FixtureProfile | undefined): FixtureSize {
+  const s = p?.mode.size ?? p?.def.size;
+  return { width: s?.width || UNKNOWN_SIZE_MM, height: s?.height || UNKNOWN_SIZE_MM, depth: s?.depth || UNKNOWN_SIZE_MM };
+}
+
+/**
+ * QLC+'s 3D view positions a fixture by its corner: the smallest x, y and z of
+ * its box before any rotation (which turns it about its middle). Lightsmith
+ * keeps the middle, so add half the fixture's size.
+ */
+export function centreOf(place: Placement, p: FixtureProfile | undefined, stage: StageSize): Placement {
+  const s = fixtureSize(p);
+  const half = (mm: number, m: number) => mm / 2 / 1000 / m;
+  const height = Math.min(1, place.height + half(s.height, stage.height));
+  return { ...place, x: Math.min(1, place.x + half(s.width, stage.width)), y: place.y + half(s.depth, stage.depth), height };
+}
+
+/** The other way: where QLC+ should put a fixture's corner so its middle is at `rf`'s place. */
+export function cornerOf(rf: Pick<RigFixture, "pos" | "height">, p: FixtureProfile | undefined, stage: StageSize): { x: number; y: number; height: number } {
+  const s = fixtureSize(p);
+  const half = (mm: number, m: number) => mm / 2 / 1000 / m;
+  return { x: rf.pos!.x - half(s.width, stage.width), y: rf.pos!.y - half(s.depth, stage.depth), height: Math.max(0, (rf.height ?? 0) - half(s.height, stage.height)) };
+}
+
 /** Bars and pixel strips: the lights that can stand on their end. */
 export function isBar(p: FixtureProfile | undefined): boolean {
   if (!p) return false;
@@ -81,8 +110,9 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
       rf.facesBack = old.facesBack;
       rf.moved = true;
     } else if (f.place) {
-      rf.pos = { x: f.place.x, y: f.place.y };
-      rf.height = f.place.height;
+      const c = stage ? centreOf(f.place, p, stage) : f.place;
+      rf.pos = { x: c.x, y: c.y };
+      rf.height = c.height;
       rf.upright = isBar(p) ? f.place.upright : undefined;
       rf.facesBack = p?.isMover && f.place.facesBack ? true : undefined;
       delete rf.moved;

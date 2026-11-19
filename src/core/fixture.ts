@@ -3,7 +3,7 @@
  * one mode of a definition: which channels carry dimmer, color, pan/tilt and
  * shutter, grouped into heads.
  */
-import { childElements, childText, firstChild, getAttr, parseXml, textOf } from "./xml";
+import { childElements, childText, firstChild, getAttr, parseXml, textOf, type XmlElement } from "./xml";
 
 export type ChannelKind =
   | "masterDimmer"
@@ -51,6 +51,25 @@ export interface ModeDef {
   name: string;
   channels: string[]; // channel names, by DMX offset
   heads: number[][]; // channel offsets per head
+  /** This mode's own physical size, when it has one. */
+  size?: FixtureSize;
+}
+
+/** A fixture's physical size in millimetres, from <Physical><Dimensions/>. */
+export interface FixtureSize {
+  width: number;
+  height: number;
+  depth: number;
+}
+
+/** Read <Physical><Dimensions Width Height Depth/> below `e`; sizes of 0 count as unknown. */
+function sizeIn(e: XmlElement): FixtureSize | undefined {
+  const physical = firstChild(e, "Physical");
+  const dims = physical ? firstChild(physical, "Dimensions") : undefined;
+  if (!dims) return undefined;
+  const mm = (a: string) => Math.max(0, Number(getAttr(dims, a) ?? 0) || 0);
+  const size = { width: mm("Width"), height: mm("Height"), depth: mm("Depth") };
+  return size.width || size.height || size.depth ? size : undefined;
 }
 
 export interface FixtureDef {
@@ -59,6 +78,8 @@ export interface FixtureDef {
   type: string;
   channels: Map<string, ChannelDef>;
   modes: ModeDef[];
+  /** The physical size most modes share. */
+  size?: FixtureSize;
 }
 
 const COLOR_KINDS: Record<string, ChannelKind> = {
@@ -140,7 +161,7 @@ export function parseFixtureDef(xml: string): FixtureDef {
     const chs: string[] = [];
     for (const c of childElements(m, "Channel")) chs[Number(getAttr(c, "Number") ?? chs.length)] = textOf(c).trim();
     const heads = childElements(m, "Head").map((h) => childElements(h, "Channel").map((c) => Number(textOf(c))));
-    return { name: getAttr(m, "Name") ?? "", channels: chs, heads };
+    return { name: getAttr(m, "Name") ?? "", channels: chs, heads, size: sizeIn(m) };
   });
   return {
     manufacturer: childText(root, "Manufacturer") ?? "",
@@ -148,6 +169,7 @@ export function parseFixtureDef(xml: string): FixtureDef {
     type: childText(root, "Type") ?? "",
     channels,
     modes,
+    size: sizeIn(root),
   };
 }
 

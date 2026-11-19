@@ -7,6 +7,7 @@ import {
   focusLights,
   generateSong,
   guessRig,
+  fixtureSize,
   isBar,
   mountOf,
   defaultPosition,
@@ -164,6 +165,8 @@ test("sections saved by older versions are filled in", () => {
 
 test("new songs start empty, and templates number repeated sections", () => {
   assert.equal(newSong("x", 100).sections.length, 0);
+  // A new section is a plain wash until a pattern is picked.
+  assert.equal(newSection("intro", 100).pattern, "solid");
   const s = sectionsFromTemplate("bridge", 100);
   assert.deepEqual(s.map((x) => x.name), ["Intro", "Verse 1", "Chorus 1", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"]);
   assert.ok(s.every((x) => x.bpm === 100));
@@ -500,7 +503,10 @@ test("the stage layout comes from QLC+'s 3D view, and lights moved here are writ
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles, undefined, ws.stage);
   const rf = (id: number) => rig.fixtures.find((f) => f.fixtureId === id)!;
-  assert.deepEqual(rf(1).pos, { x: 0.9, y: 0.1 });
+  // QLC+ places fixtures by their corner; Lightsmith keeps their middle.
+  const size = fixtureSize(profiles.get(1));
+  assert.ok(Math.abs(rf(1).pos!.x - (4500 + size.width / 2) / 5000) < 1e-9);
+  assert.ok(Math.abs(rf(1).pos!.y - (400 + size.depth / 2) / 4000) < 1e-9);
   assert.equal(rf(1).side, "SL");
   assert.equal(rf(3).side, "SR");
   // The job doesn't follow the position: it's guessed from what the light can do.
@@ -509,7 +515,8 @@ test("the stage layout comes from QLC+'s 3D view, and lights moved here are writ
   const moved = { ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === 1 ? { ...f, pos: { x: 0.5, y: 0.5 }, height: 0.5, moved: true } : f)) };
   generateSong({ ws, profiles, rig: moved, song: { id: "s", title: "Layout", bpm: 120, sections: [newSection("verse", 120)] } });
   const out = serializeWorkspace(ws);
-  assert.match(out, /<FxItem ID="1" XPos="2500" YPos="1500" ZPos="2000"\/>/);
+  const mm = (v: number) => String(Math.round(v * 100) / 100);
+  assert.ok(out.includes(`<FxItem ID="1" XPos="${mm(2500 - size.width / 2)}" YPos="${mm(1500 - size.height / 2)}" ZPos="${mm(2000 - size.depth / 2)}"/>`), "moved fixture written back by its corner");
   // Lights not moved here are left exactly as QLC+ had them.
   assert.match(out, /<FxItem ID="3" XPos="500" YPos="1500" ZPos="4400"\/>/);
 });
@@ -532,4 +539,15 @@ test("a moving head turned to face the back comes from QLC+'s Invert pan, and go
   const item = serializeWorkspace(ws).split("\n").find((l) => l.includes(`<FxItem ID="${moverId}"`))!;
   assert.ok(!item.includes("InvertedPan"));
   assert.ok(item.includes('XRot="180"'));
+});
+
+test("fixture sizes come from the definition, and a mode's own size wins", () => {
+  const def = parseFixtureDef(`<?xml version="1.0"?><FixtureDefinition><Manufacturer>M</Manufacturer><Model>Bar</Model><Type>LED Bar (Pixels)</Type>
+<Channel Name="Red"><Group Byte="0">Intensity</Group><Colour>Red</Colour></Channel>
+<Mode Name="A"><Channel Number="0">Red</Channel></Mode>
+<Mode Name="B"><Channel Number="0">Red</Channel><Physical><Dimensions Width="500" Height="50" Depth="40"/></Physical></Mode>
+<Physical><Dimensions Weight="0" Width="1000" Height="100" Depth="27"/></Physical></FixtureDefinition>`);
+  assert.deepEqual(fixtureSize(buildProfile(def, "A")), { width: 1000, height: 100, depth: 27 });
+  assert.deepEqual(fixtureSize(buildProfile(def, "B")), { width: 500, height: 50, depth: 40 });
+  assert.deepEqual(fixtureSize(undefined), { width: 300, height: 300, depth: 300 });
 });
