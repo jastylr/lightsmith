@@ -529,7 +529,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **On screen.**
 - **Effects:** uniform tiles, On/Off, each effect's lights chip, and lightning's delay.
-- **Sequences:** your own chasers. Add one from a quick start (Lightning, Chase across, Bounce, Sides take turns, Random flashes), an empty sequence, or a chaser imported from the show file; set when it starts; edit its steps on a strip (lights on a mini stage, color, brightness, fade in, hold, fade out, pauses), its run order and its units (milliseconds or beats); play it in the preview.
+- **Sequences:** your own chasers. Add one from a quick start (Lightning, Chase across, Bounce, Sides take turns, Random flashes), an empty sequence, or a chaser imported from the show file; set when it starts; edit its steps on a strip (lights on a mini stage, color, brightness, fade in, hold, fade out, pauses), its run order and its units (milliseconds or beats); play it in the preview. The section's start delay shows as a dashed Wait marker at the front of the strip, a fix after the band's first import made the opening wait look lost.
 - **Start and end:** change instantly, fade or build; wait for a cue or move on after the section's length. Blackouts get cut-to-black and fade-to-black instead.
 
 **Concepts.** Equal-height grids; choice cards as accessible radio groups; wording settings in user terms rather than QLC+ terms; how each choice becomes engine output (previewed here, implemented in Chapter 22).
