@@ -776,7 +776,7 @@ function BrightnessEditor({ s, rig, onChange, gesture }: { s: Section; rig: Stor
   };
   return (
     <div className="light-brightness">
-      <span className="light-picker-label">Brightness</span>
+      <h4 className="subhead">Brightness</h4>
       {jobs.map((job) => {
         const { level, auto } = levels[job];
         const pct = Math.round(level * 100);
@@ -819,7 +819,7 @@ function ColorLayoutEditor({ s, rig, palette, onChange }: { s: Section; rig: Sto
   const set = (job: ColorJob, t: ColorTarget) => onChange({ colorLayout: { ...(s.colorLayout ?? {}), [job]: t } });
   return (
     <div className="color-layout">
-      <span className="light-picker-label">Which lights get which color</span>
+      <h4 className="subhead">Which lights get which color</h4>
       <p className="hint layout-hint">Mix spreads all your colors across those lights; a swatch puts them all in that one color; the last swatch is warm white.</p>
       {jobs.map((job) => {
         const v = layout[job];
@@ -1152,7 +1152,7 @@ function LookEditor({
           )}
 
           <Group icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
-            <span className="light-picker-label">When this section starts, the lights…</span>
+            <h4 className="subhead">When this section starts, the lights…</h4>
             {blackout ? (
               <ChoiceCards
                 label="How the lights go out"
@@ -1175,7 +1175,7 @@ function LookEditor({
                 ]}
               />
             )}
-            <span className="light-picker-label">When this section ends…</span>
+            <h4 className="subhead">When this section ends…</h4>
             <ChoiceCards
               label="What happens when this section ends"
               value={s.autoAdvance ? "auto" : "cue"}
