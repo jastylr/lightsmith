@@ -33,6 +33,11 @@ export interface RigFixture {
   moved?: boolean;
   /** Movers: the position everything moves around (0-255). */
   home?: { pan: number; tilt: number };
+  /**
+   * Moving heads: seconds it takes to pan from one end of its range to the
+   * other at full speed. Sets how fast a movement can really run.
+   */
+  panSeconds?: number;
   /** Movers: run movement in the opposite direction (e.g. a head facing the other way). */
   reverse?: boolean;
   /** Older projects: floor or truss, before heights were kept. Use mountOf(). */
@@ -133,6 +138,97 @@ export function moverShapeAt(shape: MoverShape | undefined, movement: { width: n
 export function moverCycleBeats(s: Pick<Section, "moverBeats" | "beatsPerBar" | "energy">, movementBars: number): number {
   if (s.moverBeats && s.moverBeats > 0) return s.moverBeats;
   return (movementBars * s.beatsPerBar) / energyOf(s.energy).speed;
+}
+
+/** A budget moving head pans its whole range in about this long (seconds). */
+export const DEFAULT_PAN_SECONDS = 2.5;
+/** Heads speed up and slow down at the corners, so leave this much spare time. */
+const MOVE_MARGIN = 1.25;
+
+/**
+ * One point of a QLC+ EFX shape, x and y from -1 to 1, as QLC+ works it out
+ * (engine/src/efx.cpp). `t` runs from 0 to 2π over one cycle.
+ */
+export function efxPoint(algorithm: string, t: number): [number, number] {
+  const c = Math.cos;
+  switch (algorithm) {
+    case "Circle":
+      return [c(t + Math.PI / 2), c(t)];
+    case "Eight":
+      return [c(t * 2 + Math.PI / 2), c(t)];
+    case "Line":
+      return [c(t), c(t)];
+    case "Diamond":
+      return [c(t - Math.PI / 2) ** 3, c(t) ** 3];
+    case "Leaf":
+      return [c(t + Math.PI / 2) ** 5, c(t)];
+    case "Lissajous":
+      // Lightsmith writes X frequency 2 (phase 90°) and Y frequency 3.
+      return [c(2 * t - Math.PI / 2), c(3 * t)];
+    case "Square": {
+      // Round the square's edge: corners (±1, ±1).
+      const q = (t / (Math.PI / 2)) % 4;
+      const f = q % 1;
+      const k = Math.floor(q);
+      return k === 0 ? [f * 2 - 1, 1] : k === 1 ? [1, 1 - f * 2] : k === 2 ? [1 - f * 2, -1] : [-1, f * 2 - 1];
+    }
+    default:
+      return [c(t + Math.PI / 2), c(t)];
+  }
+}
+
+/**
+ * How far the busier motor travels in one cycle, in DMX steps. Pan and tilt
+ * motors move at the same time, so each moment costs whichever has further to go.
+ */
+export function efxTravel(algorithm: string, width: number, height: number): number {
+  const n = 720;
+  let total = 0;
+  let [px, py] = efxPoint(algorithm, 0);
+  for (let i = 1; i <= n; i++) {
+    const [x, y] = efxPoint(algorithm, (i / n) * Math.PI * 2);
+    total += Math.max(Math.abs(x - px) * width, Math.abs(y - py) * height);
+    px = x;
+    py = y;
+  }
+  return total;
+}
+
+export interface MoverTiming {
+  /** Beats per cycle that will actually run. */
+  beats: number;
+  /** Beats per cycle asked for (the Speed setting, or Auto). */
+  asked: number;
+  /** True when the heads can't keep up with what was asked, so it runs slower. */
+  slowed: boolean;
+  /** The quickest one cycle can be on these heads, in ms. */
+  minMs: number;
+}
+
+/**
+ * How long one cycle of the movement takes. A shape the heads can't get
+ * round in time doesn't look faster on stage: the motors fall behind and the
+ * beams twitch on the spot. So the cycle is doubled (staying on the beat)
+ * until the slowest head can really get round it.
+ */
+export function moverTiming(
+  s: Pick<Section, "moverBeats" | "beatsPerBar" | "energy" | "bpm" | "moverShape" | "aim">,
+  movement: { algorithm?: string; bars: number; width: number; height: number },
+  rig: Pick<Rig, "fixtures" | "positions">,
+): MoverTiming {
+  const asked = movement.bars ? moverCycleBeats(s, movement.bars) : 0;
+  if (!movement.algorithm || !asked) return { beats: asked, asked, slowed: false, minMs: 0 };
+  const heads = rig.fixtures.filter((f) => f.role === "mover");
+  let minMs = 0;
+  for (const f of heads) {
+    const at = moverShapeAt(s.moverShape, movement, aimOf(s, rig, f));
+    const stepsPerSec = 255 / Math.max(0.3, f.panSeconds ?? DEFAULT_PAN_SECONDS);
+    minMs = Math.max(minMs, (efxTravel(movement.algorithm, at.width, at.height) / stepsPerSec) * 1000 * MOVE_MARGIN);
+  }
+  const beatMs = 60000 / s.bpm;
+  let beats = asked;
+  while (beats * beatMs < minMs && beats < 1024) beats *= 2;
+  return { beats, asked, slowed: beats !== asked, minMs };
 }
 
 /**

@@ -15,7 +15,7 @@ import {
   patternById,
   sectionMs,
   applyLook,
-  moverCycleBeats,
+  moverTiming,
   COLOR_JOBS,
   jobPalette,
   switchesColors,
@@ -1171,7 +1171,10 @@ function LookEditor({
     next[job] = colors.filter((x) => current.includes(x) || x === c);
     onChange({ colors, colorLayout: next });
   };
-  const cycleBeats = moverCycleBeats(s, MOVEMENTS.find((m) => m.id === moveId)?.bars ?? 0);
+  const moveDef = MOVEMENTS.find((m) => m.id === moveId);
+  // What will really run: slowed down when the heads can't get round the shape in time.
+  const timing = moverTiming(s, moveDef ?? { bars: 0, width: 0, height: 0 }, rig);
+  const cycleBeats = timing.beats;
   const moverProfiles = rig.fixtures.filter((f) => f.role === "mover").flatMap((f) => (profiles.get(f.fixtureId) ? [profiles.get(f.fixtureId)!] : []));
   const nameOf = new Map(lights.map((l) => [l.id, l.name]));
   const focusOptions = (["SL", "C", "SR"] as Side[]).map((side) => ({ side, ids: focusLights({ fixtures: rig.fixtures.filter((f) => lights.some((l) => l.id === f.fixtureId)) }, side) }));
@@ -1569,9 +1572,17 @@ function LookEditor({
                 ) : (
                   <p className="hint">Each head rests where you set its home position on the Stage page. Pick or add a position to point them somewhere else in this section.</p>
                 )}
-                <Field label="Movement">
+                <Field label="Movement" hint={moveId === "static" ? "The heads hold still where they point." : "The shape the heads trace around where they point. Where they point (above) is the middle of the movement; the movement is how they move around it."}>
                   <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
                 </Field>
+                {timing.slowed && (
+                  <div className="notice warn">
+                    <Icon name="info" />
+                    <span>
+                      Too fast for your heads: a {lower(moveDef?.label ?? "movement")} this size every {fmtBeats(timing.asked)} {timing.asked === 1 ? "beat" : "beats"} ({((timing.asked * 60) / s.bpm).toFixed(1)} s) needs about {(timing.minMs / 1000).toFixed(1)} s, so the motors would fall behind and the beams just twitch. It runs every {fmtBeats(timing.beats)} beats ({((timing.beats * 60) / s.bpm).toFixed(1)} s) instead, here and in QLC+. To move faster, make it smaller. If your heads are quicker than Lightsmith thinks, set how fast they pan on the Stage page.
+                    </span>
+                  </div>
+                )}
                 {moveId !== "static" && pointsUp.length > 0 && (
                   <div className="notice warn">
                     <Icon name="info" />
@@ -1596,7 +1607,7 @@ function LookEditor({
                   </Field>
                 )}
                 {moveId !== "static" && sees("movers", "standard") && (
-                  <Field label="Speed" hint={`One full movement every ${fmtBeats(cycleBeats)} ${cycleBeats === 1 ? "beat" : "beats"} (${(cycleBeats * 60 / s.bpm).toFixed(1)} s at ${s.bpm} BPM).${s.moverBeats ? "" : " Auto follows the movement and the section's energy."}`}>
+                  <Field label="Speed" hint={`One full movement every ${fmtBeats(cycleBeats)} ${cycleBeats === 1 ? "beat" : "beats"} (${(cycleBeats * 60 / s.bpm).toFixed(1)} s at ${s.bpm} BPM)${timing.slowed ? ", slowed so the heads can keep up" : ""}.${s.moverBeats ? "" : " Auto follows the movement and the section's energy."}`}>
                     <Segmented
                       label="Movement speed"
                       value={s.moverBeats ? String(s.moverBeats) : "auto"}

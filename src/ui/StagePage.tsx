@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { DEFAULT_PAN_SECONDS, defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { PositionsCard } from "./PositionsCard";
@@ -642,6 +642,11 @@ function Inspector({
             </div>
           ))}
           <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="Runs each movement's shape the other way round, for example clockwise instead of anticlockwise." />
+          <h3>How fast it moves</h3>
+          <p className="hint">
+            Seconds to pan from one end of its range to the other at full speed. To time it, set pan to 0 in QLC+'s Simple Desk, then jump to 255 and count. Lightsmith slows any movement these heads can't keep up with, so they trace the shape instead of twitching on the spot. Leave it at {DEFAULT_PAN_SECONDS} if you're not sure.
+          </p>
+          <NumberInput label="Seconds to pan all the way" value={rf.panSeconds ?? DEFAULT_PAN_SECONDS} min={0.5} max={10} step={0.1} suffix="s" onChange={(v) => onChange({ panSeconds: Math.round(v * 10) / 10 })} />
         </div>
       )}
     </div>

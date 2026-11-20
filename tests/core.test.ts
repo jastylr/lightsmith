@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  efxTravel,
+  moverTiming,
   bundleProject,
   readProjectFile,
   projectFileName,
@@ -749,7 +751,9 @@ test("moving-head speed: automatic from the energy, or set per section in beats"
   assert.equal(moverCycleBeats({ ...auto, moverBeats: 2 }, 4), 2);
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());
-  const rig = guessRig(ws.fixtures, profiles);
+  // Quick heads, so a circle every second is something they can really do.
+  const guessed = guessRig(ws.fixtures, profiles);
+  const rig = { ...guessed, fixtures: guessed.fixtures.map((f) => (f.role === "mover" ? { ...f, panSeconds: 0.5 } : f)) };
   generateSong({ ws, profiles, rig, song: { id: "m", title: "Fast", bpm: 120, sections: [{ ...auto, movement: "circle", moverBeats: 2 }] } });
   assert.match(serializeWorkspace(ws), /Type="EFX"[\s\S]*?<Speed FadeIn="0" FadeOut="0" Duration="1000"\/>/, "2 beats at 120 BPM is one second");
 });
@@ -967,4 +971,27 @@ test("the .lightsmith file carries the project, show file and added definitions,
   assert.throws(() => readProjectFile(JSON.stringify({ format: "lightsmith", formatVersion: 99, project })), /newer Lightsmith/);
   assert.equal(projectFileName("CV Light Show - v2.qxw"), "CV Light Show - v2.lightsmith");
   assert.equal(projectFileName(undefined), "Lightsmith project.lightsmith");
+});
+
+test("movement speed: a shape the heads can't get round in time is slowed, on the beat", () => {
+  // QLC+'s circle: a full turn, both motors working.
+  assert.ok(Math.abs(efxTravel("Circle", 70, 70) - 4 * 70 * Math.SQRT2) < 2, "max-norm round a circle is 4√2·r");
+  assert.ok(efxTravel("Line", 110, 10) > 4 * 110 - 2 && efxTravel("Line", 110, 10) < 4 * 110 + 2);
+  const rig = { fixtures: [{ fixtureId: 1, role: "mover" as const, side: "C" as const, order: 0, home: { pan: 128, tilt: 78 } }], positions: [] };
+  const circle = MOVEMENTS.find((m) => m.id === "circle")!;
+  // The Solo at 138 BPM, a circle every 2 beats (0.87 s): far too quick for a 2.5 s head.
+  const s = { moverBeats: 2, beatsPerBar: 4, energy: 5, bpm: 138, moverShape: undefined, aim: undefined };
+  const t = moverTiming(s, circle, rig);
+  assert.equal(t.asked, 2);
+  assert.ok(t.slowed);
+  assert.ok(t.beats * (60000 / 138) >= t.minMs, "slow enough to get round");
+  assert.ok((t.beats / 2) * (60000 / 138) < t.minMs, "and no slower than needed");
+  assert.ok([4, 8, 16, 32].includes(t.beats), "still on the beat");
+  // Smaller shapes, or quicker heads, can go faster.
+  const small = moverTiming({ ...s, moverShape: { size: 0.5 } }, circle, rig);
+  assert.ok(small.beats < t.beats);
+  const quick = moverTiming(s, circle, { ...rig, fixtures: [{ ...rig.fixtures[0]!, panSeconds: 0.5 }] });
+  assert.ok(quick.beats <= small.beats);
+  // Slow enough already: left alone.
+  assert.equal(moverTiming({ ...s, moverBeats: 32 }, circle, rig).slowed, false);
 });

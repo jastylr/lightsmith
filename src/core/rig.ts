@@ -128,6 +128,7 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     // the default, leaning over the crowd whichever way it faces.
     if (role === "mover") {
       rf.home = rf.home ?? old?.home ?? defaultHome(rf.facesBack);
+      if (rf.panSeconds === undefined && old?.panSeconds !== undefined) rf.panSeconds = old.panSeconds;
       // A home still on the default follows the head if it now faces the other way.
       if (old && !!old.facesBack !== !!rf.facesBack && isDefaultHome(rf.home, old.facesBack)) rf.home = defaultHome(rf.facesBack);
     }
