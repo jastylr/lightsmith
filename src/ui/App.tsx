@@ -10,8 +10,9 @@ import { ImportPage } from "./ImportPage";
 import { StagePage } from "./StagePage";
 import { SongsPage } from "./SongsPage";
 import { ExportPage } from "./ExportPage";
+import { ShowControlPage } from "./ShowControlPage";
 
-type StepId = "import" | "stage" | "songs" | "export";
+type StepId = "import" | "stage" | "songs" | "control" | "export";
 
 export function App() {
   const store = useLightsmith();
@@ -40,6 +41,8 @@ export function App() {
   const mod = mac ? "⌘" : "Ctrl+";
 
   const placed = store.project.rig.fixtures.filter((f) => f.role !== "ignore").length;
+  const devices = store.project.control?.devices.length ?? 0;
+  const controlStatus = devices ? `${devices} MIDI ${devices === 1 ? "device" : "devices"}` : "Pads and footswitches";
   const steps: { id: StepId; label: string; icon: IconName; status: string }[] = [
     {
       id: "import",
@@ -49,6 +52,7 @@ export function App() {
     },
     { id: "stage", label: "Stage", icon: "stage", status: ready ? `${placed} lights in use` : "Place your lights" },
     { id: "songs", label: "Songs", icon: "music", status: `${store.project.songs.length} ${store.project.songs.length === 1 ? "song" : "songs"}` },
+    { id: "control", label: "Show control", icon: "midi", status: controlStatus },
     { id: "export", label: "Export", icon: "download", status: "Build the QLC+ file" },
   ];
 
@@ -56,7 +60,7 @@ export function App() {
     <div className="shell">
       <aside className="rail">
         <Logo />
-        <p className="rail-tag">Light shows for QLC+, one song at a time</p>
+        <p className="rail-tag">Light shows for QLC+, built from your songs</p>
         <div className="undo-bar" role="group" aria-label="Undo and redo">
           <button type="button" className="undo-button" onClick={undo} disabled={!store.canUndo} title={`Undo (${mod}Z)`}>
             <Icon name="undo" size={15} /> Undo
@@ -129,7 +133,8 @@ export function App() {
         )}
         {step === "import" && <ImportPage store={store} onNext={() => setStep("stage")} />}
         {step === "stage" && <StagePage store={store} onNext={() => setStep("songs")} />}
-        {step === "songs" && <SongsPage store={store} songId={songId} setSongId={setSongId} onNext={() => setStep("export")} />}
+        {step === "songs" && <SongsPage store={store} songId={songId} setSongId={setSongId} onNext={() => setStep("control")} />}
+        {step === "control" && <ShowControlPage store={store} onNext={() => setStep("export")} />}
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}
       </main>
       <ConfirmHost />

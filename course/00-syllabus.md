@@ -72,7 +72,7 @@ flowchart LR
 | 12. Show file | Annotated page screenshot; flowchart of `addFiles` routing each file type; how a fixture becomes a profile |
 | 13–14. Stage | Annotated page screenshot; how QLC+'s 3D view becomes positions, sides and order; job versus place; sequence of a drag |
 | 15–21. Songs | Annotated screenshot for each section; component tree of the Songs page; timeline resize and playback sequences; how a section's settings flow into the preview |
-| 22. Export | Annotated page screenshot (whole set and one song); flowchart of `generateSong` and `generateSet`; which QLC+ functions one section becomes; where the Virtual Console frame is placed |
+| 22. Export | Annotated page screenshot (whole set and one song); the Show control page and a printed cheat sheet; how a MIDI message becomes a QLC+ input channel; flowchart of `generateSong` and `generateSet`; which QLC+ functions one section becomes; where the Virtual Console frame is placed |
 | 23. Deploying | The GitHub Actions pipeline, from push to live site |
 | 24. Audit | Before/after: today's store vs the split, repository-based design |
 | 25. Next.js | PHP request cycle side by side with Server and Client Components |
@@ -568,6 +568,25 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 **Files.** `src/ui/ExportPage.tsx`, `src/core/generate.ts`, `src/core/checks.ts`, `tests/core.test.ts`.
 
 **Build it.** Build the generator for one section type end to end, export it, and open it in QLC+. Then add the rest.
+
+### Chapter 22, part 2. Show control: MIDI from the stage
+
+**Goals.** Let pads, footswitches and amp presets run the show with nobody at the laptop, and write it all into QLC+.
+
+**On screen.** The Show control step: listening for MIDI and the last message heard; Devices (name, QLC+ input universe, MIDI channel) and how QLC+ listens; Sections (one trigger per place in the song); Between songs (next, previous, a jump per song); When something goes wrong (Safe look, Blackout); the printable cheat sheet. On the Songs page, a section's own trigger in Start and end.
+
+**Concepts.**
+- How QLC+'s MIDI plugin numbers what it hears, read from its source: controllers 0-127, notes 128-255, program changes 384-511, and with "any channel" (Omni) the MIDI channel in the top bits (`qlcInputChannel`). Note off and a note on with velocity 0 are releases; an amp's program change arrives as a press with no release.
+- Writing external inputs: `<Input>` on a button, inside `<Next>`, `<Previous>` and each page's `<Shortcut>` on a multipage frame, and the input patch's `midichannel` plugin parameter, which QLC+ applies when it opens the show (`setMidiListen`). Reading which devices are patched where (`inputPatchesOf`).
+- Triggers by place in the song (`slots`) with a section's own as an override (`triggerFor`): one setup for the whole set, because QLC+ only answers widgets on the current page.
+- Safe look built from an ordinary section (`safeLookSong`) and placed on every page, so the solo frame stops whatever was running; Blackout as QLC+'s own button action.
+- Clash checks: two buttons on one page answering the same message, a section sharing a song-change message, devices that are gone, inputs not patched, and widgets you mapped yourself that change meaning when an input starts listening to any channel.
+- Web MIDI in the browser (`useMidi`, `listenOnce`, `readMessage`): asking permission, ignoring clock and other system messages, and MIDI learn that adds the device it hears, matched to the QLC+ input with the same name (`deviceForHeard`). Chrome and Edge have it; elsewhere triggers are typed in.
+- A print stylesheet for the cheat sheet.
+
+**Files.** `src/ui/ShowControlPage.tsx`, `src/ui/TriggerField.tsx`, `src/ui/midi.ts`, `src/core/model.ts` (`ShowControl`, `Trigger`), `src/core/workspace.ts`, `src/core/generate.ts` (`ControlInputs`), `tests/core.test.ts`.
+
+**Build it.** Map one pad to section 1, export, and play it with QLC+ open. Then add next and previous song.
 
 ---
 

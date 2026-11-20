@@ -242,6 +242,8 @@ export interface Section {
   transition: Transition;
   /** Move to the next section by itself after its length (otherwise wait for a trigger). */
   autoAdvance: boolean;
+  /** Its own MIDI trigger, instead of the one for its place in the song. */
+  trigger?: Trigger;
 }
 
 export interface Song {
@@ -249,6 +251,78 @@ export interface Song {
   title: string;
   bpm: number;
   sections: Section[];
+  /** A message that jumps straight to this song in the set (its page in QLC+). */
+  trigger?: Trigger;
+}
+
+// ---------------------------------------------------------------------------
+// Show control: MIDI from pads, footswitches and amp modelers starts sections.
+
+/** Something that sends MIDI: a drum pad, a footswitch, a Quad Cortex. */
+export interface ControlDevice {
+  id: string;
+  name: string;
+  /** The QLC+ universe its input is patched to, as QLC+ numbers them (1 = "Universe 1"). */
+  universe: number;
+  /** The MIDI channel it sends on, 1-16. */
+  channel: number;
+  /** The name the computer gives its MIDI port, remembered from MIDI learn. */
+  port?: string;
+}
+
+export type TriggerKind = "note" | "cc" | "pc";
+
+/** One MIDI message from one device: a note (pad), a control change or a program change. */
+export interface Trigger {
+  device: string;
+  kind: TriggerKind;
+  /** Note number, controller number or program number, 0-127. */
+  number: number;
+}
+
+export interface ShowControl {
+  devices: ControlDevice[];
+  /**
+   * How QLC+ listens on the inputs Lightsmith uses: "any" channel (the
+   * channel is part of each trigger) or only each device's own channel.
+   */
+  listen?: "any" | "own";
+  /** Section 1, 2, 3 … of whichever song is showing. */
+  slots: (Trigger | null)[];
+  nextSong?: Trigger;
+  previousSong?: Trigger;
+  /** Stops everything and brings up a plain warm look, on every song page. */
+  safeLook?: Trigger;
+  /** QLC+'s blackout, on and off. */
+  blackout?: Trigger;
+}
+
+export function emptyShowControl(): ShowControl {
+  return { devices: [], listen: "any", slots: [] };
+}
+
+/** The trigger that starts a section: its own, or the one for its place in the song. */
+export function triggerFor(control: ShowControl | undefined, s: Section, index: number): Trigger | undefined {
+  return s.trigger ?? control?.slots[index] ?? undefined;
+}
+
+/**
+ * The QLC+ input channel a trigger arrives on. The MIDI plugin numbers
+ * controllers 0-127, notes 128-255 and programs 384-511; listening on any
+ * channel, it adds the MIDI channel (0-15) in the top bits (<< 12).
+ */
+export function qlcInputChannel(t: Pick<Trigger, "kind" | "number">, device: Pick<ControlDevice, "channel">, listen: ShowControl["listen"] = "any"): number {
+  const base = t.kind === "cc" ? 0 : t.kind === "note" ? 128 : 384;
+  const ch = base + Math.max(0, Math.min(127, Math.round(t.number)));
+  return listen === "own" ? ch : ((Math.max(1, Math.min(16, device.channel)) - 1) << 12) | ch;
+}
+
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+/** "Note 36 (C1)", "CC 20", "Program 5", in words a musician reads off their gear. */
+export function triggerLabel(t: Pick<Trigger, "kind" | "number">): string {
+  if (t.kind === "note") return `Note ${t.number} (${NOTE_NAMES[t.number % 12]}${Math.floor(t.number / 12) - 2})`;
+  if (t.kind === "cc") return `CC ${t.number}`;
+  return `Program change ${t.number}`;
 }
 
 /**
@@ -335,6 +409,8 @@ export interface Project {
   presets?: LookPreset[];
   /** The set: songs in playing order, and any left out of the export. */
   setlist?: Setlist;
+  /** MIDI devices and what they trigger. */
+  control?: ShowControl;
 }
 
 export interface Setlist {
@@ -433,6 +509,7 @@ export function normalizeProject(p: Project): Project {
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
     ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights] })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
+    ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])] } } : {}),
     ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
   };
 }

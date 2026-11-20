@@ -14,13 +14,14 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
+import { newSection, qlcInputChannel, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverCycleBeats, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
-import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, writePlaces, type Workspace } from "./workspace";
+import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, setMidiListen, writePlaces, type Workspace } from "./workspace";
 
 export const INFINITE = 4294967294; // QLC+ "hold forever"
 export const PATH_ROOT = APP_NAME;
@@ -179,6 +180,8 @@ export interface GenerateInput {
   sequences?: Sequence[];
   /** Add the song's own frame of buttons (default). The whole set puts its buttons in one frame instead. */
   buttons?: boolean;
+  /** MIDI devices and triggers, written into the buttons as QLC+ external inputs. */
+  control?: ShowControl;
 }
 
 export interface GenerateSummary {
@@ -191,6 +194,8 @@ export interface GenerateSummary {
   songChaserId: number;
   /** The Collection for each section, in order. */
   sectionIds: number[];
+  /** Triggers that couldn't be written, or clash. */
+  controlNotes: string[];
 }
 
 function safeName(s: string): string {
@@ -203,7 +208,7 @@ export function songPathFor(title: string): string {
 }
 
 /** Mutates `ws` (merging the song into it) and returns a summary. */
-export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true }: GenerateInput): GenerateSummary {
+export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true, control }: GenerateInput): GenerateSummary {
   const title = safeName(song.title);
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
@@ -664,7 +669,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   );
   removed += removeWhere(engine, (e) => e.name === "FixtureGroup" && textOf(firstChild(e, "Name")).trim().startsWith("Lightsmith: ") && !usedGroups.has(Number(getAttr(e, "ID"))));
 
-  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds };
+  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds, controlNotes: [] };
+  const inputs = new ControlInputs(ws, control);
 
   // 4. Virtual Console: a solo frame with one button per section.
   let vc = ws.virtualConsole;
@@ -700,12 +706,85 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
         el("WindowState", { Visible: "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
         el("Function", { ID: sectionIds[i]! }),
         textEl("Action", "Toggle"),
+        ...inputs.button(triggerFor(control, s, i), `${song.title}: ${s.name}`, song.title),
       ]),
     );
   });
   spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, controlNotes: inputs.finish() };
+}
+
+/**
+ * Turns triggers into QLC+ external inputs, and keeps track of what's used
+ * where so clashes can be pointed out. Each input it uses is set to listen the
+ * way the project says (any channel, or the device's own).
+ */
+class ControlInputs {
+  private notes: string[] = [];
+  private used = new Map<string, Map<string, string>>(); // scope -> key -> what
+  private universes = new Set<number>();
+  constructor(
+    private ws: Workspace,
+    private control: ShowControl | undefined,
+  ) {}
+  private source(t: Trigger | undefined, what: string, scope: string): { Universe: number; Channel: number } | undefined {
+    if (!t || !this.control) return undefined;
+    const dev = this.control.devices.find((d) => d.id === t.device);
+    if (!dev) {
+      this.notes.push(`${what}: its device is gone, so it has no trigger.`);
+      return undefined;
+    }
+    const key = `${dev.universe}/${dev.channel}/${t.kind}/${t.number}`;
+    const seen = this.used.get(scope) ?? new Map<string, string>();
+    const other = seen.get(key);
+    if (other) this.notes.push(`${what} and ${other} both use ${dev.name} ${triggerLabel(t)}; only one can answer it.`);
+    else seen.set(key, what);
+    this.used.set(scope, seen);
+    this.universes.add(dev.universe);
+    return { Universe: dev.universe - 1, Channel: qlcInputChannel(t, dev, this.control.listen) };
+  }
+  /** The <Input> a button reads. */
+  button(t: Trigger | undefined, what: string, scope: string): XmlElement[] {
+    const src = this.source(t, what, scope);
+    return src ? [el("Input", { ID: 0, ...src })] : [];
+  }
+  /** An <Input> wrapped in a frame's own tag (Next, Previous, Shortcut). */
+  inner(t: Trigger | undefined, what: string, scope: string): XmlElement[] {
+    const src = this.source(t, what, scope);
+    return src ? [el("Input", src)] : [];
+  }
+  finish(): string[] {
+    for (const u of this.universes) {
+      const ok = setMidiListen(this.ws, u, this.control?.listen === "own" ? (this.control.devices.find((d) => d.universe === u)?.channel ?? 1) : "any");
+      if (!ok) this.notes.push(`Nothing MIDI is patched to Universe ${u} in QLC+ yet. Patch the device there in QLC+ (Inputs/Outputs), or pick its universe in Show control.`);
+    }
+    // Buttons you mapped yourself in QLC+ on an input that now listens to any
+    // channel are read as MIDI channel 1 from now on.
+    if (this.control?.listen !== "own" && this.ws.virtualConsole) {
+      const yours: string[] = [];
+      const walk = (e: XmlElement, ours: boolean) => {
+        for (const c of childElements(e)) {
+          const mine = ours || (getAttr(c, "Caption") ?? "").endsWith(`(${APP_NAME})`);
+          const input = c.name !== "Input" ? childElements(c, "Input")[0] : undefined;
+          if (!mine && input && this.universes.has(Number(getAttr(input, "Universe")) + 1) && Number(getAttr(input, "Channel")) < 4096) yours.push(getAttr(c, "Caption") ?? c.name);
+          walk(c, mine);
+        }
+      };
+      walk(this.ws.virtualConsole, false);
+      if (yours.length)
+        this.notes.push(
+          `QLC+ will now listen to every MIDI channel on ${[...this.universes].map((u) => `Universe ${u}`).join(" and ")}. Widgets you mapped yourself there (${[...new Set(yours)].slice(0, 4).join(", ")}${yours.length > 4 ? " …" : ""}) keep working only if their device sends on MIDI channel 1; otherwise map them again in QLC+, or choose "each device's channel" in Show control.`,
+        );
+    }
+    if (this.control?.listen === "own") {
+      for (const u of this.universes) {
+        const chs = new Set(this.control.devices.filter((d) => d.universe === u).map((d) => d.channel));
+        if (chs.size > 1) this.notes.push(`Universe ${u} has devices on different MIDI channels, so QLC+ must listen to any channel. Choose "any channel" in Show control.`);
+      }
+    }
+    return [...new Set(this.notes)];
+  }
 }
 
 /** The Virtual Console frame that holds the whole set. */
@@ -717,6 +796,7 @@ export interface SetSummary {
   removedPrevious: number;
   buttonsFrame: string;
   buttonsWhere: string;
+  controlNotes: string[];
 }
 
 /**
@@ -727,8 +807,9 @@ export interface SetSummary {
  * same section number in whichever song is showing. QLC+ answers external
  * input only for widgets on a frame's current page, in both its interfaces.
  */
-export function generateSet({ ws, profiles, rig, songs, sequences = [] }: Omit<GenerateInput, "song" | "buttons"> & { songs: Song[] }): SetSummary {
+export function generateSet({ ws, profiles, rig, songs, sequences = [], control }: Omit<GenerateInput, "song" | "buttons"> & { songs: Song[] }): SetSummary {
   if (!songs.length) throw new Error("The set has no songs in it.");
+  if (songs.some((s) => songPathFor(s.title).toLowerCase() === songPathFor(SAFE_LOOK).toLowerCase())) throw new Error(`“${SAFE_LOOK}” is the name Lightsmith uses for its own safe look. Rename that song.`);
   const titles = new Map<string, string>();
   for (const song of songs) {
     const key = songPathFor(song.title).toLowerCase();
@@ -754,6 +835,9 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [] }: Omit<G
 
   const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false }) }));
   removed += results.reduce((n, { r }) => n + r.removedPrevious, 0);
+  // The safe look: a plain warm wash with the heads at home, made the same way as any section.
+  const safe = generateSong({ ws, profiles, rig, song: safeLookSong(), buttons: false });
+  const inputs = new ControlInputs(ws, control);
 
   let vc = ws.virtualConsole;
   if (!vc) {
@@ -771,8 +855,10 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [] }: Omit<G
   const size = 80;
   const stepPx = 90;
   const most = Math.max(1, ...songs.map((s) => s.sections.length));
-  const rows = Math.ceil(most / perRow);
-  const width = Math.max(Math.min(most, perRow) * stepPx + 20, 340);
+  const rows = Math.max(2, Math.ceil(most / perRow));
+  // Section buttons on the left; Safe look and Blackout in a column on the right of every page.
+  const sideX = Math.min(most, perRow) * stepPx + 30;
+  const width = Math.max(sideX + stepPx + 10, 340);
   const height = rows * stepPx + 46;
   const spot = placeFrame(page, width, height, previousSpot);
   const pageName = (i: number, song: Song) => `${i + 1}. ${safeName(song.title)}`;
@@ -784,28 +870,75 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [] }: Omit<G
     textEl("Collapsed", "False"),
     textEl("Disabled", "False"),
     el("Multipage", { PagesNum: songs.length, CurrentPage: 0 }),
-    ...songs.map((song, i) => el("Shortcut", { Page: i, Name: pageName(i, song) })),
+    ...(control?.nextSong ? [el("Next", {}, inputs.inner(control.nextSong, "Next song", "frame"))] : []),
+    ...(control?.previousSong ? [el("Previous", {}, inputs.inner(control.previousSong, "Previous song", "frame"))] : []),
+    ...songs.map((song, i) => el("Shortcut", { Page: i, Name: pageName(i, song) }, inputs.inner(song.trigger, `The song “${song.title}”`, "frame"))),
     textEl("PagesLoop", "False"),
   ]);
   results.forEach(({ song, r }, p) => {
+    const page = (x: number, y: number) => ({ Visible: p ? "False" : "True", X: x, Y: y, Width: size, Height: size });
+    const scope = `page ${p}`;
+    // Next, previous and song jumps share the frame with every page's buttons.
     song.sections.forEach((s, i) => {
       frame.children.push(
         el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++, ...(p ? { Page: p } : {}) }, [
-          el("WindowState", { Visible: p ? "False" : "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
+          el("WindowState", page(10 + (i % perRow) * stepPx, 40 + Math.floor(i / perRow) * stepPx)),
           el("Function", { ID: r.sectionIds[i]! }),
           textEl("Action", "Toggle"),
+          ...inputs.button(triggerFor(control, s, i), `“${song.title}”: ${s.name}`, scope),
         ]),
       );
     });
+    frame.children.push(
+      el("Button", { Caption: "Safe look", ID: wid++, ...(p ? { Page: p } : {}) }, [
+        el("WindowState", page(sideX, 40)),
+        el("Function", { ID: safe.sectionIds[0]! }),
+        textEl("Action", "Toggle"),
+        ...inputs.button(control?.safeLook, "Safe look", scope),
+      ]),
+      el("Button", { Caption: "Blackout", ID: wid++, ...(p ? { Page: p } : {}) }, [
+        el("WindowState", page(sideX, 40 + stepPx)),
+        textEl("Action", "Blackout"),
+        ...inputs.button(control?.blackout, "Blackout", scope),
+      ]),
+    );
   });
   spot.parent.children.push(frame);
 
+  // A trigger shared by a page's buttons and the frame's own (next, previous, song jumps) is a clash too.
+  const frameKeys = [control?.nextSong, control?.previousSong, ...songs.map((s) => s.trigger)].filter(Boolean) as Trigger[];
+  const clash = new Set<string>();
+  for (const t of frameKeys) {
+    const k = `${t.device}/${t.kind}/${t.number}`;
+    songs.forEach((song) =>
+      song.sections.forEach((s, i) => {
+        const st = triggerFor(control, s, i);
+        if (st && `${st.device}/${st.kind}/${st.number}` === k) clash.add(`“${song.title}”: ${s.name} uses the same message as a song change, so one hit would do both.`);
+      }),
+    );
+  }
+
   return {
     songs: results.map(({ song, r }) => ({ title: song.title, sections: r.sections, functions: r.functions })),
-    functions: results.reduce((n, { r }) => n + r.functions, 0),
+    functions: results.reduce((n, { r }) => n + r.functions, 0) + safe.functions,
     removedPrevious: removed,
     buttonsFrame: SET_FRAME,
     buttonsWhere: spot.where,
+    controlNotes: [...inputs.finish(), ...clash],
+  };
+}
+
+/** The name of the safe look's folder in QLC+, next to the songs. */
+export const SAFE_LOOK = "Safe look";
+
+/** A plain warm wash, heads at home and still: what's safe to fall back on mid-song. */
+export function safeLookSong(): Song {
+  const s = newSection("verse", 120);
+  return {
+    id: "lightsmith-safe-look",
+    title: SAFE_LOOK,
+    bpm: 120,
+    sections: [{ ...s, id: "lightsmith-safe-look-1", name: "Safe look", energy: 3, colors: ["warmWhite"], colorChange: "hold", pattern: "solid", movement: "static", effects: {}, transition: "fade", focus: "all" }],
   };
 }
 

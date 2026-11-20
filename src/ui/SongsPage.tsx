@@ -28,6 +28,9 @@ import {
   type LookPreset,
   type MoverShape,
   EFX_MAX,
+  emptyShowControl,
+  triggerFor,
+  type ShowControl,
   UPRIGHT_TILT,
   aimOf,
   type Sequence,
@@ -62,6 +65,7 @@ import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard
 import { SequencesCard } from "./Sequences";
 import { atLeast, useLevel, type Level } from "./level";
 import { PresetBar } from "./PresetBar";
+import { TriggerField, triggerText } from "./TriggerField";
 
 /**
  * Restarting the preview: `skip` starts sequences at once; `at` starts the
@@ -159,7 +163,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   };
   const duplicate = (s: Section) => {
     const i = song.sections.findIndex((x) => x.id === s.id);
-    const copy: Section = { ...s, id: newId("sec"), name: `${s.name} copy`, effects: { ...s.effects }, colors: [...s.colors] };
+    // A copy doesn't take the section's own MIDI trigger: two sections can't answer one pad.
+    const copy: Section = { ...s, id: newId("sec"), name: `${s.name} copy`, effects: { ...s.effects }, colors: [...s.colors], trigger: undefined };
     set({ sections: [...song.sections.slice(0, i + 1), copy, ...song.sections.slice(i + 1)] });
     setSelected(copy.id);
   };
@@ -288,7 +293,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -301,7 +306,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
 
       <div className="page-actions">
         <button className="primary" onClick={onNext} disabled={song.sections.length === 0}>
-          Continue to export
+          Continue to show control
         </button>
       </div>
     </section>
@@ -1088,7 +1093,11 @@ function LookEditor({
   onReplay,
   presets,
   onPresets,
+  control,
+  onControl,
 }: {
+  control: ShowControl | undefined;
+  onControl: (c: ShowControl) => void;
   presets: LookPreset[];
   onPresets: (next: LookPreset[]) => void;
   sequences: Sequence[];
@@ -1218,7 +1227,10 @@ function LookEditor({
       summary: usedSequences.length ? usedSequences.map((q) => q.name).join(", ") : "None",
       changed: usedSequences.length > 0,
     },
-    timing: { summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}`, changed: s.transition !== typeDefault || s.autoAdvance },
+    timing: {
+      summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}${triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
+      changed: s.transition !== typeDefault || s.autoAdvance || !!s.trigger,
+    },
   };
   const visibleCards = blackout ? ["timing"] : Object.keys(cards);
   const [oneCard, setOneCard] = useOneCard();
@@ -1718,6 +1730,29 @@ function LookEditor({
                 { value: "auto", title: `Move on after ${lengthLabel(s)}`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
               ]}
             />
+            <h4 className="subhead">What starts it on stage</h4>
+            <Field
+              label="MIDI trigger"
+              hint={
+                s.trigger
+                  ? "This section's own trigger, instead of the one for its place in the song."
+                  : control?.slots[index]
+                    ? `The trigger for section ${index + 1} of every song, set on the Show control step. Learn one here to give this section its own.`
+                    : "Set up pads and footswitches on the Show control step, or learn one just for this section."
+              }
+            >
+              <TriggerField
+                label={`${s.name}`}
+                value={s.trigger}
+                inherited={control?.slots[index] ? `${triggerText(control.slots[index]!, control)} (section ${index + 1})` : "None yet"}
+                control={control ?? emptyShowControl()}
+                inputs={showFile?.inputs ?? []}
+                onChange={(t, withDevices) => {
+                  if (withDevices) onControl(withDevices);
+                  onChange({ trigger: t });
+                }}
+              />
+            </Field>
           </Group>
         </div>
       </div>

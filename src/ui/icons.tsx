@@ -46,6 +46,9 @@ const PATHS = {
   play: "M7 4l12 8l-12 8z",
   pause: "M7 5h3v14H7zM14 5h3v14h-3z",
   skipBack: "M18 5L8 12l10 7zM6 5v14",
+  midi: "M5 4h5.5v5.5H5zM13.5 4H19v5.5h-5.5zM5 14.5h5.5V20H5zM13.5 14.5H19V20h-5.5z",
+  printer: "M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z",
+  ear: "M7 10a5 5 0 0 1 10 0c0 3-2.5 3.5-3 6a2.5 2.5 0 0 1-5 .5M10 10a2 2 0 0 1 4 0",
 } as const;
 
 export type IconName = keyof typeof PATHS;

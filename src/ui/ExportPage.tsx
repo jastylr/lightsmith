@@ -38,12 +38,12 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
     try {
       const ws = parseWorkspace(store.workspace.xml);
       if (mode === "set") {
-        const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences });
+        const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences, control: store.project.control });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, PATH_ROOT);
         setResult({ mode, xml, summary, issues, title: "Set" });
       } else if (song) {
-        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences });
+        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
         setResult({ mode, xml, summary, issues, title: song.title });
@@ -56,7 +56,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
 
   const baseName = (store.workspace?.name ?? "show.qxw").replace(/\.qxw$/i, "");
   const errors = result?.issues.filter((i) => i.level === "error") ?? [];
-  const warnings = result?.issues.filter((i) => i.level === "warning") ?? [];
+  const warnings = [...(result?.issues.filter((i) => i.level === "warning") ?? []), ...(result?.summary.controlNotes ?? []).map((message): Issue => ({ level: "warning", message }))];
   const fileName = result ? `${baseName} - ${result.title}.qxw` : "";
   const canBuild = mode === "set" ? inSet.length > 0 : !!song?.sections.length;
 
@@ -179,6 +179,8 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
                 In the Virtual Console, the frame “{result.summary.buttonsFrame}” is {result.summary.buttonsWhere}. It has one page per song, named with its place in the set ({result.summary.songs.map((x, i) => `${i + 1}. ${x.title}`).slice(0, 3).join(", ")}{result.summary.songs.length > 3 ? " …" : ""}). Use the arrows in the frame's header to change song.
               </li>
               <li>Each button starts its section and stops whatever was running, even from the song before. Section 1 sits in the same spot on every page, as do section 2 and the rest, so a pad or footswitch can be set up once per spot.</li>
+              <li>Every page also has Safe look (stops everything and brings up a plain warm wash) and Blackout.</li>
+              <li>{store.project.control?.devices.length ? "Your pads, switches and presets from Show control are already mapped to the buttons, the song arrows and the song pages. Keep the devices patched to the same universes in QLC+'s Inputs/Outputs." : "To start sections from pads and footswitches, set them up on the Show control step and export again."}</li>
               <li>If you exported single songs before, their own frames are replaced by the set. Songs you left out keep what they had.</li>
               <li>Check moving-head positions on the real rig, adjust them on the Stage step, and export again. The frame stays where you put it.</li>
             </ol>

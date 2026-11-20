@@ -7,6 +7,11 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  qlcInputChannel,
+  triggerLabel,
+  textOf,
+  type ShowControl,
+  type Trigger,
   SET_FRAME,
   PATH_ROOT,
   getAttr,
@@ -873,7 +878,10 @@ test("the whole set: every song in one file, one solo frame with a page per song
   assert.equal(frames.filter((f) => getAttr(f, "Caption") === "First song (Lightsmith)").length, 0, "the single-song frame is gone");
   assert.equal(getAttr(firstChild(set[0]!, "Multipage")!, "PagesNum"), "2");
   assert.deepEqual(childElements(set[0]!, "Shortcut").map((s) => getAttr(s, "Name")), ["1. First song", "2. Second song"]);
-  const buttons = childElements(set[0]!, "Button");
+  const all = childElements(set[0]!, "Button");
+  // Every page also has Safe look and Blackout.
+  assert.equal(all.filter((x) => getAttr(x, "Caption") === "Safe look").length, 2);
+  const buttons = all.filter((x) => !["Safe look", "Blackout"].includes(getAttr(x, "Caption") ?? ""));
   assert.equal(buttons.length, a.sections.length + b.sections.length);
   assert.equal(buttons.filter((x) => getAttr(x, "Page") === "1").length, b.sections.length);
   // Exporting the set again replaces it rather than adding a second one.
@@ -883,4 +891,60 @@ test("the whole set: every song in one file, one solo frame with a page per song
   walk2(again.virtualConsole!);
   assert.equal(frames2.filter((f) => getAttr(f, "Caption") === SET_FRAME).length, 1);
   assert.throws(() => generateSet({ ws: again, profiles, rig, songs: [a, { ...a, id: "x" }] }), /Two songs are called/);
+});
+
+test("show control: triggers become QLC+ external inputs, the way its MIDI plugin numbers them", () => {
+  // Notes 128-255, controllers 0-127, programs 384-511; on any channel the MIDI channel sits in the top bits.
+  assert.equal(qlcInputChannel({ kind: "note", number: 36 }, { channel: 2 }), (1 << 12) | 164);
+  assert.equal(qlcInputChannel({ kind: "cc", number: 1 }, { channel: 1 }), 1);
+  assert.equal(qlcInputChannel({ kind: "pc", number: 5 }, { channel: 4 }, "own"), 389);
+  assert.equal(triggerLabel({ kind: "note", number: 36 }), "Note 36 (C1)");
+
+  const ws = parseWorkspace(WORKSPACE_QXW.replace("<InputOutputMap>", '<InputOutputMap><Universe Name="Universe 3" ID="2"><Input Plugin="MIDI" Name="H4MIDI-WC" UID="1" Line="1"/></Universe>'));
+  assert.deepEqual(ws.inputs.map((i) => [i.universe, i.device]), [[3, "H4MIDI-WC"]]);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const control: ShowControl = {
+    devices: [
+      { id: "strike", name: "Strike", universe: 3, channel: 2 },
+      { id: "captain", name: "Captain", universe: 3, channel: 3 },
+    ],
+    listen: "any",
+    slots: [{ device: "strike", kind: "note", number: 36 }, { device: "strike", kind: "note", number: 37 }],
+    nextSong: { device: "captain", kind: "cc", number: 20 },
+    safeLook: { device: "captain", kind: "cc", number: 22 },
+  };
+  const a = { ...newSong("First", 120), sections: sectionsFromTemplate("short", 120), trigger: { device: "captain", kind: "pc", number: 1 } as Trigger };
+  // A section with its own trigger replaces the one for its place.
+  a.sections[1] = { ...a.sections[1]!, trigger: { device: "strike", kind: "note", number: 40 } };
+  const b = { ...newSong("Second", 100), sections: sectionsFromTemplate("short", 100) };
+  const sum = generateSet({ ws, profiles, rig, songs: [a, b], control });
+  const again = parseWorkspace(serializeWorkspace(ws));
+  const set: XmlElement[] = [];
+  const walk = (e: XmlElement) => childElements(e).forEach((c) => (getAttr(c, "Caption") === SET_FRAME ? set.push(c) : walk(c)));
+  walk(again.virtualConsole!);
+  const buttons = childElements(set[0]!, "Button");
+  const inputOf = (x: XmlElement) => {
+    const i = firstChild(x, "Input");
+    return i ? [getAttr(i, "Universe"), getAttr(i, "Channel")] : null;
+  };
+  const page0 = buttons.filter((x) => !getAttr(x, "Page"));
+  assert.deepEqual(inputOf(page0[0]!), ["2", String((1 << 12) | 164)]);
+  assert.deepEqual(inputOf(page0[1]!), ["2", String((1 << 12) | 168)], "its own trigger");
+  assert.equal(inputOf(page0[2]!), null, "no trigger for section 3");
+  const page1 = buttons.filter((x) => getAttr(x, "Page") === "1");
+  assert.deepEqual(inputOf(page1[1]!), ["2", String((1 << 12) | 165)], "slot 2 on the second song");
+  assert.ok(page0.some((x) => getAttr(x, "Caption") === "Safe look" && inputOf(x)?.[1] === String((2 << 12) | 22)));
+  assert.ok(page0.some((x) => getAttr(x, "Caption") === "Blackout" && textOf(firstChild(x, "Action")) === "Blackout"));
+  assert.equal(getAttr(firstChild(firstChild(set[0]!, "Next")!, "Input")!, "Channel"), String((2 << 12) | 20));
+  assert.equal(getAttr(firstChild(childElements(set[0]!, "Shortcut")[0]!, "Input")!, "Channel"), String((2 << 12) | 385));
+  // QLC+ is told to listen to any channel on that input.
+  assert.match(serializeWorkspace(again), /<PluginParameters midichannel="16"\/>/);
+  assert.deepEqual(sum.controlNotes, []);
+  // A missing input, and two buttons on one page sharing a message, are pointed out.
+  const ws2 = parseWorkspace(WORKSPACE_QXW);
+  const clash = { ...control, slots: [control.slots[0]!, control.slots[0]!] };
+  const notes = generateSet({ ws: ws2, profiles, rig, songs: [b], control: clash }).controlNotes;
+  assert.ok(notes.some((n) => /both use Strike Note 36/.test(n)));
+  assert.ok(notes.some((n) => /Nothing MIDI is patched to Universe 3/.test(n)));
 });

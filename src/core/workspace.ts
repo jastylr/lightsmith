@@ -77,6 +77,50 @@ export interface Workspace {
   groups: { id: number; name: string }[];
   /** The stage in QLC+'s 3D view; missing when the show has no 3D layout. */
   stage?: StageSize;
+  /** Inputs patched in QLC+ (Inputs/Outputs): which device feeds which universe. */
+  inputs: InputPatch[];
+}
+
+export interface InputPatch {
+  /** As QLC+ numbers universes for people: 1 = "Universe 1" (stored as ID 0). */
+  universe: number;
+  universeName: string;
+  plugin: string;
+  /** The device, as the computer names it ("H4MIDI-WC"). */
+  device: string;
+}
+
+/** The inputs patched in the show file. */
+export function inputPatchesOf(doc: XmlDocument): InputPatch[] {
+  const engine = firstChild(doc.root, "Engine");
+  const io = engine ? firstChild(engine, "InputOutputMap") : undefined;
+  if (!io) return [];
+  return childElements(io, "Universe").flatMap((u) => {
+    const input = firstChild(u, "Input");
+    if (!input) return [];
+    const id = Number(getAttr(u, "ID") ?? 0);
+    return [{ universe: id + 1, universeName: getAttr(u, "Name") ?? `Universe ${id + 1}`, plugin: getAttr(input, "Plugin") ?? "", device: getAttr(input, "Name") ?? getAttr(input, "UID") ?? "" }];
+  });
+}
+
+/**
+ * Set which MIDI channel QLC+ listens to on an input: 1-16, or "any" (QLC+
+ * calls it Omni and stores 16). Written as a plugin parameter on the patch,
+ * which QLC+ applies when it opens the show. False when nothing is patched there.
+ */
+export function setMidiListen(ws: Workspace, universe: number, channel: number | "any"): boolean {
+  const io = firstChild(ws.engine, "InputOutputMap");
+  const u = io ? childElements(io, "Universe").find((x) => Number(getAttr(x, "ID") ?? -1) === universe - 1) : undefined;
+  const input = u ? firstChild(u, "Input") : undefined;
+  if (!input || getAttr(input, "Plugin") !== "MIDI") return false;
+  let params = firstChild(input, "PluginParameters");
+  if (!params) {
+    params = el("PluginParameters", {}, []);
+    input.children.push(params);
+  }
+  const value = String(channel === "any" ? 16 : Math.max(1, Math.min(16, channel)) - 1);
+  params.attrs = [...params.attrs.filter(([k]) => k !== "midichannel"), ["midichannel", value]];
+  return true;
 }
 
 export function parseWorkspace(xml: string): Workspace {
@@ -102,7 +146,7 @@ export function parseWorkspace(xml: string): Workspace {
   }));
   const groups = childElements(engine, "FixtureGroup").map((g) => ({ id: Number(getAttr(g, "ID")), name: childText(g, "Name") ?? "" }));
   const stage = readStage(doc, fixtures);
-  return { doc, engine, virtualConsole: firstChild(doc.root, "VirtualConsole"), fixtures, functions, groups, stage };
+  return { doc, engine, virtualConsole: firstChild(doc.root, "VirtualConsole"), fixtures, functions, groups, stage, inputs: inputPatchesOf(doc) };
 }
 
 export function serializeWorkspace(ws: Workspace): string {
