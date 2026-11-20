@@ -7,6 +7,9 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  bundleProject,
+  readProjectFile,
+  projectFileName,
   qlcInputChannel,
   triggerLabel,
   textOf,
@@ -947,4 +950,21 @@ test("show control: triggers become QLC+ external inputs, the way its MIDI plugi
   const notes = generateSet({ ws: ws2, profiles, rig, songs: [b], control: clash }).controlNotes;
   assert.ok(notes.some((n) => /both use Strike Note 36/.test(n)));
   assert.ok(notes.some((n) => /Nothing MIDI is patched to Universe 3/.test(n)));
+});
+
+test("the .lightsmith file carries the project, show file and added definitions, and old .json projects still open", () => {
+  const project = { version: 1 as const, rig: { fixtures: [] }, songs: [{ ...newSong("One", 120), sections: sectionsFromTemplate("short", 120) }] };
+  const text = bundleProject(project, { name: "Show.qxw", xml: "<Workspace/>" }, [{ name: "Bar.qxf", xml: "<FixtureDefinition/>" }], new Date("2026-11-19T00:00:00Z"));
+  const back = readProjectFile(text);
+  assert.equal(back.project.songs[0]!.title, "One");
+  assert.equal(back.showFile?.name, "Show.qxw");
+  assert.equal(back.fixtureDefinitions.length, 1);
+  assert.equal(JSON.parse(text).format, "lightsmith");
+  const old = readProjectFile(JSON.stringify(project));
+  assert.equal(old.showFile, null);
+  assert.equal(old.project.songs.length, 1);
+  assert.throws(() => readProjectFile("{}"), /isn't a Lightsmith project/);
+  assert.throws(() => readProjectFile(JSON.stringify({ format: "lightsmith", formatVersion: 99, project })), /newer Lightsmith/);
+  assert.equal(projectFileName("CV Light Show - v2.qxw"), "CV Light Show - v2.lightsmith");
+  assert.equal(projectFileName(undefined), "Lightsmith project.lightsmith");
 });

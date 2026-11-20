@@ -4225,3 +4225,9 @@ body.is-resizing * {
     break-inside: avoid;
   }
 }
+.undo-bar {
+  flex-wrap: wrap;
+}
+.undo-button.save-button {
+  flex-basis: 100%;
+}

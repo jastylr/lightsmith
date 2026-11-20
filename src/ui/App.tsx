@@ -4,7 +4,7 @@ import { ConfirmHost } from "./ConfirmDialog";
 import { LEVELS, useLevel, type Level } from "./level";
 import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
-import { useLightsmith } from "./store";
+import { download, useLightsmith } from "./store";
 import { sectionMs } from "../core";
 import { ImportPage } from "./ImportPage";
 import { StagePage } from "./StagePage";
@@ -67,6 +67,18 @@ export function App() {
           </button>
           <button type="button" className="undo-button" onClick={redo} disabled={!store.canRedo} title={`Redo (${mac ? "⇧⌘Z" : "Ctrl+Y"})`}>
             <Icon name="redo" size={15} /> Redo
+          </button>
+          <button
+            type="button"
+            className="undo-button save-button"
+            onClick={() => {
+              const f = store.projectFile();
+              download(f.name, f.text, "application/json");
+            }}
+            disabled={!store.workspace && store.project.songs.length === 0}
+            title="Save everything in one .lightsmith file, to back it up or open it on another computer"
+          >
+            <Icon name="download" size={15} /> Save project
           </button>
         </div>
         <LevelSwitch />

@@ -40,8 +40,8 @@ export function ImportPage({ store, onNext }: { store: Store; onNext: () => void
       >
         <Icon name="upload" size={workspace ? 20 : 30} />
         <strong>{workspace ? "Drop another file, or click to choose" : "Drop your show file here, or click to choose"}</strong>
-        <span>Workspaces (.qxw), fixture definitions (.qxf) and saved Lightsmith projects (.json)</span>
-        <input ref={input} type="file" accept=".qxw,.qxf,.json" multiple hidden onChange={(e) => e.target.files && void store.addFiles(e.target.files)} />
+        <span>QLC+ show files (.qxw), fixture definitions (.qxf) and Lightsmith projects (.lightsmith, or .json from earlier versions)</span>
+        <input ref={input} type="file" accept=".qxw,.qxf,.lightsmith,.json" multiple hidden onChange={(e) => e.target.files && void store.addFiles(e.target.files)} />
       </div>
 
       {store.workspaceError && (

@@ -588,6 +588,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Build it.** Map one pad to section 1, export, and play it with QLC+ open. Then add next and previous song.
 
+**The project file.** One `.lightsmith` file carries everything to another computer: plain JSON with a header naming the format and its version (`bundleProject`, `readProjectFile` in `src/core/projectFile.ts`), the project, the QLC+ show file it was built on, and the fixture definitions you added (library ones are fetched again). Why a named format on open JSON rather than a secret one; refusing files from a newer version with a plain reason; still opening the `.json` projects saved before it existed; a Save project button in the left menu.
+
 ---
 
 ## Section F — Shipping and preparing for what's next

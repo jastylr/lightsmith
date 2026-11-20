@@ -201,10 +201,16 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
 
       <section className="backup">
         <h2>Keep a copy of your work</h2>
-        <p className="hint">Your stage and songs are saved in this browser. Download a project file to back them up or move them to another computer, then drop it on the Show file step to load it.</p>
+        <p className="hint">Your work is kept in this browser as you go. To back it up or move it to another computer, save a project file (.lightsmith): it holds your stage, songs, set and show control, plus the QLC+ show file and the fixture definitions you added. Drop it on the Show file step to open it.</p>
         <div className="row">
-          <button className="ghost" onClick={() => download("lightsmith-project.json", JSON.stringify(store.project, null, 2), "application/json")}>
-            <Icon name="download" size={16} /> Download project file
+          <button
+            className="ghost"
+            onClick={() => {
+              const f = store.projectFile();
+              download(f.name, f.text, "application/json");
+            }}
+          >
+            <Icon name="download" size={16} /> Save project file
           </button>
           <button
             className="ghost danger"

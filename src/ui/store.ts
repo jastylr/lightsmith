@@ -9,6 +9,10 @@ import {
   matchProfiles,
   newSong,
   normalizeProject,
+  bundleProject,
+  projectFileName,
+  readProjectFile,
+  PROJECT_EXT,
   parseFixtureDef,
   parseWorkspace,
   UndoHistory,
@@ -200,12 +204,20 @@ export function useLightsmith() {
         } else if (lower.endsWith(".qxf")) {
           const def = parseFixtureDef(text);
           setDefs((prev) => new Map(prev).set(fixtureKey(def.manufacturer, def.model), { def, source: "added", xml: text }));
-        } else if (lower.endsWith(".json")) {
-          const p = JSON.parse(text) as Project;
-          if (p.version !== 1 || !Array.isArray(p.songs)) throw new Error("Not a Lightsmith project file");
-          setProject(normalizeProject(p));
+        } else if (lower.endsWith(PROJECT_EXT) || lower.endsWith(".json")) {
+          // A .lightsmith file brings its show file and added fixture definitions with it.
+          const read = readProjectFile(text);
+          setProject(read.project);
+          if (read.showFile) {
+            parseWorkspace(read.showFile.xml); // validate
+            setWorkspace(read.showFile);
+          }
+          for (const d of read.fixtureDefinitions) {
+            const def = parseFixtureDef(d.xml);
+            setDefs((prev) => new Map(prev).set(fixtureKey(def.manufacturer, def.model), { def, source: "added", xml: d.xml }));
+          }
         } else {
-          setError(`"${file.name}" isn't a .qxw, .qxf or Lightsmith .json file.`);
+          setError(`"${file.name}" isn't a .qxw, .qxf or ${PROJECT_EXT} file.`);
         }
       } catch (e) {
         setError(`Couldn't read "${file.name}": ${(e as Error).message}`);
@@ -233,6 +245,11 @@ export function useLightsmith() {
     return s.id;
   }, [change]);
   const deleteSong = useCallback((id: string) => change((p) => ({ ...p, songs: p.songs.filter((s) => s.id !== id) })), [change]);
+  /** The whole project as a .lightsmith file: its name and contents. */
+  const projectFile = useCallback(() => {
+    const added = [...defs.values()].filter((d) => d.source === "added").map((d) => ({ name: `${d.def.manufacturer}-${d.def.model}.qxf`.replace(/[\\/:*?"<>|]/g, "-"), xml: d.xml }));
+    return { name: projectFileName(workspace?.name), text: bundleProject(project, workspace, added) };
+  }, [defs, project, workspace]);
   const resetAll = useCallback(() => {
     setProject(emptyProject());
     setWorkspace(null);
@@ -257,6 +274,7 @@ export function useLightsmith() {
     setPresets,
     setSetlist,
     setControl,
+    projectFile,
     /** The loaded show file, read-only (for importing chasers). */
     showFile: parsed && !("error" in parsed) ? parsed : null,
     updateSong,
