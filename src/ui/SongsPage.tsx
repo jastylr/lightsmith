@@ -540,10 +540,17 @@ function Timeline({
     setPos(0);
   }, [song.id]);
 
-  // Keep the selected section in view (for example one just added at the end).
+  // Keep the selected section in view in the timeline (for example one just
+  // added at the end). Only the timeline scrolls sideways: the page stays put,
+  // so picking a section while you're deep in its settings doesn't jump you up.
   useEffect(() => {
-    const el = selected ? scroller.current?.querySelector<HTMLElement>(`[data-id="${selected}"]`) : null;
-    if (!playing) el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    const box = scroller.current;
+    const el = selected ? box?.querySelector<HTMLElement>(`[data-id="${selected}"]`) : null;
+    if (playing || !box || !el) return;
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const by = r.left < b.left ? r.left - b.left - 16 : r.right > b.right ? r.right - b.right + 16 : 0;
+    if (by) box.scrollBy({ left: by, behavior: reduceMotionPref() ? "auto" : "smooth" });
   }, [selected, song.sections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startResize = (e: ReactPointerEvent<HTMLElement>, id: string) => {
@@ -1311,6 +1318,27 @@ function LookEditor({
       window.removeEventListener("resize", spy);
     };
   }, [navKey]);
+  // Switching sections keeps your place: the card you were in stays where it
+  // was on screen, so you can compare the same settings across sections.
+  const activeRef = useRef<string | null>(null);
+  activeRef.current = activeCard;
+  useLayoutEffect(() => {
+    const keep = keptPlace;
+    if (keep) {
+      const el = document.getElementById(`card-${keep.id}`);
+      if (el) {
+        const off = el.getBoundingClientRect().top - keep.top;
+        if (Math.abs(off) > 2) window.scrollTo({ top: window.scrollY + off, behavior: "auto" });
+        jumpedRef.current = keep.id;
+        setActiveCard(keep.id);
+      }
+    }
+    return () => {
+      const id = activeRef.current;
+      const el = id ? document.getElementById(`card-${id}`) : null;
+      keptPlace = id && el && previewRef.current && previewRef.current.getBoundingClientRect().bottom < 0 ? { id, top: el.getBoundingClientRect().top } : null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const jumpTo = (id: string) => {
     openCard(id);
     jumpedRef.current = id;
@@ -1799,6 +1827,9 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
     </div>
   );
 }
+
+/** Where you were in the settings when you last switched sections (see LookEditor). */
+let keptPlace: { id: string; top: number } | null = null;
 
 /** "One card at a time": opening a settings card closes the others. Remembered in this browser. */
 const ONE_CARD_KEY = "lightsmith.oneCard.v1";
