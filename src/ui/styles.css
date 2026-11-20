@@ -1481,7 +1481,30 @@ body.is-resizing * {
 }
 .cue.on {
   border-color: var(--tungsten);
-  background: linear-gradient(90deg, rgba(242, 167, 59, 0.12), var(--deck) 60%);
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+  box-shadow: 0 6px 18px -8px rgba(242, 167, 59, 0.6);
+}
+.cue.on .cue-num,
+.cue.on .cue-text small,
+.cue.on .cue-grip {
+  color: color-mix(in srgb, var(--tungsten-ink) 75%, var(--tungsten));
+}
+.cue.on .cue-text strong {
+  color: var(--tungsten-ink);
+  font-weight: 720;
+}
+.cue.on .swatch-row i {
+  box-shadow: 0 0 0 1.5px var(--tungsten-ink);
+}
+.cue.on .cue-action {
+  background: color-mix(in srgb, var(--tungsten-ink) 88%, transparent);
+  border-color: transparent;
+  color: var(--tungsten-hi);
+}
+.cue.on .cue-main:focus-visible {
+  outline: 2px solid var(--tungsten-ink);
+  outline-offset: -3px;
 }
 .cue.dragging {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
@@ -3755,6 +3778,43 @@ body.is-resizing * {
   background: color-mix(in srgb, var(--deck) 92%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line-soft);
+}
+.card-nav-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.card-nav-editing {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+.card-nav-num {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.card-nav-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.card-nav-name {
+  font-size: 1.05rem;
+  font-weight: 720;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .card-nav-links {
   display: flex;

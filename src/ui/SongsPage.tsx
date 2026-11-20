@@ -1434,6 +1434,14 @@ function LookEditor({
         <div className="editor-controls">
           <CardNav
             ref={navRef}
+            editing={
+              <>
+                <span className="card-nav-num">{index + 1}</span>
+                <span className="card-nav-label">Editing</span>
+                <strong className="card-nav-name">{s.name || "Untitled section"}</strong>
+                <span className="swatch-row">{blackout ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}</span>
+              </>
+            }
             items={navIds.map((id) => ({ id, label: CARD_LABELS[id]?.label ?? id, icon: CARD_LABELS[id]?.icon ?? "list", changed: cards[id]!.changed, summary: cards[id]!.summary }))}
             active={activeCard}
             onJump={jumpTo}
@@ -1878,8 +1886,9 @@ const CardNav = forwardRef<
     onJump: (id: string) => void;
     mini: ReactNode;
     onPlay?: () => void;
+    editing: ReactNode;
   }
->(function CardNav({ items, active, onJump, mini, onPlay }, ref) {
+>(function CardNav({ items, active, onJump, mini, onPlay, editing }, ref) {
   return (
     <div className={mini ? "card-nav with-mini" : "card-nav"} ref={ref}>
       {mini && (
@@ -1892,6 +1901,8 @@ const CardNav = forwardRef<
           )}
         </div>
       )}
+      <div className="card-nav-main">
+      <div className="card-nav-editing" aria-live="polite">{editing}</div>
       <nav className="card-nav-links" aria-label="Jump to settings">
         {items.map((it) => (
           <button
@@ -1909,6 +1920,7 @@ const CardNav = forwardRef<
           </button>
         ))}
       </nav>
+      </div>
     </div>
   );
 });
