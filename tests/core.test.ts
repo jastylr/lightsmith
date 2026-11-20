@@ -6,6 +6,13 @@ import {
   fixtureKey,
   focusLights,
   generateSong,
+  generateSet,
+  SET_FRAME,
+  PATH_ROOT,
+  getAttr,
+  childElements,
+  firstChild,
+  type XmlElement,
   guessRig,
   moverShapeAt,
   DEFAULT_HOME,
@@ -843,4 +850,37 @@ test("a new moving head starts leaning over the crowd, and keeps its home when t
   const own = { ...rig, fixtures: rig.fixtures.map((f) => (f.role === "mover" ? { ...f, home: { pan: 128, tilt: 128 } } : f)) };
   const again = guessRig(ws.fixtures, profiles, own);
   assert.deepEqual(again.fixtures.find((f) => f.role === "mover")!.home, { pan: 128, tilt: 128 }, "an existing rig is left as it was");
+});
+
+test("the whole set: every song in one file, one solo frame with a page per song", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const a = { ...newSong("First song", 120), sections: sectionsFromTemplate("bridge", 120) };
+  const b = { ...newSong("Second song", 100), sections: sectionsFromTemplate("short", 100).slice(0, 3) };
+  // A single-song export first: the set replaces its frame.
+  generateSong({ ws, profiles, rig, song: a });
+  const sum = generateSet({ ws, profiles, rig, songs: [a, b] });
+  assert.equal(sum.songs.length, 2);
+  const xml = serializeWorkspace(ws);
+  const again = parseWorkspace(xml);
+  assert.deepEqual(checkWorkspace(again, profiles, PATH_ROOT).filter((i) => i.level === "error"), []);
+  const frames: XmlElement[] = [];
+  const walk = (e: XmlElement) => childElements(e).forEach((c) => (c.name === "SoloFrame" || c.name === "Frame" ? (frames.push(c), walk(c)) : walk(c)));
+  walk(again.virtualConsole!);
+  const set = frames.filter((f) => getAttr(f, "Caption") === SET_FRAME);
+  assert.equal(set.length, 1, "one set frame");
+  assert.equal(frames.filter((f) => getAttr(f, "Caption") === "First song (Lightsmith)").length, 0, "the single-song frame is gone");
+  assert.equal(getAttr(firstChild(set[0]!, "Multipage")!, "PagesNum"), "2");
+  assert.deepEqual(childElements(set[0]!, "Shortcut").map((s) => getAttr(s, "Name")), ["1. First song", "2. Second song"]);
+  const buttons = childElements(set[0]!, "Button");
+  assert.equal(buttons.length, a.sections.length + b.sections.length);
+  assert.equal(buttons.filter((x) => getAttr(x, "Page") === "1").length, b.sections.length);
+  // Exporting the set again replaces it rather than adding a second one.
+  generateSet({ ws: again, profiles, rig, songs: [b] });
+  const frames2: XmlElement[] = [];
+  const walk2 = (e: XmlElement) => childElements(e).forEach((c) => (c.name === "SoloFrame" || c.name === "Frame" ? (frames2.push(c), walk2(c)) : walk2(c)));
+  walk2(again.virtualConsole!);
+  assert.equal(frames2.filter((f) => getAttr(f, "Caption") === SET_FRAME).length, 1);
+  assert.throws(() => generateSet({ ws: again, profiles, rig, songs: [a, { ...a, id: "x" }] }), /Two songs are called/);
 });

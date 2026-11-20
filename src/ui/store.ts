@@ -17,6 +17,7 @@ import {
   type Rig,
   type Sequence,
   type LookPreset,
+  type Setlist,
   type Song,
   type WsFixture,
 } from "../core";
@@ -222,6 +223,7 @@ export function useLightsmith() {
   const setRig = useCallback((rig: Rig) => change((p) => ({ ...p, rig })), [change]);
   const setSequences = useCallback((sequences: Sequence[]) => change((p) => ({ ...p, sequences })), [change]);
   const setPresets = useCallback((presets: LookPreset[]) => change((p) => ({ ...p, presets })), [change]);
+  const setSetlist = useCallback((setlist: Setlist) => change((p) => ({ ...p, setlist })), [change]);
   const updateSong = useCallback((song: Song) => change((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), [change]);
   const addSong = useCallback(() => {
     const s = newSong("Untitled song", 120);
@@ -251,6 +253,7 @@ export function useLightsmith() {
     setRig,
     setSequences,
     setPresets,
+    setSetlist,
     /** The loaded show file, read-only (for importing chasers). */
     showFile: parsed && !("error" in parsed) ? parsed : null,
     updateSong,

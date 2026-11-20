@@ -333,6 +333,24 @@ export interface Project {
   sequences?: Sequence[];
   /** The user's own presets, shared by every song. */
   presets?: LookPreset[];
+  /** The set: songs in playing order, and any left out of the export. */
+  setlist?: Setlist;
+}
+
+export interface Setlist {
+  /** Song ids in playing order. Songs not listed follow, in the order they were made. */
+  order: string[];
+  /** Song ids left out of the whole-set export. */
+  skip: string[];
+}
+
+/** The project's songs in set order, with whether each one is in the set. */
+export function setOrder(p: Pick<Project, "songs" | "setlist">): { song: Song; included: boolean }[] {
+  const byId = new Map(p.songs.map((s) => [s.id, s]));
+  const listed = (p.setlist?.order ?? []).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  const rest = p.songs.filter((s) => !listed.includes(s));
+  const skip = new Set(p.setlist?.skip ?? []);
+  return [...listed, ...rest].map((song) => ({ song, included: !skip.has(song.id) }));
 }
 
 /** A section's look, copied so the preset doesn't share anything with the section. */
@@ -415,6 +433,7 @@ export function normalizeProject(p: Project): Project {
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
     ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights] })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
+    ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
   };
 }
 

@@ -177,6 +177,8 @@ export interface GenerateInput {
   song: Song;
   /** The project's sequences, for sections that use them. */
   sequences?: Sequence[];
+  /** Add the song's own frame of buttons (default). The whole set puts its buttons in one frame instead. */
+  buttons?: boolean;
 }
 
 export interface GenerateSummary {
@@ -187,6 +189,8 @@ export interface GenerateSummary {
   /** Where the button frame was put, in words: "inside “CV Console” on the page “CV Show”". */
   buttonsWhere: string;
   songChaserId: number;
+  /** The Collection for each section, in order. */
+  sectionIds: number[];
 }
 
 function safeName(s: string): string {
@@ -199,7 +203,7 @@ export function songPathFor(title: string): string {
 }
 
 /** Mutates `ws` (merging the song into it) and returns a summary. */
-export function generateSong({ ws, profiles, rig, song, sequences = [] }: GenerateInput): GenerateSummary {
+export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true }: GenerateInput): GenerateSummary {
   const title = safeName(song.title);
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
@@ -660,6 +664,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
   );
   removed += removeWhere(engine, (e) => e.name === "FixtureGroup" && textOf(firstChild(e, "Name")).trim().startsWith("Lightsmith: ") && !usedGroups.has(Number(getAttr(e, "ID"))));
 
+  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds };
+
   // 4. Virtual Console: a solo frame with one button per section.
   let vc = ws.virtualConsole;
   if (!vc) {
@@ -699,7 +705,108 @@ export function generateSong({ ws, profiles, rig, song, sequences = [] }: Genera
   });
   spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds };
+}
+
+/** The Virtual Console frame that holds the whole set. */
+export const SET_FRAME = `Set (${APP_NAME})`;
+
+export interface SetSummary {
+  songs: { title: string; sections: number; functions: number }[];
+  functions: number;
+  removedPrevious: number;
+  buttonsFrame: string;
+  buttonsWhere: string;
+}
+
+/**
+ * The whole set in one show file: every song's functions, and one solo frame
+ * with a page per song (in set order) holding that song's section buttons.
+ * One solo frame means a button stops whatever was running, even from the
+ * song before; pages mean the same spot (and later the same pad) starts the
+ * same section number in whichever song is showing. QLC+ answers external
+ * input only for widgets on a frame's current page, in both its interfaces.
+ */
+export function generateSet({ ws, profiles, rig, songs, sequences = [] }: Omit<GenerateInput, "song" | "buttons"> & { songs: Song[] }): SetSummary {
+  if (!songs.length) throw new Error("The set has no songs in it.");
+  const titles = new Map<string, string>();
+  for (const song of songs) {
+    const key = songPathFor(song.title).toLowerCase();
+    if (titles.has(key)) throw new Error(`Two songs are called “${song.title.trim() || "Untitled"}”. Rename one so each song has its own name.`);
+    titles.set(key, song.title);
+  }
+
+  // Remember where the set frame was, then take it out (it's rebuilt below).
+  let previousSpot: { parent: XmlElement; x: number; y: number } | undefined;
+  let removed = 0;
+  if (ws.virtualConsole) {
+    const find = (parent: XmlElement): void => {
+      for (const c of childElements(parent)) {
+        if (c.name === "SoloFrame" && getAttr(c, "Caption") === SET_FRAME) {
+          const st = firstChild(c, "WindowState");
+          if (!previousSpot) previousSpot = { parent, x: Number(getAttr(st!, "X") ?? 15), y: Number(getAttr(st!, "Y") ?? 15) };
+        } else find(c);
+      }
+    };
+    find(ws.virtualConsole);
+    removed += removeWhere(ws.virtualConsole, (e) => e.name === "SoloFrame" && getAttr(e, "Caption") === SET_FRAME);
+  }
+
+  const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false }) }));
+  removed += results.reduce((n, { r }) => n + r.removedPrevious, 0);
+
+  let vc = ws.virtualConsole;
+  if (!vc) {
+    vc = el("VirtualConsole", {}, []);
+    ws.doc.root.children.push(vc);
+    ws.virtualConsole = vc;
+  }
+  let page = childElements(vc, "Frame")[0];
+  if (!page) {
+    page = el("Frame", { Caption: "", ID: nextWidgetId(vc) }, [el("WindowState", { Visible: "True", X: 0, Y: 0, Width: 1920, Height: 1080 })]);
+    vc.children.push(page);
+  }
+  let wid = nextWidgetId(vc);
+  const perRow = 10;
+  const size = 80;
+  const stepPx = 90;
+  const most = Math.max(1, ...songs.map((s) => s.sections.length));
+  const rows = Math.ceil(most / perRow);
+  const width = Math.max(Math.min(most, perRow) * stepPx + 20, 340);
+  const height = rows * stepPx + 46;
+  const spot = placeFrame(page, width, height, previousSpot);
+  const pageName = (i: number, song: Song) => `${i + 1}. ${safeName(song.title)}`;
+  const frame = el("SoloFrame", { Caption: SET_FRAME, ID: wid++ }, [
+    el("WindowState", { Visible: "True", X: spot.x, Y: spot.y, Width: width, Height: height }),
+    textEl("AllowResize", "True"),
+    textEl("ShowHeader", "True"),
+    textEl("ShowEnableButton", "True"),
+    textEl("Collapsed", "False"),
+    textEl("Disabled", "False"),
+    el("Multipage", { PagesNum: songs.length, CurrentPage: 0 }),
+    ...songs.map((song, i) => el("Shortcut", { Page: i, Name: pageName(i, song) })),
+    textEl("PagesLoop", "False"),
+  ]);
+  results.forEach(({ song, r }, p) => {
+    song.sections.forEach((s, i) => {
+      frame.children.push(
+        el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++, ...(p ? { Page: p } : {}) }, [
+          el("WindowState", { Visible: p ? "False" : "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
+          el("Function", { ID: r.sectionIds[i]! }),
+          textEl("Action", "Toggle"),
+        ]),
+      );
+    });
+  });
+  spot.parent.children.push(frame);
+
+  return {
+    songs: results.map(({ song, r }) => ({ title: song.title, sections: r.sections, functions: r.functions })),
+    functions: results.reduce((n, { r }) => n + r.functions, 0),
+    removedPrevious: removed,
+    buttonsFrame: SET_FRAME,
+    buttonsWhere: spot.where,
+  };
 }
 
 interface Box {

@@ -1,28 +1,53 @@
 import { useMemo, useState } from "react";
-import { checkWorkspace, generateSong, moodById, parseWorkspace, sectionMs, serializeWorkspace, songPathFor, type GenerateSummary, type Issue } from "../core";
+import { checkWorkspace, generateSet, generateSong, moodById, parseWorkspace, PATH_ROOT, sectionMs, serializeWorkspace, setOrder, songPathFor, type GenerateSummary, type Issue, type SetSummary, type Song } from "../core";
 import { cssColor } from "./ColorPicker";
-import { Dropdown } from "./controls";
+import { Dropdown, Segmented } from "./controls";
 import { askConfirm } from "./ConfirmDialog";
 import { Icon } from "./icons";
 import { download, type Store } from "./store";
 
+type Mode = "set" | "song";
+type Built =
+  | { mode: "song"; xml: string; summary: GenerateSummary; issues: Issue[]; title: string }
+  | { mode: "set"; xml: string; summary: SetSummary; issues: Issue[]; title: string };
+
 export function ExportPage({ store, songId, setSongId }: { store: Store; songId: string; setSongId: (id: string) => void }) {
   const songs = store.project.songs;
   const song = songs.find((s) => s.id === songId) ?? songs[0];
-  const [result, setResult] = useState<{ xml: string; summary: GenerateSummary; issues: Issue[]; songTitle: string } | null>(null);
+  const [mode, setMode] = useState<Mode>(songs.length > 1 ? "set" : "song");
+  const [result, setResult] = useState<Built | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-
   const unusable = useMemo(() => store.project.rig.fixtures.filter((f) => f.role !== "ignore" && !store.profiles.has(f.fixtureId)).length, [store.project.rig, store.profiles]);
 
+  const order = setOrder(store.project);
+  const inSet = order.filter((o) => o.included && o.song.sections.length > 0).map((o) => o.song);
+  const saveOrder = (next: { song: Song; included: boolean }[]) => {
+    store.setSetlist({ order: next.map((o) => o.song.id), skip: next.filter((o) => !o.included).map((o) => o.song.id) });
+    setResult(null);
+  };
+  const moveSong = (i: number, by: number) => {
+    const next = [...order];
+    const [o] = next.splice(i, 1);
+    next.splice(i + by, 0, o!);
+    saveOrder(next);
+  };
+
   const build = () => {
-    if (!store.workspace || !song) return;
+    if (!store.workspace) return;
     setFailure(null);
     try {
       const ws = parseWorkspace(store.workspace.xml);
-      const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences });
-      const xml = serializeWorkspace(ws);
-      const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
-      setResult({ xml, summary, issues, songTitle: song.title });
+      if (mode === "set") {
+        const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences });
+        const xml = serializeWorkspace(ws);
+        const issues = checkWorkspace(parseWorkspace(xml), store.profiles, PATH_ROOT);
+        setResult({ mode, xml, summary, issues, title: "Set" });
+      } else if (song) {
+        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences });
+        const xml = serializeWorkspace(ws);
+        const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
+        setResult({ mode, xml, summary, issues, title: song.title });
+      }
     } catch (e) {
       setFailure((e as Error).message);
       setResult(null);
@@ -32,39 +57,79 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
   const baseName = (store.workspace?.name ?? "show.qxw").replace(/\.qxw$/i, "");
   const errors = result?.issues.filter((i) => i.level === "error") ?? [];
   const warnings = result?.issues.filter((i) => i.level === "warning") ?? [];
-  const fileName = result ? `${baseName} - ${result.songTitle}.qxw` : "";
+  const fileName = result ? `${baseName} - ${result.title}.qxw` : "";
+  const canBuild = mode === "set" ? inSet.length > 0 : !!song?.sections.length;
 
   return (
     <section className="page">
       <header className="page-head">
         <h1>Export to QLC+</h1>
-        <p className="lead">Lightsmith adds the song to a copy of your workspace. The rest of your show stays as it was, and exporting the same song again replaces its earlier version.</p>
+        <p className="lead">Lightsmith adds your songs to a copy of your workspace. The rest of your show stays as it was, and exporting again replaces what Lightsmith made before.</p>
       </header>
 
-      <div className="export-card">
-        <div className="export-pick">
-          <Dropdown
-            label="Song to export"
-            value={song?.id ?? ""}
-            options={songs.map((s) => ({ value: s.id, label: s.title || "Untitled song" }))}
-            onChange={(id) => {
-              setSongId(id);
-              setResult(null);
-            }}
-            className="wide"
-          />
-          {song && (
-            <div className="export-strip" aria-hidden="true">
-              {song.sections.map((s) => (
-                <span key={s.id} style={{ flexGrow: sectionMs(s), background: `linear-gradient(90deg, ${(s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor).join(",")})` }} title={s.name} />
+      <Segmented
+        label="What to export"
+        value={mode}
+        options={[
+          { value: "set", label: "The whole set" },
+          { value: "song", label: "One song" },
+        ]}
+        onChange={(m: Mode) => {
+          setMode(m);
+          setResult(null);
+        }}
+      />
+
+      {mode === "set" ? (
+        <div className="export-card set">
+          <div className="export-pick">
+            <p className="hint">Songs in the order you play them. Each one gets a page of section buttons in QLC+, in this order. Untick a song to leave it out.</p>
+            <ol className="set-list" aria-label="Songs in the set">
+              {order.map((o, i) => (
+                <li key={o.song.id} className={o.included ? "set-song" : "set-song out"}>
+                  <span className="set-num">{o.included ? inSet.indexOf(o.song) + 1 || "–" : "–"}</span>
+                  <label className="set-check">
+                    <input type="checkbox" checked={o.included} onChange={(e) => saveOrder(order.map((x, k) => (k === i ? { ...x, included: e.target.checked } : x)))} aria-label={`Include ${o.song.title || "Untitled song"} in the set`} />
+                    <span className="set-title">{o.song.title || "Untitled song"}</span>
+                  </label>
+                  <span className="set-meta">{o.song.sections.length ? `${o.song.sections.length} sections` : "No sections yet"}</span>
+                  <SongStrip song={o.song} />
+                  <span className="set-move">
+                    <button type="button" className="icon-btn" onClick={() => moveSong(i, -1)} disabled={i === 0} aria-label={`Move ${o.song.title} earlier`} title="Earlier in the set">
+                      <Icon name="chevronUp" size={16} />
+                    </button>
+                    <button type="button" className="icon-btn" onClick={() => moveSong(i, 1)} disabled={i === order.length - 1} aria-label={`Move ${o.song.title} later`} title="Later in the set">
+                      <Icon name="chevronDown" size={16} />
+                    </button>
+                  </span>
+                </li>
               ))}
-            </div>
-          )}
+            </ol>
+          </div>
+          <button className="primary large" onClick={build} disabled={!canBuild}>
+            <Icon name="play" /> Build show file
+          </button>
         </div>
-        <button className="primary large" onClick={build} disabled={!song?.sections.length}>
-          <Icon name="play" /> Build show file
-        </button>
-      </div>
+      ) : (
+        <div className="export-card">
+          <div className="export-pick">
+            <Dropdown
+              label="Song to export"
+              value={song?.id ?? ""}
+              options={songs.map((s) => ({ value: s.id, label: s.title || "Untitled song" }))}
+              onChange={(id) => {
+                setSongId(id);
+                setResult(null);
+              }}
+              className="wide"
+            />
+            {song && <SongStrip song={song} />}
+          </div>
+          <button className="primary large" onClick={build} disabled={!canBuild}>
+            <Icon name="play" /> Build show file
+          </button>
+        </div>
+      )}
 
       {unusable > 0 && (
         <div className="notice warn">
@@ -86,11 +151,18 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
           <div className={errors.length ? "result-head bad" : "result-head good"}>
             <Icon name={errors.length ? "alert" : "check"} size={26} />
             <div>
-              <h2>{errors.length ? "A few things need fixing" : `${result.songTitle} is ready`}</h2>
-              <p>
-                {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and a frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}.
-                {result.summary.removedPrevious > 0 && " The earlier export of this song was replaced."}
-              </p>
+              <h2>{errors.length ? "A few things need fixing" : result.mode === "set" ? "Your set is ready" : `${result.title} is ready`}</h2>
+              {result.mode === "set" ? (
+                <p>
+                  {result.summary.songs.length} {result.summary.songs.length === 1 ? "song" : "songs"} and {result.summary.functions} QLC+ functions, with one frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}. It has a page for each song.
+                  {result.summary.removedPrevious > 0 && " What Lightsmith made before was replaced."}
+                </p>
+              ) : (
+                <p>
+                  {result.summary.functions} QLC+ functions for {result.summary.sections} sections, a song cue list, and a frame of section buttons named “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}.
+                  {result.summary.removedPrevious > 0 && " The earlier export of this song was replaced."}
+                </p>
+              )}
             </div>
             <button className="primary" disabled={errors.length > 0} onClick={() => download(fileName, result.xml)}>
               <Icon name="download" /> Download
@@ -100,16 +172,28 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
           {warnings.length > 0 && <IssueList title="Worth checking" items={warnings} kind="warn" />}
 
           <h3>In QLC+</h3>
-          <ol className="next-steps">
-            <li>Close the show in QLC+ if it's open, then open the downloaded file.</li>
-            <li>
-              In the Virtual Console, the buttons are in the frame “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}. Each button starts a section and stops the one before it. You can move the frame anywhere; exporting again keeps it where you put it.
-            </li>
-            <li>
-              To step through the song with one footswitch, add a Cue List widget and pick the chaser “{result.songTitle} — song cues”. Then map your MIDI controller to it in QLC+.
-            </li>
-            <li>Check moving-head positions on the real rig, adjust their home positions on the Stage step, and export again.</li>
-          </ol>
+          {result.mode === "set" ? (
+            <ol className="next-steps">
+              <li>Close the show in QLC+ if it's open, then open the downloaded file.</li>
+              <li>
+                In the Virtual Console, the frame “{result.summary.buttonsFrame}” is {result.summary.buttonsWhere}. It has one page per song, named with its place in the set ({result.summary.songs.map((x, i) => `${i + 1}. ${x.title}`).slice(0, 3).join(", ")}{result.summary.songs.length > 3 ? " …" : ""}). Use the arrows in the frame's header to change song.
+              </li>
+              <li>Each button starts its section and stops whatever was running, even from the song before. Section 1 sits in the same spot on every page, as do section 2 and the rest, so a pad or footswitch can be set up once per spot.</li>
+              <li>If you exported single songs before, their own frames are replaced by the set. Songs you left out keep what they had.</li>
+              <li>Check moving-head positions on the real rig, adjust them on the Stage step, and export again. The frame stays where you put it.</li>
+            </ol>
+          ) : (
+            <ol className="next-steps">
+              <li>Close the show in QLC+ if it's open, then open the downloaded file.</li>
+              <li>
+                In the Virtual Console, the buttons are in the frame “{result.summary.buttonsFrame}”, {result.summary.buttonsWhere}. Each button starts a section and stops the one before it. You can move the frame anywhere; exporting again keeps it where you put it.
+              </li>
+              <li>
+                To step through the song with one footswitch, add a Cue List widget and pick the chaser “{result.title} — song cues”. Then map your MIDI controller to it in QLC+.
+              </li>
+              <li>Check moving-head positions on the real rig, adjust their home positions on the Stage step, and export again.</li>
+            </ol>
+          )}
         </div>
       )}
 
@@ -148,6 +232,17 @@ function IssueList({ title, items, kind }: { title: string; items: Issue[]; kind
           <li key={k}>{i.message}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** A song's sections as a strip of their colors, sized by length. */
+function SongStrip({ song }: { song: Song }) {
+  return (
+    <div className="export-strip" aria-hidden="true">
+      {song.sections.map((s) => (
+        <span key={s.id} style={{ flexGrow: sectionMs(s), background: `linear-gradient(90deg, ${(s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor).join(",")})` }} title={s.name} />
+      ))}
     </div>
   );
 }

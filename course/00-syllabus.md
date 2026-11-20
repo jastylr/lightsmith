@@ -72,7 +72,7 @@ flowchart LR
 | 12. Show file | Annotated page screenshot; flowchart of `addFiles` routing each file type; how a fixture becomes a profile |
 | 13–14. Stage | Annotated page screenshot; how QLC+'s 3D view becomes positions, sides and order; job versus place; sequence of a drag |
 | 15–21. Songs | Annotated screenshot for each section; component tree of the Songs page; timeline resize and playback sequences; how a section's settings flow into the preview |
-| 22. Export | Annotated page screenshot; flowchart of `generateSong`; which QLC+ functions one section becomes; where the Virtual Console frame is placed |
+| 22. Export | Annotated page screenshot (whole set and one song); flowchart of `generateSong` and `generateSet`; which QLC+ functions one section becomes; where the Virtual Console frame is placed |
 | 23. Deploying | The GitHub Actions pipeline, from push to live site |
 | 24. Audit | Before/after: today's store vs the split, repository-based design |
 | 25. Next.js | PHP request cycle side by side with Server and Client Components |
@@ -560,6 +560,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - The generator, step by step: the `Builder` pattern, removing a previous export, fixture groups, building each section's look (scenes, matrices, EFX, chasers), effects and blend modes, blackouts and fade-to-black, the song cue list, and Virtual Console buttons placed where they can be seen.
 - How each light's final color and brightness is decided: the mood and energy, then its kind of light, then its own settings. Focus sits on top: its spotlight lights go warm white at full and everything else dims to half, and only a light switched off wins over Focus. Also which lights sit out the pattern and effects.
 - Making exports repeatable: exporting twice gives one copy and keeps a frame the user moved.
+- The whole set in one file (`generateSet`): each song generated in turn into the same workspace, then one solo frame with a page per song in set order (`Multipage`, named pages through `Shortcut`, a `Page` on each button). Why one solo frame (a button stops whatever was running, even from the song before) and why pages (QLC+ only answers external input for widgets on a frame's current page, so the same pad can start section 1 of whichever song is showing), checked against QLC+'s own source for both its interfaces. The set order and songs left out are kept in the project (`Setlist`, `setOrder`); two songs with the same name are refused, because a song's functions live in a folder named after it.
 - Domain rules in code: the shutter trap, HTP vs LTP channels.
 - Validation before download (`checkWorkspace`).
 - Engine tests that prove all of the above.
