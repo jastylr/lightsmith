@@ -838,9 +838,10 @@ function Group({
   description: string;
   children: ReactNode;
   aside?: ReactNode;
-  card?: { id: string; closed: boolean; onToggle: () => void; summary: string; changed: boolean };
+  card?: { id: string; closed: boolean; onToggle?: () => void; summary: string; changed: boolean; hidden?: boolean };
 }) {
   const bodyId = useId();
+  if (card?.hidden) return null;
   const closed = !!card?.closed;
   const heading = (
     <>
@@ -863,7 +864,7 @@ function Group({
   return (
     <section className={closed ? "group closed" : "group"} id={card ? `card-${card.id}` : undefined} data-card={card?.id}>
       <header className="group-head">
-        {card ? (
+        {card?.onToggle ? (
           <button type="button" className="group-toggle-head" aria-expanded={!closed} aria-controls={bodyId} onClick={card.onToggle} title={closed ? `Open ${title}` : `Close ${title}`}>
             {heading}
             <Icon name={closed ? "chevronDown" : "chevronUp"} size={18} />
@@ -1236,22 +1237,27 @@ function LookEditor({
     },
   };
   const visibleCards = blackout ? ["timing"] : Object.keys(cards);
-  const [oneCard, setOneCard] = useOneCard();
+  // ---- Tabs: one card at a time, or "All" for the long page with every card.
+  const [tab, setTabState] = useState<string>(rememberedTab);
+  const setTab = (id: string) => {
+    setTabState(id);
+    rememberTab(id);
+  };
   const card = (id: string) => ({
     ...cards[id]!,
     id,
-    closed: closed.has(id),
-    onToggle: () => {
-      if (closed.has(id)) openCard(id);
-      else setClosed(new Set(closed).add(id));
-    },
+    hidden: tab !== "all" && id !== shownTab,
+    closed: tab === "all" && closed.has(id),
+    onToggle:
+      tab === "all"
+        ? () => {
+            const next = new Set(closed);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            setClosed(next);
+          }
+        : undefined,
   });
-  /** Open a card; with "One card at a time" on, every other card closes. */
-  const openCard = (id: string) => {
-    const next = oneCard ? new Set(visibleCards.filter((x) => x !== id)) : new Set(closed);
-    next.delete(id);
-    setClosed(next);
-  };
   const allClosed = visibleCards.every((id) => closed.has(id));
 
   // ---- Simple / Standard / Pro: what shows. Hidden settings keep working;
@@ -1282,23 +1288,9 @@ function LookEditor({
   // and a small copy of the preview once the big one has scrolled away.
   const navIds = visibleCards.filter((id) => (id === "lights" ? showLightsCard : id === "sequences" ? showSequencesCard : true));
   const navRef = useRef<HTMLDivElement>(null);
-  const [activeCard, setActiveCard] = useState<string | null>(null);
+  // The tab you picked, or the first one this section has (a blackout has only Start and end).
+  const shownTab = tab === "all" ? null : navIds.includes(tab) ? tab : (navIds[0] ?? null);
   const [previewGone, setPreviewGone] = useState(false);
-  const navKey = navIds.join(",");
-  // After a jump, the card you picked stays lit even if the page can't scroll
-  // far enough to bring it to the top; scrolling yourself lets the bar follow again.
-  const jumpedRef = useRef<string | null>(null);
-  useEffect(() => {
-    const release = () => (jumpedRef.current = null);
-    window.addEventListener("wheel", release, { passive: true });
-    window.addEventListener("touchmove", release, { passive: true });
-    window.addEventListener("keydown", release);
-    return () => {
-      window.removeEventListener("wheel", release);
-      window.removeEventListener("touchmove", release);
-      window.removeEventListener("keydown", release);
-    };
-  }, []);
   useEffect(() => {
     const el = previewRef.current;
     if (!el || typeof IntersectionObserver === "undefined") {
@@ -1309,69 +1301,13 @@ function LookEditor({
     io.observe(el);
     return () => io.disconnect();
   }, [popped]);
-  useEffect(() => {
-    let frame = 0;
-    const spy = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const line = (navRef.current?.getBoundingClientRect().bottom ?? 0) + 48;
-        if (jumpedRef.current) return setActiveCard(jumpedRef.current);
-        let current: string | null = null;
-        for (const id of navKey.split(",")) {
-          const el = document.getElementById(`card-${id}`);
-          if (el && el.getBoundingClientRect().top <= line) current = id;
-        }
-        setActiveCard(current);
-      });
-    };
-    spy();
-    window.addEventListener("scroll", spy, { passive: true });
-    window.addEventListener("resize", spy);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", spy);
-      window.removeEventListener("resize", spy);
-    };
-  }, [navKey]);
-  // Switching sections keeps your place: the card you were in stays where it
-  // was on screen, so you can compare the same settings across sections.
-  const activeRef = useRef<string | null>(null);
-  activeRef.current = activeCard;
-  useLayoutEffect(() => {
-    const keep = keptPlace;
-    if (keep) {
-      const el = document.getElementById(`card-${keep.id}`);
-      if (el) {
-        const off = el.getBoundingClientRect().top - keep.top;
-        if (Math.abs(off) > 2) window.scrollTo({ top: window.scrollY + off, behavior: "auto" });
-        jumpedRef.current = keep.id;
-        setActiveCard(keep.id);
-      }
+  const pickTab = (id: string) => {
+    setTab(id);
+    // If you've scrolled down, bring the top of the new tab up under the bar.
+    const host = navRef.current?.parentElement;
+    if (host && host.getBoundingClientRect().top < 0) {
+      requestAnimationFrame(() => window.scrollTo({ top: window.scrollY + host.getBoundingClientRect().top, behavior: "auto" }));
     }
-    return () => {
-      const id = activeRef.current;
-      const el = id ? document.getElementById(`card-${id}`) : null;
-      keptPlace = id && el && previewRef.current && previewRef.current.getBoundingClientRect().bottom < 0 ? { id, top: el.getBoundingClientRect().top } : null;
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const jumpTo = (id: string) => {
-    openCard(id);
-    jumpedRef.current = id;
-    setActiveCard(id);
-    const behavior: ScrollBehavior = reduceMotionPref() ? "auto" : "smooth";
-    const place = (how: ScrollBehavior) => {
-      const el = document.getElementById(`card-${id}`);
-      const nav = navRef.current?.getBoundingClientRect().height ?? 0;
-      if (!el) return 0;
-      const off = el.getBoundingClientRect().top - nav - 14;
-      if (Math.abs(off) > 6) window.scrollTo({ top: window.scrollY + off, behavior: how });
-      return off;
-    };
-    // After the card opens (and the small preview may have appeared), land it just under the bar.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      place(behavior);
-      window.setTimeout(() => place("auto"), behavior === "smooth" ? 650 : 50);
-    }));
   };
 
   return (
@@ -1457,9 +1393,12 @@ function LookEditor({
                 <span className="swatch-row">{blackout ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}</span>
               </>
             }
-            items={navIds.map((id) => ({ id, label: CARD_LABELS[id]?.label ?? id, icon: CARD_LABELS[id]?.icon ?? "list", changed: cards[id]!.changed, summary: cards[id]!.summary }))}
-            active={activeCard}
-            onJump={jumpTo}
+            items={[
+              ...navIds.map((id) => ({ id, label: CARD_LABELS[id]?.label ?? id, icon: CARD_LABELS[id]?.icon ?? "list", changed: cards[id]!.changed, summary: cards[id]!.summary })),
+              ...(navIds.length > 1 ? [{ id: "all", label: "All", icon: "stack" as IconName, changed: false, summary: "" }] : []),
+            ]}
+            active={shownTab ?? "all"}
+            onJump={pickTab}
             mini={
               previewGone && !popped ? (
                 <button type="button" className="card-nav-mini" onClick={() => previewRef.current?.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" })} title="Back up to the full preview">
@@ -1470,35 +1409,25 @@ function LookEditor({
             onPlay={previewGone || popped ? () => onReplay(false) : undefined}
           />
           {!blackout && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
-          <div className="cards-bar">
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => {
-                const next = new Set(closed);
-                for (const id of visibleCards) {
-                  if (allClosed) next.delete(id);
-                  else next.add(id);
-                }
-                setClosed(next);
-              }}
-            >
-              <Icon name={allClosed ? "chevronDown" : "chevronUp"} size={16} />
-              {allClosed ? "Expand all" : "Collapse all"}
-            </button>
-            <Toggle
-              checked={oneCard}
-              onChange={(on) => {
-                setOneCard(on);
-                // Turning it on: keep only the card you're in (or the first open one) open.
-                if (on) {
-                  const keep = (activeCard && !closed.has(activeCard) ? activeCard : null) ?? navIds.find((id) => !closed.has(id)) ?? navIds[0];
-                  setClosed(new Set(visibleCards.filter((id) => id !== keep)));
-                }
-              }}
-              label="One card at a time"
-            />
-          </div>
+          {tab === "all" && (
+            <div className="cards-bar">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={() => {
+                  const next = new Set(closed);
+                  for (const id of visibleCards) {
+                    if (allClosed) next.delete(id);
+                    else next.add(id);
+                  }
+                  setClosed(next);
+                }}
+              >
+                <Icon name={allClosed ? "chevronDown" : "chevronUp"} size={16} />
+                {allClosed ? "Expand all" : "Collapse all"}
+              </button>
+            </div>
+          )}
           {!blackout && (
             <>
           <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
@@ -1882,28 +1811,21 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
   );
 }
 
-/** Where you were in the settings when you last switched sections (see LookEditor). */
-let keptPlace: { id: string; top: number } | null = null;
-
-/** "One card at a time": opening a settings card closes the others. Remembered in this browser. */
-const ONE_CARD_KEY = "lightsmith.oneCard.v1";
-function useOneCard() {
-  const [on, setOn] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(ONE_CARD_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const set = (v: boolean) => {
-    setOn(v);
-    try {
-      localStorage.setItem(ONE_CARD_KEY, v ? "1" : "0");
-    } catch {
-      /* not remembered; fine */
-    }
-  };
-  return [on, set] as const;
+/** The settings tab last picked: every section opens on it. Remembered in this browser. */
+const TAB_KEY = "lightsmith.tab.v1";
+function rememberedTab(): string {
+  try {
+    return localStorage.getItem(TAB_KEY) ?? "mood";
+  } catch {
+    return "mood";
+  }
+}
+function rememberTab(id: string) {
+  try {
+    localStorage.setItem(TAB_KEY, id);
+  } catch {
+    /* not remembered; fine */
+  }
 }
 
 /** Short names and icons for the settings cards, as the bar at the top shows them. */
@@ -1949,23 +1871,39 @@ const CardNav = forwardRef<
       )}
       <div className="card-nav-main">
       <div className="card-nav-editing" aria-live="polite">{editing}</div>
-      <nav className="card-nav-links" aria-label="Jump to settings">
+      <div
+        className="card-nav-links"
+        role="tablist"
+        aria-label="Settings"
+        onKeyDown={(e) => {
+          // Left and right arrows move between tabs, as tabs usually do.
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+          const ids = items.map((it) => it.id);
+          const at = Math.max(0, ids.indexOf(active ?? ""));
+          const next = e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : (at + (e.key === "ArrowRight" ? 1 : -1) + ids.length) % ids.length;
+          e.preventDefault();
+          onJump(ids[next]!);
+          (e.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]")[next])?.focus();
+        }}
+      >
         {items.map((it) => (
           <button
             key={it.id}
             type="button"
+            role="tab"
             data-card={it.id}
-            className={active === it.id ? "card-link on" : "card-link"}
-            aria-current={active === it.id ? "true" : undefined}
+            className={active === it.id ? (it.id === "all" ? "card-link all on" : "card-link on") : it.id === "all" ? "card-link all" : "card-link"}
+            aria-selected={active === it.id}
+            tabIndex={active === it.id ? 0 : -1}
             onClick={() => onJump(it.id)}
-            title={`${it.label}: ${it.summary}`}
+            title={it.id === "all" ? "Every card on one page" : `${it.label}: ${it.summary}`}
           >
             <Icon name={it.icon} size={15} />
             <span>{it.label}</span>
             {it.changed && <span className="card-link-dot" aria-label="has settings of its own" />}
           </button>
         ))}
-      </nav>
+      </div>
       </div>
     </div>
   );

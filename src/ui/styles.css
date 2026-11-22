@@ -4231,3 +4231,13 @@ body.is-resizing * {
 .undo-button.save-button {
   flex-basis: 100%;
 }
+.card-link.all {
+  margin-left: auto;
+}
+.card-link.all .icon {
+  color: var(--muted);
+}
+.card-link.all.on {
+  border-color: var(--tungsten);
+  background: color-mix(in srgb, var(--tungsten) 14%, var(--raised));
+}
