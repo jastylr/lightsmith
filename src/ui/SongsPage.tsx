@@ -1408,7 +1408,8 @@ function LookEditor({
             }
             onPlay={previewGone || popped ? () => onReplay(false) : undefined}
           />
-          {!blackout && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
+          {/* Presets are whole looks, so they sit with the overall feel: on the Mood tab (and All). */}
+          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
           {tab === "all" && (
             <div className="cards-bar">
               <button
