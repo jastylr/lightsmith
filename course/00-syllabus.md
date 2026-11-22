@@ -17,6 +17,8 @@ It follows the order an app is actually built in:
 
 **Your starting point.** You know server-rendered PHP (requests, SQL, sessions, `.env`), and used C++ and Java years ago. The course skips basic programming syntax and spends its time on what's *different*: static types that vanish at runtime, components instead of templates, state that lives in the browser, build tools, and the client/server split that Next.js brings back. "Coming from PHP" boxes map each new idea onto what you know, and say where the comparison breaks down.
 
+**Deep dives for the hard parts.** Some ideas need more than a chapter's worth of attention: immutability and undo, React effects and stale closures, recursion over XML, bit packing for MIDI, the trigonometry of moving lights, and more. These are explained from scratch, with small examples you can run, in the companion [deep dives](deep-dives.md). Each one is marked ● to ●●● for difficulty. A chapter that relies on one says so at the top, under **Needs special attention**: read the deep dive first, then build the chapter.
+
 **Each chapter contains:**
 - **Goals.** What you'll be able to do by the end.
 - **On screen.** The part of the app the chapter builds, so you always know what you're making.
@@ -24,10 +26,11 @@ It follows the order an app is actually built in:
 - **Concepts.** The technology and patterns, taught when they're first needed, not all up front.
 - **Build it.** Step-by-step work in your learner build.
 - **Check yourself.** Questions that confirm the ideas stuck.
+- **Needs special attention** (where it applies). The deep dives to read first.
 
 **Tools you'll need:** Node.js 22 LTS, npm, Git and a GitHub account, VS Code, and a browser with developer tools. Part 2 adds Postgres, a Stripe test account and an Anthropic API key.
 
-File paths refer to commit `9af89a9` (18 November 2026). If a line has moved, search for the function or type name.
+File paths refer to commit `06f1fd4` (22 November 2026). If a line has moved, search for the function or type name.
 
 ## Diagrams and pictures
 
@@ -92,6 +95,8 @@ flowchart LR
 
 ### Chapter 1. What we're building and how it fits together
 
+**Needs special attention.** Read these deep dives first: [17. DMX, HTP and LTP](deep-dives.md#dd-17) ●●.
+
 **Goals.** Understand the product, its users and its domain well enough to make design decisions yourself.
 
 **On screen.** The whole app: the left menu's four steps, and what each page produces.
@@ -138,6 +143,8 @@ flowchart LR
 
 ### Chapter 3. Modern JavaScript for a PHP developer
 
+**Needs special attention.** Read these deep dives first: [12. asynchronous code](deep-dives.md#dd-12) ●●.
+
 **Goals.** Be fluent in the JavaScript underneath TypeScript, especially where it behaves differently from PHP.
 
 **Concepts.**
@@ -164,6 +171,8 @@ flowchart LR
 
 ### Chapter 4. TypeScript, part 1: the essentials
 
+**Needs special attention.** Read these deep dives first: [1. types that vanish](deep-dives.md#dd-1) ●●.
+
 **Goals.** Read the types in Lightsmith and write your own data types with confidence.
 
 **Concepts.**
@@ -185,6 +194,8 @@ flowchart LR
 ---
 
 ### Chapter 5. TypeScript, part 2: generics, strictness and the limits of types
+
+**Needs special attention.** Read these deep dives first: [1. types that vanish](deep-dives.md#dd-1) ●●; [2. unions and narrowing](deep-dives.md#dd-2) ●.
 
 **Goals.** Understand the more advanced TypeScript in Lightsmith, and where types stop protecting you.
 
@@ -208,6 +219,8 @@ flowchart LR
 
 ### Chapter 6. React, part 1: components, JSX and props
 
+**Needs special attention.** Read these deep dives first: [16. accessible controls](deep-dives.md#dd-16) ●.
+
 **Goals.** Understand how React builds an interface out of components, and read any component in Lightsmith.
 
 **Concepts.**
@@ -229,6 +242,8 @@ flowchart LR
 ---
 
 ### Chapter 7. React, part 2: hooks, state and re-rendering
+
+**Needs special attention.** Read these deep dives first: [3. immutability and undo](deep-dives.md#dd-3) ●●; [4. renders, effects and cleanup](deep-dives.md#dd-4) ●●●; [5. stale closures and refs](deep-dives.md#dd-5) ●●●.
 
 **Goals.** Understand state and effects deeply enough to build interactive pages without surprises.
 
@@ -252,6 +267,8 @@ flowchart LR
 ---
 
 ### Chapter 8. The app shell: layout, navigation, look and feel
+
+**Needs special attention.** Read these deep dives first: [15. the CSS cascade](deep-dives.md#dd-15) ●●; [16. accessible controls](deep-dives.md#dd-16) ●.
 
 **Goals.** Build the frame every page lives in: the left menu, the steps, the main area, and the design system.
 
@@ -277,6 +294,8 @@ flowchart LR
 
 ### Chapter 9. The data model: presets, defaults and saved data
 
+**Needs special attention.** Read these deep dives first: [1. types that vanish](deep-dives.md#dd-1) ●●; [2. unions and narrowing](deep-dives.md#dd-2) ●; [3. immutability and undo](deep-dives.md#dd-3) ●●; [17. DMX, HTP and LTP](deep-dives.md#dd-17) ●●.
+
 **Goals.** Design Lightsmith's data the way the real app does: plain, serializable and versioned, with defaults that work for anyone.
 
 **Concepts.**
@@ -300,6 +319,8 @@ flowchart LR
 
 ### Chapter 10. The store: state, saving and undo
 
+**Needs special attention.** Read these deep dives first: [3. immutability and undo](deep-dives.md#dd-3) ●●; [5. stale closures and refs](deep-dives.md#dd-5) ●●●.
+
 **Goals.** Build the single place all project changes go through, with saving to the browser and undo/redo.
 
 **On screen.** Work survives a reload; Undo and Redo in the menu work everywhere.
@@ -322,6 +343,8 @@ flowchart LR
 
 ### Chapter 11. The engine's toolkit: XML and tests
 
+**Needs special attention.** Read these deep dives first: [7. trees and recursion](deep-dives.md#dd-7) ●●; [13. pure functions and tests](deep-dives.md#dd-13) ●.
+
 **Goals.** Build the low-level tools every page's engine work depends on, and the test setup that keeps them correct.
 
 **Concepts.**
@@ -342,6 +365,8 @@ flowchart LR
 ## Section B — Page 1: Show file
 
 ### Chapter 12. The Show file page
+
+**Needs special attention.** Read these deep dives first: [1. types that vanish](deep-dives.md#dd-1) ●●; [12. asynchronous code](deep-dives.md#dd-12) ●●; [14. module state and singletons](deep-dives.md#dd-14) ●.
 
 **Goals.** Build the page where users bring in their QLC+ show and fixture definitions, and the engine code that understands them.
 
@@ -373,6 +398,8 @@ flowchart LR
 
 ### Chapter 13. The Stage page: rig model and automatic layout
 
+**Needs special attention.** Read these deep dives first: [10. trigonometry for moving lights](deep-dives.md#dd-10) ●●●.
+
 **Goals.** Model where each light is and what it does, as two separate things, and make a good first guess for any rig.
 
 **On screen.** The stage as the page first shows it: every light where QLC+'s 3D view has it, each with a job already guessed.
@@ -391,6 +418,8 @@ flowchart LR
 ---
 
 ### Chapter 14. The Stage page: the plan, dragging and the inspector
+
+**Needs special attention.** Read these deep dives first: [6. measuring the page](deep-dives.md#dd-6) ●●; [15. the CSS cascade](deep-dives.md#dd-15) ●●.
 
 **Goals.** Build an interactive stage users can check against the real thing and adjust by dragging.
 
@@ -439,6 +468,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 ### Chapter 16. Songs: the timeline
 
+**Needs special attention.** Read these deep dives first: [4. renders, effects and cleanup](deep-dives.md#dd-4) ●●●; [5. stale closures and refs](deep-dives.md#dd-5) ●●●; [6. measuring the page](deep-dives.md#dd-6) ●●; [11. time, tempo and decimals](deep-dives.md#dd-11) ●.
+
 **On screen.**
 - **Blocks** sized by length, with heights showing energy.
 - **The ruler.** Click it to jump to a point.
@@ -467,6 +498,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ---
 
 ### Chapter 18. Songs: the section editor frame and stage preview
+
+**Needs special attention.** Read these deep dives first: [4. renders, effects and cleanup](deep-dives.md#dd-4) ●●●; [5. stale closures and refs](deep-dives.md#dd-5) ●●●; [6. measuring the page](deep-dives.md#dd-6) ●●; [10. trigonometry for moving lights](deep-dives.md#dd-10) ●●●; [15. the CSS cascade](deep-dives.md#dd-15) ●●; [16. accessible controls](deep-dives.md#dd-16) ●.
 
 **On screen.**
 - **The editor header.**
@@ -518,6 +551,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 ### Chapter 20. Songs: Pattern, Moving heads and Focus
 
+**Needs special attention.** Read these deep dives first: [10. trigonometry for moving lights](deep-dives.md#dd-10) ●●●; [11. time, tempo and decimals](deep-dives.md#dd-11) ●.
+
 **On screen.**
 - **Pattern:** the grouped pattern list and **Runs on**. New sections start as a plain "Solid wash"; the mood's suggested pattern is one choice in the list ("The mood's pattern"), and older saved sections keep following it (`normalizeSection`).
 - **Moving heads:** **Where they point**, listing home, your positions and suggested new ones; picking a new one creates it, and the chosen position's pan and tilt are set right there for every head (`PositionEditor`, shared with the Stage page). Then movement, **Size** (Small, Medium, Large, Huge at every level), how they move together, and speed (Auto from the energy, or one movement every 16 to 1 beats, `moverCycleBeats`), and a **Beam** area showing only what the heads have: zoom, strobe, gobo and prism (hidden when the rig has none). At Pro, **Exact shape** gives QLC+'s own EFX numbers with their QLC+ names: width, height, rotation, pan and tilt nudge (X and Y offset), and the fan between heads, each with an Auto button (`ShapeControls`).
@@ -530,6 +565,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ---
 
 ### Chapter 21. Songs: Effects, Sequences, and Start and end
+
+**Needs special attention.** Read these deep dives first: [2. unions and narrowing](deep-dives.md#dd-2) ●; [11. time, tempo and decimals](deep-dives.md#dd-11) ●.
 
 **On screen.**
 - **Effects:** uniform tiles, On/Off, each effect's lights chip, and lightning's delay.
@@ -547,6 +584,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ## Section E — Page 4: Export
 
 ### Chapter 22. The Export page and the generator
+
+**Needs special attention.** Read these deep dives first: [2. unions and narrowing](deep-dives.md#dd-2) ●; [7. trees and recursion](deep-dives.md#dd-7) ●●; [8. idempotence](deep-dives.md#dd-8) ●●; [13. pure functions and tests](deep-dives.md#dd-13) ●; [17. DMX, HTP and LTP](deep-dives.md#dd-17) ●●.
 
 **Goals.** Build the page that turns a song into QLC+ content, and the engine behind it.
 
@@ -570,6 +609,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 **Build it.** Build the generator for one section type end to end, export it, and open it in QLC+. Then add the rest.
 
 ### Chapter 22, part 2. Show control: MIDI from the stage
+
+**Needs special attention.** Read these deep dives first: [4. renders, effects and cleanup](deep-dives.md#dd-4) ●●●; [9. bits and bytes](deep-dives.md#dd-9) ●●; [12. asynchronous code](deep-dives.md#dd-12) ●●; [14. module state and singletons](deep-dives.md#dd-14) ●.
 
 **Goals.** Let pads, footswitches and amp presets run the show with nobody at the laptop, and write it all into QLC+.
 
@@ -605,6 +646,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 ---
 
 ### Chapter 24. Code audit and refactoring notes
+
+**Needs special attention.** Read these deep dives first: [13. pure functions and tests](deep-dives.md#dd-13) ●; [14. module state and singletons](deep-dives.md#dd-14) ●.
 
 What's solid, what's tied to the browser, and what must change for a multi-user, server-backed product. Each finding has its location, the risk and the recommended fix, and points to the Part 2 chapter that picks it up.
 
@@ -741,7 +784,7 @@ Each has a definition of done and a risk list. Plus: bringing existing browser-s
 ## Appendices
 - **A. PHP → TypeScript/Next.js phrasebook.** For example `$_SESSION`, `include`, PDO, `.env`, form posts and cron, each with its new equivalent.
 - **B. Command cheat sheet.** npm, Git, Vite, Next.js, the ORM and the Stripe CLI.
-- **C. Debugging guide.** Browser dev tools, React DevTools, reading TypeScript errors, and reading CI logs.
+- **C. Debugging guide.** Browser dev tools, React DevTools, reading TypeScript errors, and reading CI logs, plus the real bugs met while building Lightsmith and how each was tracked down (several are retold in the deep dives).
 - **D. Glossary.** Including both lighting terms (DMX, HTP/LTP, fixture mode) and web terms (hydration, bundling, idempotency).
 - **E. Further reading.** The official TypeScript, React, Vite, Next.js, Stripe and Anthropic documentation.
 
