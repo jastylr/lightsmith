@@ -216,9 +216,15 @@ input[type="range"] {
   background: linear-gradient(180deg, #1f1c22 0%, var(--house) 60%);
 }
 .logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
+  display: block;
+  /* The image has a soft glow round it; tuck it in so the anvil lines up with the text below. */
+  margin: -0.4rem 0 0.35rem -0.5rem;
+}
+.logo-img {
+  display: block;
+  width: 100%;
+  max-width: 230px;
+  height: auto;
 }
 .logo-word {
   font-size: 1.45rem;

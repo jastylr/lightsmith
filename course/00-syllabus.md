@@ -284,7 +284,7 @@ flowchart LR
 - App-wide keyboard shortcuts and where to register them.
 - Levels with React context (`LevelProvider`, `useLevel`, `atLeast`): Simple, Standard and Pro only hide controls, never change the show. The level is a preference of the browser, not of the project, so it is saved on its own (`lightsmith.level.v1`), and someone who already has sections starts on Standard so nothing they use disappears. Hidden controls are one "More options" click away, and the link says when hidden settings are in use (`MoreOptions`).
 
-**Files.** `src/ui/App.tsx` (`LevelSwitch`), `src/ui/level.tsx`, `src/ui/styles.css` (tokens and shell), `src/ui/icons.tsx`, `src/ui/Logo.tsx`, `public/favicon.svg`.
+**Files.** `src/ui/App.tsx` (`LevelSwitch`), `src/ui/level.tsx`, `src/ui/styles.css` (tokens and shell), `src/ui/icons.tsx`, `src/ui/Logo.tsx`, `public/lightsmith-logo.png`, `public/favicon.png`.
 
 **Build it.** Build the shell with four placeholder pages and a working step menu.
 
