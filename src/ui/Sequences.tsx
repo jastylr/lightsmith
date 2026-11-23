@@ -193,25 +193,30 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
     setSteps(next, j);
   };
   const lightSet = new Set(st?.lights ?? []);
-  // The color you paint with: clicking a light lights it in this color.
-  const [brush, setBrush] = useState<string>(st?.color ?? "white");
+  // Select lights on the plan, then pick a color: like a lighting desk.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const stepId = st?.id;
-  useEffect(() => setBrush(st?.color ?? "white"), [stepId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setSelected(new Set()), [stepId]);
   const mixed = !!st?.lightColors && Object.keys(st.lightColors).length > 0;
   /** Set the step's lights and their colors, keeping its data tidy. */
   const paint = (ids: number[], colorOf: (id: number) => string) => st && patch(tidyStepColors({ ...st, lights: ids }, colorOf));
   const toggle = (l: Light) => {
-    if (!st) return;
-    const now = (id: number) => stepLightColor(st, id);
-    if (!lightSet.has(l.id)) paint([...st.lights, l.id], (id) => (id === l.id ? brush : now(id)));
-    else if (now(l.id) !== brush) paint(st.lights, (id) => (id === l.id ? brush : now(id))); // repaint it
-    else paint(st.lights.filter((x) => x !== l.id), now); // same color again: off
+    const next = new Set(selected);
+    if (next.has(l.id)) next.delete(l.id);
+    else next.add(l.id);
+    setSelected(next);
   };
   const pickColor = (c: string) => {
-    setBrush(c);
-    // A one-color step simply changes color; a step in several colors keeps them, and you paint lights one by one.
-    if (st && !mixed) paint(st.lights, () => c);
+    if (!st) return;
+    const now = (id: number) => stepLightColor(st, id);
+    // Selected lights come on in this color; with nothing selected, the whole step changes color.
+    if (selected.size) paint([...new Set([...st.lights, ...selected])], (id) => (selected.has(id) ? c : now(id)));
+    else paint(st.lights, () => c);
   };
+  const turnOff = () => st && paint(st.lights.filter((id) => !selected.has(id)), (id) => stepLightColor(st, id));
+  // The ringed swatch: the selected lights' color when they share one, otherwise the step's.
+  const selColors = st ? [...new Set([...selected].filter((id) => lightSet.has(id)).map((id) => stepLightColor(st, id)))] : [];
+  const shown = selected.size ? (selColors.length === 1 && [...selected].every((id) => lightSet.has(id)) ? selColors[0] : undefined) : mixed ? undefined : (st?.color ?? "white");
   const byRole = (role: string) => lights.filter((l) => l.role === role).map((l) => l.id);
   const lensColors = new Map((st?.lights ?? []).map((id) => [id, ((c) => (c === "white" ? "#ffffff" : cssColor(c)))(stepLightColor(st!, id))]));
   // The section's colors, plus any this step already uses (an imported chaser brings its own).
@@ -350,37 +355,51 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
           </h4>
           <div className="seq-step-grid">
             <div>
-              <MiniStage lights={lights} set={lightSet} usable={(l) => l.role !== "ignore"} onToggle={(l) => toggle(l)} onHover={() => undefined} lensColors={lensColors} />
+              <MiniStage lights={lights} set={lightSet} usable={(l) => l.role !== "ignore"} onToggle={(l) => toggle(l)} onHover={() => undefined} lensColors={lensColors} selected={selected} />
               <div className="seq-quick">
-                <span>Lights</span>
-                <button type="button" className="chip" onClick={() => paint(lights.map((l) => l.id), () => brush)}>
+                <span>Select</span>
+                <button type="button" className="chip" onClick={() => setSelected(new Set(lights.map((l) => l.id)))}>
                   All
                 </button>
                 {byRole("backdrop").length > 0 && (
-                  <button type="button" className="chip" onClick={() => paint(byRole("backdrop"), () => brush)}>
+                  <button type="button" className="chip" onClick={() => setSelected(new Set(byRole("backdrop")))}>
                     Backdrop
                   </button>
                 )}
                 {byRole("side").length > 0 && (
-                  <button type="button" className="chip" onClick={() => paint(byRole("side"), () => brush)}>
+                  <button type="button" className="chip" onClick={() => setSelected(new Set(byRole("side")))}>
                     Wash lights
                   </button>
                 )}
                 {byRole("mover").length > 0 && (
-                  <button type="button" className="chip" onClick={() => paint(byRole("mover"), () => brush)}>
+                  <button type="button" className="chip" onClick={() => setSelected(new Set(byRole("mover")))}>
                     Moving heads
                   </button>
                 )}
-                <button type="button" className="chip" onClick={() => paint([], () => brush)}>
-                  None (pause)
+                <button type="button" className="chip" onClick={() => setSelected(new Set(st?.lights ?? []))}>
+                  Lit ones
+                </button>
+                {selected.size > 0 && (
+                  <button type="button" className="chip" onClick={() => setSelected(new Set())}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="seq-quick">
+                <span>{selected.size ? `${selected.size} selected` : "Nothing selected"}</span>
+                <button type="button" className="chip" disabled={!selected.size || ![...selected].some((id) => lightSet.has(id))} onClick={turnOff}>
+                  Turn off
+                </button>
+                <button type="button" className="chip" disabled={!st?.lights.length} onClick={() => st && paint([], () => "white")} title="Turn every light in this step off: the look shows through">
+                  Make it a pause
                 </button>
               </div>
             </div>
             <div className="seq-step-fields">
-              <Field label={mixed ? "Paint color" : "Color"} hint={mixed ? "This step has lights in different colors. Pick a color, then click lights on the plan to paint them; click a light again in the same color to turn it off." : "Click a light on the plan to add it in this color. To give some lights another color, pick it, then click those lights."}>
+              <Field label={selected.size ? `Color for the ${selected.size} selected` : "Color for the whole step"} hint="Click lights on the plan to select them (lit or not), then pick a color: they come on in it. With nothing selected, a color changes every light in the step.">
                 <div className="seq-colors" role="radiogroup" aria-label="Step color">
                   {colorChoices.map((c) => {
-                    const on = brush === c;
+                    const on = shown === c;
                     return (
                       <button
                         key={c}
@@ -395,7 +414,7 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
                     );
                   })}
                   <label className="seq-color custom" title="Any color">
-                    <input type="color" value={brush.startsWith("#") ? brush : "#ffffff"} onChange={(e) => pickColor(e.target.value)} aria-label="Any color" />
+                    <input type="color" value={shown?.startsWith("#") ? shown : "#ffffff"} onChange={(e) => pickColor(e.target.value)} aria-label="Any color" />
                   </label>
                 </div>
               </Field>

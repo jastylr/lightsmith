@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
 import { COLOR_CHANGES, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -99,6 +99,56 @@ export function StagePreview({
   const bars = backFx.map((f) => ({ x: f.pos!.x, id: f.fixtureId, upright: f.upright !== false, hung: mountOf(f) === "truss" }));
   const sides = byRole("side");
   const movers = byRole("mover");
+
+  // Chasers: for each light, one layer per color it takes, lit only on its own
+  // steps (so a white flash after a blue step really is white). Moving heads
+  // also get the layers in their beams, so the beam changes color with the head.
+  const chaserLights: { id: number; layers: { key: string; color: string; anim: ReactElement }[] }[] = [];
+  for (const [k, use] of (section.sequences ?? []).entries()) {
+    const q = sequences.find((x) => x.id === use.id);
+    if (!q || !q.steps.length) continue;
+    const order = q.order === "bounce" && q.steps.length > 2 ? [...q.steps, ...q.steps.slice(1, -1).reverse()] : q.steps;
+    const sec = (v: number) => toMs(v, q.units, section.bpm) / 1000;
+    const total = order.reduce((t, st) => t + sec(st.fadeIn) + sec(st.hold), 0);
+    if (total <= 0) continue;
+    const begin = skipDelay ? 0 : use.delay;
+    for (const id of [...new Set(order.flatMap((st) => st.lights))]) {
+      const fillOf = (st: SequenceStep) => {
+        const c = stepLightColor(st, id);
+        return c === "white" ? "#ffffff" : css(c);
+      };
+      const colors = [...new Set(order.filter((st) => st.lights.includes(id)).map(fillOf))];
+      const layers = colors.map((color) => {
+        // Opacity over one pass: up over the fade in, held, then off as the step ends.
+        const pts: [number, number][] = [[0, 0]];
+        let t = 0;
+        for (const st of order) {
+          const fi = sec(st.fadeIn);
+          const h = sec(st.hold);
+          if (st.lights.includes(id) && fillOf(st) === color) {
+            const lv = st.level ?? 1;
+            const push = (time: number, v: number) => {
+              const last = pts[pts.length - 1]!;
+              pts.push([Math.max(time, last[0] + 0.0005), v]);
+            };
+            push(t, 0);
+            push(t + fi, lv);
+            push(t + fi + h - 0.001, lv);
+            push(t + fi + h + Math.min(0.15, sec(st.fadeOut)), 0);
+          }
+          t += fi + h;
+        }
+        const end = Math.max(total, pts[pts.length - 1]![0]);
+        if (pts[pts.length - 1]![0] < end) pts.push([end, 0]);
+        const keyTimes = pts.map(([x]) => (x / end).toFixed(5)).join(";");
+        const values = pts.map(([, v]) => v.toFixed(3)).join(";");
+        const anim = <animate attributeName="opacity" values={values} keyTimes={keyTimes} dur={`${end}s`} begin={`${begin}s`} repeatCount={q.order === "once" ? 1 : "indefinite"} fill="freeze" />;
+        return { key: `${use.id}-${k}-${id}-${color}`, color, anim };
+      });
+      chaserLights.push({ id, layers });
+    }
+  }
+  const chaserOf = (id: number) => (animate ? chaserLights.filter((c) => c.id === id).flatMap((c) => c.layers) : []);
   const fronts = byRole("front");
   // Colors are handed out stage left first, the same way the export does it.
   const stageIndex = (list: { pos?: { x: number } }[], i: number) =>
@@ -481,6 +531,12 @@ export function StagePreview({
                 <path d={`M${fx - 2.5} ${hh} L${fx - 15 * spread} ${hh + len * reach} L${fx + 15 * spread} ${hh + len * reach} L${fx + 2.5} ${hh} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beamDown")}>
                   {c.anim}
                 </path>
+                {chaserOf(f.fixtureId).map(({ key, color, anim }) => (
+                  <g key={key} opacity="0">
+                    {anim}
+                    <path d={`M${fx - 2.5} ${hh} L${fx - 15 * spread} ${hh + len * reach} L${fx + 15 * spread} ${hh + len * reach} L${fx + 2.5} ${hh} Z`} fill={color} mask={url("beamDown")} />
+                  </g>
+                ))}
                 <ellipse cx={fx} cy={hh + len * reach} rx={18 * sc * spread} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={url("soft")}>
                   {c.anim}
                 </ellipse>
@@ -507,6 +563,13 @@ export function StagePreview({
               <path d={`M${fx - 2.5} ${hy} L${fx - 16 * spread} ${hy - 230 * reach} L${fx + 16 * spread} ${hy - 230 * reach} L${fx + 2.5} ${hy} Z`} fill={c.fill} opacity={o.off ? 0 : 0.2 + 0.75 * moverLevel} mask={url("beam")}>
                 {c.anim}
               </path>
+              {/* A chaser step colors the beam too, moving with the head. */}
+              {chaserOf(f.fixtureId).map(({ key, color, anim }) => (
+                <g key={key} opacity="0">
+                  {anim}
+                  <path d={`M${fx - 2.5} ${hy} L${fx - 16 * spread} ${hy - 230 * reach} L${fx + 16 * spread} ${hy - 230 * reach} L${fx + 2.5} ${hy} Z`} fill={color} mask={url("beam")} />
+                </g>
+              ))}
               {rotateAnim(fx, hy)}
             </g>
             <g transform={`translate(${fx} ${fy}) scale(${sc})`}>
@@ -521,78 +584,33 @@ export function StagePreview({
         );
       })}
 
-      {/* Sequences: each step lights its lights, on top of the look */}
+      {/* Chasers: each step lights its lights, on top of the look */}
       {animate &&
-        (section.sequences ?? []).map((use, k) => {
-          const q = sequences.find((x) => x.id === use.id);
-          if (!q || !q.steps.length) return null;
-          const order = q.order === "bounce" && q.steps.length > 2 ? [...q.steps, ...q.steps.slice(1, -1).reverse()] : q.steps;
-          const sec = (v: number) => toMs(v, q.units, section.bpm) / 1000;
-          const total = order.reduce((t, st) => t + sec(st.fadeIn) + sec(st.hold), 0);
-          if (total <= 0) return null;
-          const begin = skipDelay ? 0 : use.delay;
-          const ids = [...new Set(order.flatMap((st) => st.lights))];
-          return (
-            <g key={`${use.id}-${k}`} pointerEvents="none">
-              {ids.flatMap((id) => {
-                const f = rig.fixtures.find((x) => x.fixtureId === id);
-                if (!f?.pos || f.role === "ignore") return [];
-                const fillOf = (st: SequenceStep) => {
-                  const c = stepLightColor(st, id);
-                  return c === "white" ? "#ffffff" : css(c);
-                };
-                // One layer per color this light takes in the chaser, each lit only on
-                // its own steps, so a white flash after a blue step really is white.
-                const colors = [...new Set(order.filter((st) => st.lights.includes(id)).map(fillOf))];
-                return colors.map((color) => {
-                  // Opacity over one pass: up over the fade in, held, then off as the step ends.
-                  const pts: [number, number][] = [[0, 0]];
-                  let t = 0;
-                  for (const st of order) {
-                    const fi = sec(st.fadeIn);
-                    const h = sec(st.hold);
-                    if (st.lights.includes(id) && fillOf(st) === color) {
-                      const lv = st.level ?? 1;
-                      const push = (time: number, v: number) => {
-                        const last = pts[pts.length - 1]!;
-                        pts.push([Math.max(time, last[0] + 0.0005), v]);
-                      };
-                      push(t, 0);
-                      push(t + fi, lv);
-                      push(t + fi + h - 0.001, lv);
-                      push(t + fi + h + Math.min(0.15, sec(st.fadeOut)), 0);
-                    }
-                    t += fi + h;
-                  }
-                  const end = Math.max(total, pts[pts.length - 1]![0]);
-                  if (pts[pts.length - 1]![0] < end) pts.push([end, 0]);
-                  const keyTimes = pts.map(([x]) => (x / end).toFixed(5)).join(";");
-                  const values = pts.map(([, v]) => v.toFixed(3)).join(";");
-                  const anim = <animate attributeName="opacity" values={values} keyTimes={keyTimes} dur={`${end}s`} begin={`${begin}s`} repeatCount={q.order === "once" ? 1 : "indefinite"} fill="freeze" />;
-                  if (f.role === "backdrop") {
-                    const x = xAt(f.pos!.x, 0) - barW / 2;
-                    return (
-                      <g key={`${id}-${color}`} opacity="0">
-                        {anim}
-                        <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="44" ry="80" fill={color} opacity="0.55" filter={url("glow")} />
-                        <rect x={x - 0.5} y={topY} width={barW + 1} height={cells * cellH} rx="1.5" fill={color} />
-                      </g>
-                    );
-                  }
-                  const d = f.role === "front" ? 1 : depthOf(f.pos!.y);
-                  const cx = xAt(f.pos!.x, d);
-                  const cy = f.role === "front" ? LIP - 6 : mountOf(f) === "truss" ? HANG_Y + 10 : floorY(d) - 8;
-                  return (
-                    <g key={`${id}-${color}`} opacity="0">
-                      {anim}
-                      <ellipse cx={cx} cy={cy} rx="46" ry="30" fill={color} opacity="0.5" filter={url("glow")} />
-                      <circle cx={cx} cy={cy} r="6" fill={color} />
-                    </g>
-                  );
-                });
-              })}
-            </g>
-          );
+        chaserLights.map(({ id, layers }) => {
+          const f = rig.fixtures.find((x) => x.fixtureId === id);
+          if (!f?.pos || f.role === "ignore") return null;
+          return layers.map(({ color, anim, key }) => {
+            if (f.role === "backdrop") {
+              const x = xAt(f.pos!.x, 0) - barW / 2;
+              return (
+                <g key={key} opacity="0" pointerEvents="none">
+                  {anim}
+                  <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="44" ry="80" fill={color} opacity="0.55" filter={url("glow")} />
+                  <rect x={x - 0.5} y={topY} width={barW + 1} height={cells * cellH} rx="1.5" fill={color} />
+                </g>
+              );
+            }
+            const d = f.role === "front" ? 1 : depthOf(f.pos!.y);
+            const cx = xAt(f.pos!.x, d);
+            const cy = f.role === "front" ? LIP - 6 : mountOf(f) === "truss" ? HANG_Y + 10 : floorY(d) - 8;
+            return (
+              <g key={key} opacity="0" pointerEvents="none">
+                {anim}
+                <ellipse cx={cx} cy={cy} rx="46" ry="30" fill={color} opacity="0.5" filter={url("glow")} />
+                <circle cx={cx} cy={cy} r="6" fill={color} />
+              </g>
+            );
+          });
         })}
 
       {/* Lightning / blinder: a white flash */}

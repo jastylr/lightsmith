@@ -4395,3 +4395,9 @@ body.is-resizing * {
   opacity: 0.85;
   transform: scale(0.9);
 }
+.ms-pick {
+  fill: color-mix(in srgb, var(--tungsten) 14%, transparent);
+  stroke: var(--tungsten);
+  stroke-width: 1.6;
+  stroke-dasharray: 4 3;
+}

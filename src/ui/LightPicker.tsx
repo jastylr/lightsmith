@@ -213,6 +213,7 @@ export function MiniStage({
   onHover,
   marks,
   lensColors,
+  selected,
 }: {
   lights: Light[];
   set: Set<number>;
@@ -222,6 +223,8 @@ export function MiniStage({
   marks?: Map<number, string>;
   /** CSS colors for the lit lenses, by fixture ID (otherwise the usual highlight). */
   lensColors?: Map<number, string>;
+  /** Lights picked for the next action, shown with a ring (separate from whether they're lit). */
+  selected?: Set<number>;
 }) {
   // Spread the lights over the whole mini stage, front to back.
   const ys = lights.map((l) => l.pos.y);
@@ -239,14 +242,15 @@ export function MiniStage({
         const { x, y } = at(l);
         const on = set.has(l.id);
         const ok = usable(l);
-        const cls = `ms-light ${on ? "on" : ""} ${ok ? "" : "blocked"}`;
+        const picked = selected?.has(l.id) ?? false;
+        const cls = `ms-light ${on ? "on" : ""} ${ok ? "" : "blocked"} ${picked ? "picked" : ""}`;
         const lens = lensColors?.get(l.id) ? { fill: lensColors.get(l.id) } : undefined;
         return (
           <g
             key={l.id}
             className={cls}
             role="checkbox"
-            aria-checked={on}
+            aria-checked={selected ? picked : on}
             aria-disabled={!ok}
             aria-label={l.name}
             tabIndex={ok ? 0 : -1}
@@ -264,6 +268,7 @@ export function MiniStage({
           >
             <title>{l.name}</title>
             <rect x={x - 20} y={y - 24} width="40" height="48" className="ms-hit" />
+            {picked && <rect x={x - 17} y={y - 25} width="34" height={l.role === "backdrop" ? 50 : 40} rx="7" className="ms-pick" />}
             {l.role === "backdrop" ? (
               <>
                 <rect x={x - 5} y={y - 20} width="10" height="40" rx="2" className="ms-body" />
