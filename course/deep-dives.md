@@ -588,6 +588,8 @@ Numbers in JavaScript are binary fractions, and 0.1 can't be written exactly in 
 
 **In Lightsmith.** A section stores its length in *bars*, never in seconds; seconds are worked out when needed. The "In seconds" box converts the other way and rounds to whole bars, which is why its hint says "Rounds to whole bars". When a movement is too fast, `moverTiming` *doubles* the number of beats instead of stretching it to some odd length, so the movement still lands on the beat.
 
+Times are typed and shown the way QLC+ writes them, `10s200ms` or `1m05s`, by `formatDuration` and `parseDuration` in `src/core/duration.ts`. They follow QLC+'s own `speedToString` and `stringToSpeed`, so a time copied from QLC+ means the same thing in Lightsmith. Inside, everything is whole milliseconds, a number that can't pick up decimal errors. The parser is a good small example of a *regular expression* doing real work: `/(\d*\.?\d+)(ms|h|m|s)/g` finds each number-and-unit pair, and the code checks that those pairs used up the whole text, so `10x` is refused instead of half-read.
+
 **Try it.** At 138 BPM, how many whole bars is closest to 20 seconds? Work it out by hand, then check it with `barsForSeconds`.
 
 ---

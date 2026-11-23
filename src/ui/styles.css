@@ -4257,3 +4257,28 @@ body.is-resizing * {
 .card-link.all .icon {
   color: var(--muted);
 }
+
+/* ---- Times typed like QLC+ (10s200ms) ---- */
+.number.duration {
+  position: relative;
+}
+.number.duration input {
+  min-width: 7.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.number.duration.bad input {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 22%, transparent);
+}
+.duration-error {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--bad);
+  color: #fff;
+}

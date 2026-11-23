@@ -1,3 +1,4 @@
+import { formatDuration, parseDuration } from "../core";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Icon } from "./icons";
 
@@ -251,6 +252,81 @@ export function NumberInput({ value, onChange, min, max, step = 1, label, suffix
         onKeyDown={(e) => e.key === "Enter" && commit()}
       />
       {suffix && <span className="number-suffix">{suffix}</span>}
+    </span>
+  );
+}
+
+/**
+ * A time, typed the way QLC+ writes it: "10s200ms", "1m30s", "800ms". Also
+ * takes "10.2s", "1:30" and a bare number (in `bare` units). Shows the value
+ * back in QLC+'s style. Up and down arrows step it by `stepMs`.
+ */
+export function DurationInput({
+  valueMs,
+  onChange,
+  minMs = 0,
+  maxMs = 3_600_000,
+  stepMs = 100,
+  bare = "s",
+  label,
+}: {
+  valueMs: number;
+  onChange: (ms: number) => void;
+  minMs?: number;
+  maxMs?: number;
+  stepMs?: number;
+  bare?: "s" | "ms";
+  label: string;
+}) {
+  const [draft, setDraft] = useState(formatDuration(valueMs));
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    setDraft(formatDuration(valueMs));
+    setBad(false);
+  }, [valueMs]);
+  const clamp = (ms: number) => Math.max(minMs, Math.min(maxMs, ms));
+  const commit = () => {
+    const ms = parseDuration(draft, bare);
+    if (ms === null) {
+      setBad(true);
+      return;
+    }
+    setBad(false);
+    const next = clamp(ms);
+    setDraft(formatDuration(next));
+    if (next !== valueMs) onChange(next);
+  };
+  return (
+    <span className={bad ? "number duration bad" : "number duration"}>
+      <input
+        type="text"
+        inputMode="text"
+        spellCheck={false}
+        autoComplete="off"
+        aria-label={label}
+        aria-invalid={bad || undefined}
+        title={`Type it like QLC+: 10s200ms, 1m30s or 800ms. A plain number is in ${bare === "s" ? "seconds" : "milliseconds"}.`}
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          if (bad) setBad(false);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          else if (e.key === "Escape") {
+            setDraft(formatDuration(valueMs));
+            setBad(false);
+          } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            const base = parseDuration(draft, bare) ?? valueMs;
+            const next = clamp(base + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? stepMs * 10 : stepMs));
+            setDraft(formatDuration(next));
+            onChange(next);
+          }
+        }}
+      />
+      {bad && <span className="duration-error" role="alert">Try 10s200ms</span>}
     </span>
   );
 }

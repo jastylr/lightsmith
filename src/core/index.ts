@@ -9,3 +9,4 @@ export * from "./checks";
 export * from "./history";
 export * from "./sequences";
 export * from "./projectFile";
+export * from "./duration";

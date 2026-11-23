@@ -74,7 +74,7 @@ import { TriggerField, triggerText } from "./TriggerField";
 const reduceMotionPref = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 type Replay = { n: number; skip: boolean; at?: number; section?: string };
-import { Dropdown, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
+import { Dropdown, DurationInput, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
@@ -1365,16 +1365,8 @@ function LookEditor({
             <Field label="Length" hint={sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}` : undefined}>
               <NumberInput label="Length in bars" value={Math.floor(sectionBeats(s) / s.beatsPerBar)} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + (sectionBeats(s) % s.beatsPerBar) / s.beatsPerBar })} />
             </Field>
-            <Field label="In seconds" hint="Rounds to whole bars">
-              <NumberInput
-                label="Length in seconds"
-                value={Math.round(sectionMs(s) / 100) / 10}
-                min={0.1}
-                max={3600}
-                step={0.1}
-                suffix="sec"
-                onChange={(sec) => onChange({ bars: barsForSeconds(sec, s.bpm, s.beatsPerBar) })}
-              />
+            <Field label="In time" hint="Like QLC+: 1m05s200ms. Rounds to whole bars.">
+              <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForSeconds(ms / 1000, s.bpm, s.beatsPerBar) })} />
             </Field>
             <Field label="Beats per bar">
               <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />
@@ -1611,7 +1603,7 @@ function LookEditor({
                         {e.id === "lightning" && (
                           <label className="inline-field compact" title="Start the lightning this many seconds into the section">
                             <Icon name="clock" size={14} />
-                            <NumberInput label="Lightning delay in seconds" value={s.effects.lightningDelaySec ?? 0} min={0} max={600} step={0.5} suffix="s" onChange={(v) => onChange({ effects: { ...s.effects, lightningDelaySec: v } })} />
+                            <DurationInput label="Lightning delay" valueMs={(s.effects.lightningDelaySec ?? 0) * 1000} maxMs={600_000} stepMs={500} onChange={(ms) => onChange({ effects: { ...s.effects, lightningDelaySec: ms / 1000 } })} />
                           </label>
                         )}
                       </div>

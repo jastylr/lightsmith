@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  formatDuration,
+  parseDuration,
   efxTravel,
   moverTiming,
   bundleProject,
@@ -994,4 +996,29 @@ test("movement speed: a shape the heads can't get round in time is slowed, on th
   assert.ok(quick.beats <= small.beats);
   // Slow enough already: left alone.
   assert.equal(moverTiming({ ...s, moverBeats: 32 }, circle, rig).slowed, false);
+});
+
+test("times are written and read the way QLC+ does it", () => {
+  assert.equal(formatDuration(10200), "10s200ms");
+  assert.equal(formatDuration(65000), "1m05s");
+  assert.equal(formatDuration(3_723_004), "1h02m03s004ms");
+  assert.equal(formatDuration(800), "800ms");
+  assert.equal(formatDuration(0), "0ms");
+  for (const [text, ms] of [
+    ["10s200ms", 10200],
+    ["1m05s", 65000],
+    ["10s.20", 10200],
+    ["10.2s", 10200],
+    ["10.2", 10200],
+    ["800ms", 800],
+    ["1:30", 90000],
+    ["2 s 50 ms", 2050],
+    ["1h", 3_600_000],
+  ] as const)
+    assert.equal(parseDuration(text), ms, text);
+  assert.equal(parseDuration("250", "ms"), 250, "a bare number in a milliseconds field");
+  assert.equal(parseDuration("10x"), null);
+  assert.equal(parseDuration(""), null);
+  // Round trip.
+  for (const ms of [0, 5, 999, 1000, 61001, 3_600_000]) assert.equal(parseDuration(formatDuration(ms)), ms);
 });

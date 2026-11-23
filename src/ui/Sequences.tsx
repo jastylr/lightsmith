@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import {
   chasersIn,
   colorById,
+  formatDuration,
   importChaser,
   isPause,
   newId,
@@ -22,7 +23,7 @@ import {
 } from "../core";
 import { cssColor } from "./ColorPicker";
 import { askConfirm } from "./ConfirmDialog";
-import { Dropdown, Field, NumberInput, Segmented, type Option } from "./controls";
+import { Dropdown, DurationInput, Field, NumberInput, Segmented, type Option } from "./controls";
 import { Icon } from "./icons";
 import { MiniStage, type Light } from "./LightPicker";
 
@@ -125,7 +126,7 @@ export function SequencesCard({
               </button>
               <label className="seq-delay">
                 <span>Starts after</span>
-                <NumberInput label={`${q.name} starts after, in seconds`} value={u.delay} min={0} max={600} step={0.1} suffix="s" onChange={(v) => setDelay(u.id, Math.round(v * 100) / 100)} />
+                <DurationInput label={`${q.name} starts after`} valueMs={u.delay * 1000} maxMs={600_000} stepMs={100} onChange={(ms) => setDelay(u.id, ms / 1000)} />
               </label>
               <button type="button" className="cue-action" onClick={() => onPlay(false)} title="Play this section in the preview from the start, delay included" aria-label="Play from the start">
                 <Icon name="play" size={15} />
@@ -244,7 +245,7 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
           >
             <span className="seq-step-n">{k + 1}</span>
             <i aria-hidden="true" />
-            <small>{q.units === "ms" ? Math.round(x.fadeIn + x.hold) : Math.round((x.fadeIn + x.hold) * 100) / 100}</small>
+            <small>{q.units === "ms" ? formatDuration(x.fadeIn + x.hold) : Math.round((x.fadeIn + x.hold) * 100) / 100}</small>
           </button>
         ))}
       </div>
@@ -333,13 +334,25 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
               </Field>
               <div className="seq-times">
                 <Field label="Fade in">
-                  <NumberInput label="Fade in" value={st.fadeIn} min={0} max={q.units === "ms" ? 60000 : 64} step={q.units === "ms" ? 10 : 0.25} suffix={unit} onChange={(fadeIn) => patch({ fadeIn })} />
+                  {q.units === "ms" ? (
+                    <DurationInput label="Fade in" valueMs={st.fadeIn} maxMs={60000} stepMs={10} bare="ms" onChange={(fadeIn) => patch({ fadeIn })} />
+                  ) : (
+                    <NumberInput label="Fade in" value={st.fadeIn} min={0} max={64} step={0.25} suffix={unit} onChange={(fadeIn) => patch({ fadeIn })} />
+                  )}
                 </Field>
                 <Field label="Hold">
-                  <NumberInput label="Hold" value={st.hold} min={q.units === "ms" ? 1 : 0.05} max={q.units === "ms" ? 600000 : 256} step={q.units === "ms" ? 10 : 0.25} suffix={unit} onChange={(hold) => patch({ hold })} />
+                  {q.units === "ms" ? (
+                    <DurationInput label="Hold" valueMs={st.hold} minMs={1} maxMs={600000} stepMs={10} bare="ms" onChange={(hold) => patch({ hold })} />
+                  ) : (
+                    <NumberInput label="Hold" value={st.hold} min={0.05} max={256} step={0.25} suffix={unit} onChange={(hold) => patch({ hold })} />
+                  )}
                 </Field>
                 <Field label="Fade out">
-                  <NumberInput label="Fade out" value={st.fadeOut} min={0} max={q.units === "ms" ? 60000 : 64} step={q.units === "ms" ? 10 : 0.25} suffix={unit} onChange={(fadeOut) => patch({ fadeOut })} />
+                  {q.units === "ms" ? (
+                    <DurationInput label="Fade out" valueMs={st.fadeOut} maxMs={60000} stepMs={10} bare="ms" onChange={(fadeOut) => patch({ fadeOut })} />
+                  ) : (
+                    <NumberInput label="Fade out" value={st.fadeOut} min={0} max={64} step={0.25} suffix={unit} onChange={(fadeOut) => patch({ fadeOut })} />
+                  )}
                 </Field>
               </div>
               <p className="hint">
