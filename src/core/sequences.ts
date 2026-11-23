@@ -144,6 +144,26 @@ export interface ImportResult {
   notes: string[];
 }
 
+/** The fixtures a scene lights, each with its color ("white" or a hex) and brightness. */
+function sceneLit(fn: XmlElement, profiles: Map<number, FixtureProfile>): { id: number; color: string; level: number }[] {
+  const lit: { id: number; color: string; level: number }[] = [];
+  for (const fv of childElements(fn, "FixtureVal")) {
+    const id = Number(getAttr(fv, "ID"));
+    const p = profiles.get(id);
+    if (!p) continue;
+    const nums = textOf(fv).split(",").map((x) => Number(x.trim()));
+    const values = new Map<number, number>();
+    for (let i = 0; i + 1 < nums.length; i += 2) values.set(nums[i]!, nums[i + 1]!);
+    const look = sceneLook(values, p);
+    if (!look.lit) continue;
+    const [r, g, b] = look.rgb;
+    // Mostly white, or red, green and blue all up together: white.
+    const white = look.white >= Math.max(r, g, b) * 0.8 || (Math.min(r, g, b) > 200 && Math.max(r, g, b) - Math.min(r, g, b) < 30);
+    lit.push({ id, color: white ? "white" : hex([r + look.white, g + look.white, b + look.white]), level: look.level });
+  }
+  return lit;
+}
+
 /** A chaser's steps as sequence steps. Steps that run another chaser bring its steps in, in place. */
 function stepsOf(ws: Workspace, ch: XmlElement, profiles: Map<number, FixtureProfile>, notes: string[], depth: number): SequenceStep[] {
   const modes = childElements(ch, "SpeedModes")[0];
@@ -175,25 +195,31 @@ function stepsOf(ws: Workspace, ch: XmlElement, profiles: Map<number, FixturePro
         if (inner && inner !== "SingleShot") notes.push(`${where} ran "${getAttr(fn, "Name")}" on a loop; its steps are included once.`);
         return stepsOf(ws, fn, profiles, notes, depth + 1);
       }
-      if (type !== "Scene") {
-        notes.push(`${where} ran "${getAttr(fn, "Name")}", a ${type}, which a sequence step can't hold; it's a pause now.`);
+      // A scene, or a collection of scenes (QLC+ runs them all at once): what lights up, and how.
+      const lit: { id: number; color: string; level: number }[] = [];
+      const skipped: string[] = [];
+      const gather = (f: XmlElement, seen: Set<string>) => {
+        const t = getAttr(f, "Type");
+        if (t === "Scene") {
+          for (const l of sceneLit(f, profiles)) {
+            const had = lit.find((x) => x.id === l.id);
+            if (!had) lit.push(l);
+            else had.level = Math.max(had.level, l.level); // brightest wins, as QLC+ does for intensity
+          }
+        } else if (t === "Collection") {
+          for (const c of childElements(f, "Step")) {
+            const id = textOf(c).trim();
+            const part = functionEl(ws, Number(id));
+            if (part && !seen.has(id)) gather(part, new Set(seen).add(id));
+          }
+        } else skipped.push(`${getAttr(f, "Name")} (${t})`);
+      };
+      if (type !== "Scene" && type !== "Collection") {
+        notes.push(`${where} ran "${getAttr(fn, "Name")}", a ${type}, which a chaser step can't hold; it's a pause now.`);
         return [newStep([], hold, { fadeIn, fadeOut })];
       }
-      const lit: { id: number; color: string; level: number }[] = [];
-      for (const fv of childElements(fn, "FixtureVal")) {
-        const id = Number(getAttr(fv, "ID"));
-        const p = profiles.get(id);
-        if (!p) continue;
-        const nums = textOf(fv).split(",").map((x) => Number(x.trim()));
-        const values = new Map<number, number>();
-        for (let i = 0; i + 1 < nums.length; i += 2) values.set(nums[i]!, nums[i + 1]!);
-        const look = sceneLook(values, p);
-        if (!look.lit) continue;
-        const [r, g, b] = look.rgb;
-        // Mostly white, or red, green and blue all up together: white.
-        const white = look.white >= Math.max(r, g, b) * 0.8 || (Math.min(r, g, b) > 200 && Math.max(r, g, b) - Math.min(r, g, b) < 30);
-        lit.push({ id, color: white ? "white" : hex([r + look.white, g + look.white, b + look.white]), level: look.level });
-      }
+      gather(fn, new Set([String(fnId)]));
+      if (skipped.length) notes.push(`${where} ran the collection "${getAttr(fn, "Name")}"; its scenes came across, but not ${skipped.join(", ")}.`);
       if (!lit.length) return [newStep([], hold, { fadeIn, fadeOut })];
       const colors = [...new Set(lit.map((l) => l.color))];
       if (colors.length > 1) notes.push(`${where} ("${getAttr(fn, "Name")}") had lights in different colors; they're all ${colors[0] === "white" ? "white" : colors[0]} now.`);

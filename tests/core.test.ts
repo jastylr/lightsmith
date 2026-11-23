@@ -1022,3 +1022,27 @@ test("times are written and read the way QLC+ does it", () => {
   // Round trip.
   for (const ms of [0, 5, 999, 1000, 61001, 3_600_000]) assert.equal(parseDuration(formatDuration(ms)), ms);
 });
+
+test("importing a chaser: a step that runs a collection of scenes lights what those scenes light", () => {
+  const xml = WORKSPACE_QXW.replace(
+    "</Engine>",
+    `<Function ID="900" Type="Scene" Name="All flash"><Speed FadeIn="0" FadeOut="0" Duration="0"/>${"__VALS__"}</Function>
+     <Function ID="901" Type="Collection" Name="Flash"><Step Number="0">900</Step></Function>
+     <Function ID="902" Type="Scene" Name="Off"><Speed FadeIn="0" FadeOut="0" Duration="0"/></Function>
+     <Function ID="903" Type="Chaser" Name="Intro"><Speed FadeIn="0" FadeOut="0" Duration="0"/><Direction>Forward</Direction><RunOrder>Loop</RunOrder>
+       <SpeedModes FadeIn="PerStep" FadeOut="PerStep" Duration="PerStep"/>
+       <Step Number="0" FadeIn="0" Hold="109" FadeOut="0">901</Step><Step Number="1" FadeIn="0" Hold="200" FadeOut="0">902</Step></Function></Engine>`,
+  );
+  const ws0 = parseWorkspace(xml);
+  const { profiles } = matchProfiles(ws0.fixtures, defs());
+  // Full white on every fixture QLC+ knows how to color.
+  const vals = [...profiles.entries()]
+    .map(([id, p]) => `<FixtureVal ID="${id}">${[...p.heads.flatMap((h) => [h.dimmer, h.red, h.green, h.blue, h.white].filter((c): c is number => c !== undefined))].flatMap((c) => [c, 255]).join(",")}</FixtureVal>`)
+    .join("");
+  const ws = parseWorkspace(xml.replace("__VALS__", vals));
+  const r = importChaser(ws, 903, profiles);
+  assert.equal(r.sequence.steps.length, 2);
+  assert.ok(r.sequence.steps[0]!.lights.length > 0, "the collection's scene lights come across");
+  assert.equal(r.sequence.steps[0]!.color, undefined, "in white");
+  assert.equal(r.sequence.steps[1]!.lights.length, 0, "an empty scene is still a pause");
+});
