@@ -8,7 +8,7 @@ import { APP_NAME } from "../config";
 export function Logo() {
   return (
     <span className="logo">
-      <img className="logo-img" src="lightsmith-logo.png" alt={APP_NAME} width={280} height={78} />
+      <img className="logo-img" src="lightsmith-logo.png" alt={APP_NAME} width={280} height={79} />
     </span>
   );
 }
