@@ -1000,7 +1000,7 @@ function ColorLayoutEditor({
     <div className="color-layout">
       <h4 className="subhead">Which lights get which color</h4>
       <p className="hint layout-hint">
-        Mix spreads all your colors across those lights. Or click colors to pick just the ones they use: one color puts them all in it, several spread just those. The last swatch is warm white.
+        Mix spreads all your colors across those lights. Or click colors to pick just the ones they use: one color puts them all in it, several spread just those. Ringed colors are in use; faded ones are on offer. The last swatch is warm white.
  The menu at the end of each row sets how often those lights change color: steady, with the section, or at their own rate.
       </p>
       {jobs.map((job) => {
@@ -1430,7 +1430,7 @@ function LookEditor({
             {more("mood", [["standard", Object.keys(s.brightness ?? {}).length > 0]])}
           </Group>
 
-          <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color just for those lights.`}>
+          <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color for those lights only; the other rows show it faded, in case you want it there too.`}>
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
             <div className="row">
               <Field label="Switch between colors" hint="For lights that change with the section. Each row below can also stay steady or have its own rate.">

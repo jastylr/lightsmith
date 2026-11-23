@@ -4377,3 +4377,21 @@ body.is-resizing * {
   font-style: italic;
   cursor: default;
 }
+
+/* The selected section's drag handle stays visible when hovered. */
+.cue.on .cue-grip:hover {
+  color: var(--tungsten-ink);
+  background: color-mix(in srgb, var(--tungsten-ink) 22%, transparent);
+}
+
+/* Colors a row doesn't use are faded and smaller, so it's clear they're only on offer. */
+.layout-options .lo:not(.on) .lo-swatch {
+  opacity: 0.32;
+  transform: scale(0.78);
+  transition: opacity 120ms, transform 120ms;
+}
+.layout-options .lo:not(.on):hover .lo-swatch,
+.layout-options .lo:not(.on):focus-visible .lo-swatch {
+  opacity: 0.85;
+  transform: scale(0.9);
+}
