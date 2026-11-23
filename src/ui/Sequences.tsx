@@ -1,5 +1,7 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
+  stepLightColor,
+  tidyStepColors,
   chasersIn,
   colorById,
   formatDuration,
@@ -27,7 +29,6 @@ import { Icon } from "./icons";
 import { MiniStage, type Light } from "./LightPicker";
 
 const secs = (ms: number) => (ms >= 10000 ? `${Math.round(ms / 100) / 10} s` : ms >= 1000 ? `${(ms / 1000).toFixed(2).replace(/0$/, "")} s` : `${Math.round(ms)} ms`);
-const stepColor = (st: SequenceStep) => (st.color ? cssColor(st.color) : "#ffffff");
 
 /**
  * The Sequences card: step-by-step chasers that run on top of the section's
@@ -70,10 +71,15 @@ export function SequencesCard({
     setOpen(q.id);
   };
   const addOptions: Option<string>[] = [
-    ...sequences.filter((q) => !uses.some((u) => u.id === q.id)).map((q) => ({ value: `use:${q.id}`, label: q.name, description: `${q.steps.length} steps`, group: "Your chasers" })),
+    ...sequences.filter((q) => !uses.some((u) => u.id === q.id)).map((q) => ({ value: `use:${q.id}`, label: q.name, description: `Made or imported earlier, with your changes · ${q.steps.length} steps`, group: "Already in your project" })),
     ...QUICK_STARTS.map((q) => ({ value: `quick:${q.id}`, label: q.label, description: q.description, group: "Start from" })),
     { value: "blank", label: "Empty chaser", description: "Add steps yourself", group: "Start from" },
-    ...chasers.map((c) => ({ value: `import:${c.id}`, label: c.name, description: `${c.path ? `${c.path} · ` : ""}${c.steps} steps`, group: "Import a chaser from your show file" })),
+    ...chasers.map((c) => ({
+      value: `import:${c.id}`,
+      label: c.name,
+      description: `${c.path ? `${c.path} · ` : ""}${c.steps} steps${sequences.some((q) => q.name === c.name) ? " · imported before: this brings in a fresh copy" : ""}`,
+      group: "Import from your QLC+ show file",
+    })),
   ];
   const add = (v: string) => {
     setNotes([]);
@@ -89,6 +95,10 @@ export function SequencesCard({
     } else if (v.startsWith("import:") && showFile) {
       try {
         const r = importChaser(showFile, Number(v.slice(7)), profiles);
+        // A fresh copy of one imported before gets its own name, so the two can be told apart.
+        let name = r.sequence.name;
+        for (let n = 2; sequences.some((q) => q.name === name); n++) name = `${r.sequence.name} (${n})`;
+        r.sequence.name = name;
         attach(r.sequence, r.delay, [r.sequence]);
         setNotes([`Imported "${r.sequence.name}": ${r.sequence.steps.length} steps${r.delay ? `, starting ${r.delay} s into the section` : ""}.`, ...r.notes]);
       } catch (e) {
@@ -183,9 +193,30 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
     setSteps(next, j);
   };
   const lightSet = new Set(st?.lights ?? []);
-  const toggle = (l: Light) => patch({ lights: lightSet.has(l.id) ? st!.lights.filter((x) => x !== l.id) : [...st!.lights, l.id] });
+  // The color you paint with: clicking a light lights it in this color.
+  const [brush, setBrush] = useState<string>(st?.color ?? "white");
+  const stepId = st?.id;
+  useEffect(() => setBrush(st?.color ?? "white"), [stepId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mixed = !!st?.lightColors && Object.keys(st.lightColors).length > 0;
+  /** Set the step's lights and their colors, keeping its data tidy. */
+  const paint = (ids: number[], colorOf: (id: number) => string) => st && patch(tidyStepColors({ ...st, lights: ids }, colorOf));
+  const toggle = (l: Light) => {
+    if (!st) return;
+    const now = (id: number) => stepLightColor(st, id);
+    if (!lightSet.has(l.id)) paint([...st.lights, l.id], (id) => (id === l.id ? brush : now(id)));
+    else if (now(l.id) !== brush) paint(st.lights, (id) => (id === l.id ? brush : now(id))); // repaint it
+    else paint(st.lights.filter((x) => x !== l.id), now); // same color again: off
+  };
+  const pickColor = (c: string) => {
+    setBrush(c);
+    // A one-color step simply changes color; a step in several colors keeps them, and you paint lights one by one.
+    if (st && !mixed) paint(st.lights, () => c);
+  };
   const byRole = (role: string) => lights.filter((l) => l.role === role).map((l) => l.id);
-  const colorChoices = ["white", ...palette.filter((c, k) => c !== "white" && palette.indexOf(c) === k)];
+  const lensColors = new Map((st?.lights ?? []).map((id) => [id, ((c) => (c === "white" ? "#ffffff" : cssColor(c)))(stepLightColor(st!, id))]));
+  // The section's colors, plus any this step already uses (an imported chaser brings its own).
+  const stepColors = st ? st.lights.map((id) => stepLightColor(st, id)) : [];
+  const colorChoices = [...new Set(["white", ...palette, ...stepColors])];
   const defaultHold = q.units === "ms" ? 100 : 1;
 
   return (
@@ -294,7 +325,10 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
                   <td className="seq-n">{k + 1}</td>
                   <td className="seq-lights">
                     <span>
-                      <i className="seq-swatch" style={{ "--c": stepColor(x) } as CSSProperties} aria-hidden="true" />
+                      {[...new Set(x.lights.map((id) => stepLightColor(x, id)))].slice(0, 3).map((c) => (
+                        <i key={c} className="seq-swatch" style={{ "--c": c === "white" ? "#ffffff" : cssColor(c) } as CSSProperties} aria-hidden="true" />
+                      ))}
+                      {isPause(x) && <i className="seq-swatch" aria-hidden="true" />}
                       {isPause(x) ? "Pause" : `${x.lights.length} light${x.lights.length === 1 ? "" : "s"}`}
                     </span>
                   </td>
@@ -316,37 +350,37 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
           </h4>
           <div className="seq-step-grid">
             <div>
-              <MiniStage lights={lights} set={lightSet} usable={(l) => l.role !== "ignore"} onToggle={(l) => toggle(l)} onHover={() => undefined} />
+              <MiniStage lights={lights} set={lightSet} usable={(l) => l.role !== "ignore"} onToggle={(l) => toggle(l)} onHover={() => undefined} lensColors={lensColors} />
               <div className="seq-quick">
                 <span>Lights</span>
-                <button type="button" className="chip" onClick={() => patch({ lights: lights.map((l) => l.id) })}>
+                <button type="button" className="chip" onClick={() => paint(lights.map((l) => l.id), () => brush)}>
                   All
                 </button>
                 {byRole("backdrop").length > 0 && (
-                  <button type="button" className="chip" onClick={() => patch({ lights: byRole("backdrop") })}>
+                  <button type="button" className="chip" onClick={() => paint(byRole("backdrop"), () => brush)}>
                     Backdrop
                   </button>
                 )}
                 {byRole("side").length > 0 && (
-                  <button type="button" className="chip" onClick={() => patch({ lights: byRole("side") })}>
+                  <button type="button" className="chip" onClick={() => paint(byRole("side"), () => brush)}>
                     Wash lights
                   </button>
                 )}
                 {byRole("mover").length > 0 && (
-                  <button type="button" className="chip" onClick={() => patch({ lights: byRole("mover") })}>
+                  <button type="button" className="chip" onClick={() => paint(byRole("mover"), () => brush)}>
                     Moving heads
                   </button>
                 )}
-                <button type="button" className="chip" onClick={() => patch({ lights: [] })}>
+                <button type="button" className="chip" onClick={() => paint([], () => brush)}>
                   None (pause)
                 </button>
               </div>
             </div>
             <div className="seq-step-fields">
-              <Field label="Color">
+              <Field label={mixed ? "Paint color" : "Color"} hint={mixed ? "This step has lights in different colors. Pick a color, then click lights on the plan to paint them; click a light again in the same color to turn it off." : "Click a light on the plan to add it in this color. To give some lights another color, pick it, then click those lights."}>
                 <div className="seq-colors" role="radiogroup" aria-label="Step color">
                   {colorChoices.map((c) => {
-                    const on = c === "white" ? !st.color : st.color === c;
+                    const on = brush === c;
                     return (
                       <button
                         key={c}
@@ -356,12 +390,12 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
                         className={on ? "seq-color on" : "seq-color"}
                         style={{ background: c === "white" ? "#ffffff" : cssColor(c) }}
                         title={c === "white" ? "White" : colorById(c).label}
-                        onClick={() => patch({ color: c === "white" ? undefined : c })}
+                        onClick={() => pickColor(c)}
                       />
                     );
                   })}
                   <label className="seq-color custom" title="Any color">
-                    <input type="color" value={st.color?.startsWith("#") ? st.color : "#ffffff"} onChange={(e) => patch({ color: e.target.value })} aria-label="Any color" />
+                    <input type="color" value={brush.startsWith("#") ? brush : "#ffffff"} onChange={(e) => pickColor(e.target.value)} aria-label="Any color" />
                   </label>
                 </div>
               </Field>

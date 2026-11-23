@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  tidyStepColors,
+  stepLightColor,
   formatDuration,
   parseDuration,
   efxTravel,
@@ -1045,4 +1047,18 @@ test("importing a chaser: a step that runs a collection of scenes lights what th
   assert.ok(r.sequence.steps[0]!.lights.length > 0, "the collection's scene lights come across");
   assert.equal(r.sequence.steps[0]!.color, undefined, "in white");
   assert.equal(r.sequence.steps[1]!.lights.length, 0, "an empty scene is still a pause");
+});
+
+test("a chaser step can light some lights in one color and some in another", () => {
+  const st = { id: "s", lights: [1, 2, 3], fadeIn: 0, hold: 100, fadeOut: 0 };
+  const colors: Record<number, string> = { 1: "blue", 2: "blue", 3: "purple" };
+  const tidy = tidyStepColors(st, (id) => colors[id]!);
+  assert.equal(tidy.color, "blue", "the most used color is the step's");
+  assert.deepEqual(tidy.lightColors, { "3": "purple" }, "only the odd one out keeps its own");
+  assert.equal(stepLightColor(tidy, 1), "blue");
+  assert.equal(stepLightColor(tidy, 3), "purple");
+  // All one color again: no per-light colors left over; white is the default.
+  const plain = tidyStepColors(tidy, () => "white");
+  assert.equal(plain.color, undefined);
+  assert.equal(plain.lightColors, undefined);
 });

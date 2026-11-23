@@ -429,14 +429,41 @@ export interface SequenceStep {
   id: string;
   /** Fixture IDs. Empty = a pause. */
   lights: number[];
-  /** A color id or hex; missing = white. */
+  /** A color id or hex; missing = white. The step's main color. */
   color?: string;
+  /**
+   * Lights in a color of their own, by fixture ID: a color id, hex or
+   * "white". Lets one step hold two looks at once, like the stage-left bars
+   * staying blue while the stage-right bars come up purple.
+   */
+  lightColors?: Record<string, string>;
   /** 0-1; missing = full. */
   level?: number;
   /** In the sequence's units (milliseconds or beats). */
   fadeIn: number;
   hold: number;
   fadeOut: number;
+}
+
+/** The color a step gives one light: its own, or the step's ("white" when neither is set). */
+export function stepLightColor(st: Pick<SequenceStep, "color" | "lightColors">, id: number): string {
+  return st.lightColors?.[String(id)] ?? st.color ?? "white";
+}
+
+/**
+ * Tidy a step's colors: the most used color becomes the step's color, and
+ * only lights in another color keep one of their own.
+ */
+export function tidyStepColors(st: SequenceStep, colorOf: (id: number) => string): SequenceStep {
+  const counts = new Map<string, number>();
+  for (const id of st.lights) counts.set(colorOf(id), (counts.get(colorOf(id)) ?? 0) + 1);
+  const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? st.color ?? "white";
+  const own: Record<string, string> = {};
+  for (const id of st.lights) if (colorOf(id) !== main) own[String(id)] = colorOf(id);
+  const { lightColors: _drop, color: _c, ...rest } = st;
+  void _drop;
+  void _c;
+  return { ...rest, ...(main !== "white" ? { color: main } : {}), ...(Object.keys(own).length ? { lightColors: own } : {}) };
 }
 
 export type SequenceUnits = "ms" | "beats";
@@ -603,7 +630,7 @@ export function normalizeProject(p: Project): Project {
     // Keep everything the rig holds (stage size, saved positions), not just its fixtures.
     rig: { ...(p.rig ?? {}), fixtures: [...(p.rig?.fixtures ?? [])] },
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
-    ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights] })) })) } : {}),
+    ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
     ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])] } } : {}),
     ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),

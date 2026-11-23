@@ -14,7 +14,7 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { newSection, qlcInputChannel, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
+import { newSection, stepLightColor, qlcInputChannel, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
@@ -344,13 +344,15 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const rs = st.lights.map((id) => rig.fixtures.find((f) => f.fixtureId === id)).filter((r): r is RigFixture => !!r && profiles.has(r.fixtureId));
     if (!rs.length) return blank();
     const level = Math.max(0, Math.min(1, st.level ?? 1));
-    const key = `${idsKey(rs)}|${st.color ?? "white"}|${level.toFixed(3)}`;
+    const colorOf = (r: RigFixture) => stepLightColor(st, r.fixtureId);
+    const key = `${rs.map((r) => `${r.fixtureId}:${colorOf(r)}`).sort().join(",")}|${level.toFixed(3)}`;
     const hit = seqLooks.get(key);
     if (hit !== undefined) return hit;
     const v: Vals = new Map();
-    const rgb = st.color ? colorById(st.color).rgb : WHITE;
     for (const r of rs) {
       const p = prof(r);
+      const c = colorOf(r);
+      const rgb = c === "white" ? WHITE : colorById(c).rgb;
       const sc = fixtureLevel(v, r.fixtureId, p, level);
       for (const h of p.heads) headColor(v, r.fixtureId, h, rgb, sc);
     }

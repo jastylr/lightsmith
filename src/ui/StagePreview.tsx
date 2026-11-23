@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef } from "react";
-import { COLOR_CHANGES, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -537,7 +537,10 @@ export function StagePreview({
               {ids.flatMap((id) => {
                 const f = rig.fixtures.find((x) => x.fixtureId === id);
                 if (!f?.pos || f.role === "ignore") return [];
-                const fillOf = (st: SequenceStep) => (st.color ? css(st.color) : "#ffffff");
+                const fillOf = (st: SequenceStep) => {
+                  const c = stepLightColor(st, id);
+                  return c === "white" ? "#ffffff" : css(c);
+                };
                 // One layer per color this light takes in the chaser, each lit only on
                 // its own steps, so a white flash after a blue step really is white.
                 const colors = [...new Set(order.filter((st) => st.lights.includes(id)).map(fillOf))];

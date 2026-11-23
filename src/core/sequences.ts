@@ -3,7 +3,7 @@
  * start, or imports from a chaser in their QLC+ show file.
  */
 import type { FixtureProfile } from "./fixture";
-import { newId, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type SequenceUnits } from "./model";
+import { newId, tidyStepColors, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type SequenceUnits } from "./model";
 import { childElements, getAttr, textOf, type XmlElement } from "./xml";
 import type { Workspace } from "./workspace";
 
@@ -221,16 +221,15 @@ function stepsOf(ws: Workspace, ch: XmlElement, profiles: Map<number, FixturePro
       gather(fn, new Set([String(fnId)]));
       if (skipped.length) notes.push(`${where} ran the collection "${getAttr(fn, "Name")}"; its scenes came across, but not ${skipped.join(", ")}.`);
       if (!lit.length) return [newStep([], hold, { fadeIn, fadeOut })];
-      const colors = [...new Set(lit.map((l) => l.color))];
-      if (colors.length > 1) notes.push(`${where} ("${getAttr(fn, "Name")}") had lights in different colors; they're all ${colors[0] === "white" ? "white" : colors[0]} now.`);
+      // Each light keeps the color the scene gives it: one step can be blue on one side and purple on the other.
+      const colorOf = new Map(lit.map((l) => [l.id, l.color]));
       const level = Math.max(...lit.map((l) => l.level));
-      return [
-        newStep(
-          lit.map((l) => l.id),
-          hold,
-          { fadeIn, fadeOut, ...(colors[0] !== "white" ? { color: colors[0] } : {}), ...(level < 0.999 ? { level } : {}) },
-        ),
-      ];
+      const step = newStep(
+        lit.map((l) => l.id),
+        hold,
+        { fadeIn, fadeOut, ...(level < 0.999 ? { level } : {}) },
+      );
+      return [tidyStepColors(step, (id) => colorOf.get(id) ?? "white")];
     });
 }
 

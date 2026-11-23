@@ -212,6 +212,7 @@ export function MiniStage({
   onToggle,
   onHover,
   marks,
+  lensColors,
 }: {
   lights: Light[];
   set: Set<number>;
@@ -219,6 +220,8 @@ export function MiniStage({
   onToggle: (l: Light, add: boolean) => void;
   onHover: (l: Light | null) => void;
   marks?: Map<number, string>;
+  /** CSS colors for the lit lenses, by fixture ID (otherwise the usual highlight). */
+  lensColors?: Map<number, string>;
 }) {
   // Spread the lights over the whole mini stage, front to back.
   const ys = lights.map((l) => l.pos.y);
@@ -237,6 +240,7 @@ export function MiniStage({
         const on = set.has(l.id);
         const ok = usable(l);
         const cls = `ms-light ${on ? "on" : ""} ${ok ? "" : "blocked"}`;
+        const lens = lensColors?.get(l.id) ? { fill: lensColors.get(l.id) } : undefined;
         return (
           <g
             key={l.id}
@@ -263,18 +267,18 @@ export function MiniStage({
             {l.role === "backdrop" ? (
               <>
                 <rect x={x - 5} y={y - 20} width="10" height="40" rx="2" className="ms-body" />
-                {on && <rect x={x - 2.5} y={y - 17.5} width="5" height="35" rx="1" className="ms-lens" />}
+                {on && <rect x={x - 2.5} y={y - 17.5} width="5" height="35" rx="1" className="ms-lens" style={lens} />}
               </>
             ) : l.role === "mover" ? (
               <>
                 <rect x={x - 10} y={y + 6} width="20" height="5" rx="1" className="ms-body" />
                 <circle cx={x} cy={y - 1} r="8" className="ms-body" />
-                {on && <circle cx={x} cy={y - 1} r="4" className="ms-lens" />}
+                {on && <circle cx={x} cy={y - 1} r="4" className="ms-lens" style={lens} />}
               </>
             ) : (
               <>
                 <path d={`M${x - 11} ${y + 7} L${x - 8} ${y - 6} L${x + 8} ${y - 6} L${x + 11} ${y + 7} Z`} className="ms-body" />
-                {on && <ellipse cx={x} cy={y - 6} rx="7" ry="2.4" className="ms-lens" />}
+                {on && <ellipse cx={x} cy={y - 6} rx="7" ry="2.4" className="ms-lens" style={lens} />}
               </>
             )}
             <text x={x} y={l.role === "backdrop" ? y + 33 : y + 25} textAnchor="middle" className="ms-label">
