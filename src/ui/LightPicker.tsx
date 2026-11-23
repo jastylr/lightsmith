@@ -214,6 +214,7 @@ export function MiniStage({
   marks,
   lensColors,
   selected,
+  describe,
 }: {
   lights: Light[];
   set: Set<number>;
@@ -225,6 +226,8 @@ export function MiniStage({
   lensColors?: Map<number, string>;
   /** Lights picked for the next action, shown with a ring (separate from whether they're lit). */
   selected?: Set<number>;
+  /** Extra words for a light's tooltip and label, like its color in this step. */
+  describe?: (l: Light) => string | undefined;
 }) {
   // Spread the lights over the whole mini stage, front to back.
   const ys = lights.map((l) => l.pos.y);
@@ -252,7 +255,7 @@ export function MiniStage({
             role="checkbox"
             aria-checked={selected ? picked : on}
             aria-disabled={!ok}
-            aria-label={l.name}
+            aria-label={describe?.(l) ? `${l.name}, ${describe(l)}` : l.name}
             tabIndex={ok ? 0 : -1}
             onClick={(e) => onToggle(l, e.shiftKey || e.metaKey || e.ctrlKey)}
             onKeyDown={(e) => {
@@ -266,7 +269,7 @@ export function MiniStage({
             onFocus={() => onHover(l)}
             onBlur={() => onHover(null)}
           >
-            <title>{l.name}</title>
+            <title>{describe?.(l) ? `${l.name}: ${describe(l)}` : l.name}</title>
             <rect x={x - 20} y={y - 24} width="40" height="48" className="ms-hit" />
             {picked && <rect x={x - 17} y={y - 25} width="34" height={l.role === "backdrop" ? 50 : 40} rx="7" className="ms-pick" />}
             {l.role === "backdrop" ? (

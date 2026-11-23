@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
+  colorName,
   stepLightColor,
   tidyStepColors,
   chasersIn,
-  colorById,
   formatDuration,
   importChaser,
   isPause,
@@ -22,7 +22,7 @@ import {
   type SequenceUnits,
   type Workspace,
 } from "../core";
-import { cssColor } from "./ColorPicker";
+import { AddColor, cssColor } from "./ColorPicker";
 import { askConfirm } from "./ConfirmDialog";
 import { Dropdown, DurationInput, Field, NumberInput, Segmented, type Option } from "./controls";
 import { Icon } from "./icons";
@@ -220,8 +220,12 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
   const byRole = (role: string) => lights.filter((l) => l.role === role).map((l) => l.id);
   const lensColors = new Map((st?.lights ?? []).map((id) => [id, ((c) => (c === "white" ? "#ffffff" : cssColor(c)))(stepLightColor(st!, id))]));
   // The section's colors, plus any this step already uses (an imported chaser brings its own).
-  const stepColors = st ? st.lights.map((id) => stepLightColor(st, id)) : [];
-  const colorChoices = [...new Set(["white", ...palette, ...stepColors])];
+  // White, the colors this chaser already uses (in any step), then the section's colors.
+  const chaserColors = q.steps.flatMap((x) => x.lights.map((id) => stepLightColor(x, id)));
+  const colorChoices = [...new Set(["white", ...chaserColors, ...palette])];
+  // This step's colors, with the lights in each: shown as a key under the plan.
+  const stepKey = st ? [...new Set(st.lights.map((id) => stepLightColor(st, id)))].map((c) => ({ c, ids: st.lights.filter((id) => stepLightColor(st, id) === c) })) : [];
+  const nameOfLight = (id: number) => lights.find((l) => l.id === id)?.name ?? `Fixture ${id}`;
   const defaultHold = q.units === "ms" ? 100 : 1;
 
   return (
@@ -355,7 +359,31 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
           </h4>
           <div className="seq-step-grid">
             <div>
-              <MiniStage lights={lights} set={lightSet} usable={(l) => l.role !== "ignore"} onToggle={(l) => toggle(l)} onHover={() => undefined} lensColors={lensColors} selected={selected} />
+              <MiniStage
+                lights={lights}
+                set={lightSet}
+                usable={(l) => l.role !== "ignore"}
+                onToggle={(l) => toggle(l)}
+                onHover={() => undefined}
+                lensColors={lensColors}
+                selected={selected}
+                describe={(l) => (st.lights.includes(l.id) ? `${colorName(stepLightColor(st, l.id))}${(st.level ?? 1) < 1 ? ` at ${Math.round((st.level ?? 1) * 100)}%` : ""}` : "off in this step")}
+              />
+              {stepKey.length > 0 && (
+                <ul className="seq-key" aria-label="Colors in this step">
+                  {stepKey.map(({ c, ids }) => (
+                    <li key={c}>
+                      <button type="button" className="seq-key-item" onClick={() => setSelected(new Set(ids))} title={`Select the lights in ${colorName(c)}: ${ids.map(nameOfLight).join(", ")}`}>
+                        <i style={{ background: c === "white" ? "#ffffff" : cssColor(c) }} aria-hidden="true" />
+                        <span>{colorName(c)}</span>
+                        <small>
+                          {ids.length} {ids.length === 1 ? "light" : "lights"}
+                        </small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="seq-quick">
                 <span>Select</span>
                 <button type="button" className="chip" onClick={() => setSelected(new Set(lights.map((l) => l.id)))}>
@@ -408,14 +436,13 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
                         aria-checked={on}
                         className={on ? "seq-color on" : "seq-color"}
                         style={{ background: c === "white" ? "#ffffff" : cssColor(c) }}
-                        title={c === "white" ? "White" : colorById(c).label}
+                        title={colorName(c)}
+                        aria-label={colorName(c)}
                         onClick={() => pickColor(c)}
                       />
                     );
                   })}
-                  <label className="seq-color custom" title="Any color">
-                    <input type="color" value={shown?.startsWith("#") ? shown : "#ffffff"} onChange={(e) => pickColor(e.target.value)} aria-label="Any color" />
-                  </label>
+                  <AddColor compact label="More colors: gels or any color" title="More colors: gels or any color" chosen={colorChoices} full={false} onAdd={(c) => pickColor(c)} />
                 </div>
               </Field>
               <Field label={`Brightness ${Math.round((st.level ?? 1) * 100)}%`}>

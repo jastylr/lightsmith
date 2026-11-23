@@ -54,6 +54,23 @@ export function rgbToHex([r, g, b]: RGB): string {
 }
 
 /** A color id ("amber") or a custom "#rrggbb". */
+/**
+ * A color's name for people: "Blue", or for a mixed color its hex and the
+ * nearest named color ("#9900FF, near violet"), so two similar blues can be
+ * told apart.
+ */
+export function colorName(id: string): string {
+  const named = COLORS.find((c) => c.id === id);
+  if (named) return named.label;
+  const rgb = hexToRgb(id);
+  if (!rgb) return id;
+  const same = COLORS.find((c) => c.rgb.every((v, i) => v === rgb[i]));
+  if (same) return same.label;
+  const dist = (c: ColorPreset) => c.rgb.reduce((t, v, i) => t + (v - rgb[i]!) ** 2, 0);
+  const near = [...COLORS].sort((a, b) => dist(a) - dist(b))[0]!;
+  return `${id.toUpperCase()}, near ${near.label.toLowerCase()}`;
+}
+
 export function colorById(id: string): ColorPreset {
   const named = COLORS.find((c) => c.id === id);
   if (named) return named;

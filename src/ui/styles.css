@@ -4401,3 +4401,54 @@ body.is-resizing * {
   stroke-width: 1.6;
   stroke-dasharray: 4 3;
 }
+
+/* The colors in a chaser step, with how many lights each: click to select them. */
+.seq-key {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.seq-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.seq-key-item:hover {
+  border-color: var(--tungsten);
+}
+.seq-key-item i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.seq-key-item small {
+  color: var(--muted);
+}
+.seq-colors .popover-anchor {
+  display: inline-flex;
+}
+.seq-colors .lo-add {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: 2px dashed var(--line);
+  background: conic-gradient(from 90deg, #ff4d4d, #ffd24d, #4dff88, #4dd2ff, #6a4dff, #ff4dd2, #ff4d4d);
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+}
+.seq-colors .lo-add .icon {
+  filter: drop-shadow(0 0 2px #000);
+}
