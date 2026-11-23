@@ -4282,3 +4282,98 @@ body.is-resizing * {
   background: var(--bad);
   color: #fff;
 }
+
+/* ---- Chaser steps as a table, like QLC+'s chaser editor ---- */
+.seq-table-wrap {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--deck);
+}
+.seq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.seq-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--raised);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.seq-table td {
+  padding: 0.22rem 0.5rem;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+.seq-table tbody tr {
+  cursor: pointer;
+}
+.seq-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.seq-table tbody tr.on td {
+  background: color-mix(in srgb, var(--tungsten) 14%, transparent);
+}
+.seq-table tbody tr.on td:first-child {
+  box-shadow: inset 3px 0 0 var(--tungsten);
+}
+.seq-table tbody tr:focus-visible {
+  outline: 2px solid var(--tungsten);
+  outline-offset: -2px;
+}
+.seq-table tr.pause .seq-lights {
+  color: var(--faint);
+}
+.seq-n {
+  width: 2.2rem;
+  color: var(--muted);
+  font-weight: 650;
+}
+.seq-lights {
+  min-width: 6.5rem;
+}
+.seq-lights > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.seq-swatch {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: 0 0 0 1px var(--line);
+  flex: none;
+}
+.seq-table tr.pause .seq-swatch {
+  background: repeating-linear-gradient(45deg, var(--line) 0 2px, transparent 2px 5px);
+}
+.seq-table .number input {
+  min-width: 0;
+  width: 6.2rem;
+  height: 1.9rem;
+  padding: 0 0.45rem;
+  font-size: 0.85rem;
+}
+.seq-table .number-suffix {
+  font-size: 0.75rem;
+}
+.seq-ends {
+  color: var(--faint);
+  text-align: right;
+}
+.seq-wait-row td {
+  color: var(--muted);
+  font-style: italic;
+  cursor: default;
+}

@@ -10,7 +10,6 @@ import {
   QUICK_STARTS,
   quickStart,
   sequenceMs,
-  toMs,
   type FixtureProfile,
   type QuickStartId,
   type Rig,
@@ -71,9 +70,9 @@ export function SequencesCard({
     setOpen(q.id);
   };
   const addOptions: Option<string>[] = [
-    ...sequences.filter((q) => !uses.some((u) => u.id === q.id)).map((q) => ({ value: `use:${q.id}`, label: q.name, description: `${q.steps.length} steps`, group: "Your sequences" })),
+    ...sequences.filter((q) => !uses.some((u) => u.id === q.id)).map((q) => ({ value: `use:${q.id}`, label: q.name, description: `${q.steps.length} steps`, group: "Your chasers" })),
     ...QUICK_STARTS.map((q) => ({ value: `quick:${q.id}`, label: q.label, description: q.description, group: "Start from" })),
-    { value: "blank", label: "Empty sequence", description: "Add steps yourself", group: "Start from" },
+    { value: "blank", label: "Empty chaser", description: "Add steps yourself", group: "Start from" },
     ...chasers.map((c) => ({ value: `import:${c.id}`, label: c.name, description: `${c.path ? `${c.path} · ` : ""}${c.steps} steps`, group: "Import a chaser from your show file" })),
   ];
   const add = (v: string) => {
@@ -85,7 +84,7 @@ export function SequencesCard({
       const q = quickStart(v.slice(6) as QuickStartId, rig, profiles);
       attach(q, 0, [q]);
     } else if (v === "blank") {
-      const q: Sequence = { id: newId("seq"), name: `Sequence ${sequences.length + 1}`, units: "beats", order: "loop", steps: [newStep([], 1)] };
+      const q: Sequence = { id: newId("seq"), name: `Chaser ${sequences.length + 1}`, units: "beats", order: "loop", steps: [newStep([], 1)] };
       attach(q, 0, [q]);
     } else if (v.startsWith("import:") && showFile) {
       try {
@@ -102,7 +101,7 @@ export function SequencesCard({
   const replace = (q: Sequence) => onSequences(sequences.map((x) => (x.id === q.id ? q : x)));
   const destroy = async (q: Sequence) => {
     const elsewhere = "It's removed from every section that uses it.";
-    if (!(await askConfirm({ title: `Delete "${q.name}"?`, message: elsewhere, confirmLabel: "Delete sequence", danger: true }))) return;
+    if (!(await askConfirm({ title: `Delete "${q.name}"?`, message: elsewhere, confirmLabel: "Delete chaser", danger: true }))) return;
     onSequences(sequences.filter((x) => x.id !== q.id));
     remove(q.id);
   };
@@ -131,7 +130,7 @@ export function SequencesCard({
               <button type="button" className="cue-action" onClick={() => onPlay(false)} title="Play this section in the preview from the start, delay included" aria-label="Play from the start">
                 <Icon name="play" size={15} />
               </button>
-              <button type="button" className="cue-action danger" onClick={() => remove(u.id)} title="Take this sequence out of the section (it stays in your sequences)" aria-label={`Remove ${q.name} from this section`}>
+              <button type="button" className="cue-action danger" onClick={() => remove(u.id)} title="Take this chaser out of the section (it stays in your chasers)" aria-label={`Remove ${q.name} from this section`}>
                 <Icon name="x" size={15} />
               </button>
             </div>
@@ -152,8 +151,8 @@ export function SequencesCard({
           </button>
         </div>
       )}
-      <Field label={uses.length ? "Add another sequence" : "Add a sequence"} hint={showFile ? undefined : "Load your show file on the Show file page to import its chasers."}>
-        <Dropdown label="Add a sequence" value="" placeholder="Choose…" options={addOptions} onChange={add} className="wide" />
+      <Field label={uses.length ? "Add another chaser" : "Add a chaser"} hint={showFile ? undefined : "Load your show file on the Show file page to import its chasers."}>
+        <Dropdown label="Add a chaser" value="" placeholder="Choose…" options={addOptions} onChange={add} className="wide" />
       </Field>
     </div>
   );
@@ -164,7 +163,6 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
   const [sel, setSel] = useState(0);
   const i = Math.min(sel, q.steps.length - 1);
   const st = q.steps[i];
-  const unit = q.units === "ms" ? "ms" : "beats";
   const setSteps = (steps: SequenceStep[], select?: number) => {
     onChange({ ...q, steps });
     if (select !== undefined) setSel(select);
@@ -193,8 +191,8 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
   return (
     <div className="seq-editor">
       <div className="seq-top">
-        <input className="position-name" value={q.name} aria-label="Sequence name" onChange={(e) => onChange({ ...q, name: e.target.value })} />
-        <button type="button" className="cue-action danger" onClick={onDelete} title="Delete this sequence everywhere" aria-label={`Delete ${q.name}`}>
+        <input className="position-name" value={q.name} aria-label="Chaser name" onChange={(e) => onChange({ ...q, name: e.target.value })} />
+        <button type="button" className="cue-action danger" onClick={onDelete} title="Delete this chaser everywhere" aria-label={`Delete ${q.name}`}>
           <Icon name="trash" size={15} />
         </button>
       </div>
@@ -224,59 +222,97 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
         </Field>
       </div>
 
-      <div className="seq-strip" role="listbox" aria-label="Steps">
-        {delay > 0 && (
-          <div className="seq-step seq-wait" title={`In this section, the sequence starts ${delay} s in. Change it with "Starts after" above; the export puts it back as a first step.`}>
-            <span className="seq-step-n">Wait</span>
-            <i aria-hidden="true" />
-            <small>{delay} s</small>
-          </div>
-        )}
-        {q.steps.map((x, k) => (
-          <button
-            key={x.id}
-            type="button"
-            role="option"
-            aria-selected={k === i}
-            className={`seq-step${k === i ? " on" : ""}${isPause(x) ? " pause" : ""}`}
-            style={{ "--c": stepColor(x), "--w": `${Math.max(2.4, Math.min(7, 1.6 + Math.log2(1 + toMs(x.fadeIn + x.hold, q.units, bpm) / 40)))}rem` } as CSSProperties}
-            onClick={() => setSel(k)}
-            title={isPause(x) ? "Pause" : `${x.lights.length} light${x.lights.length === 1 ? "" : "s"}`}
-          >
-            <span className="seq-step-n">{k + 1}</span>
-            <i aria-hidden="true" />
-            <small>{q.units === "ms" ? formatDuration(x.fadeIn + x.hold) : Math.round((x.fadeIn + x.hold) * 100) / 100}</small>
-          </button>
-        ))}
-      </div>
       <div className="seq-tools">
-        <button type="button" className="ghost small" onClick={() => insert(newStep(st?.lights ?? [], defaultHold, { color: st?.color }))}>
+        <button type="button" className="ghost small" onClick={() => insert(newStep(st?.lights ?? [], defaultHold, { color: st?.color }))} title="Add a step after the selected one, with the same lights">
           <Icon name="plus" size={14} /> Step
         </button>
-        <button type="button" className="ghost small" onClick={() => insert(newStep([], defaultHold))}>
+        <button type="button" className="ghost small" onClick={() => insert(newStep([], defaultHold))} title="Add a step with no lights: the look shows through">
           <Icon name="plus" size={14} /> Pause
         </button>
         <button type="button" className="ghost small" disabled={!st} onClick={() => st && insert({ ...st, id: newId("st"), lights: [...st.lights] })}>
           <Icon name="copy" size={14} /> Duplicate
         </button>
-        <button type="button" className="ghost small" disabled={i <= 0} onClick={() => move(-1)} aria-label="Move step earlier">
-          ← Earlier
+        <button type="button" className="ghost small" disabled={i <= 0} onClick={() => move(-1)} aria-label="Move step up" title="Move up">
+          <Icon name="chevronUp" size={15} />
         </button>
-        <button type="button" className="ghost small" disabled={i >= q.steps.length - 1} onClick={() => move(1)} aria-label="Move step later">
-          Later →
+        <button type="button" className="ghost small" disabled={i >= q.steps.length - 1} onClick={() => move(1)} aria-label="Move step down" title="Move down">
+          <Icon name="chevronDown" size={15} />
         </button>
         <button type="button" className="ghost small danger" disabled={q.steps.length <= 1} onClick={() => setSteps(q.steps.filter((_, k) => k !== i), Math.max(0, i - 1))}>
-          <Icon name="trash" size={14} /> Delete step
+          <Icon name="trash" size={14} /> Delete
         </button>
-        <button type="button" className="ghost small seq-play" onClick={onPlay} title="Play the preview with this section's sequences starting right away">
+        <button type="button" className="ghost small seq-play" onClick={onPlay} title="Play the preview with this section's chasers starting right away">
           <Icon name="play" size={14} /> Play now
         </button>
+      </div>
+
+      {/* The steps, one row each as in QLC+'s chaser editor: times are edited right in the row. */}
+      <div className="seq-table-wrap">
+        <table className="seq-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Lights</th>
+              <th scope="col">Fade in</th>
+              <th scope="col">Hold</th>
+              <th scope="col">Fade out</th>
+              <th scope="col" title="When the step ends, from the start of the chaser">Ends at</th>
+            </tr>
+          </thead>
+          <tbody
+            onKeyDown={(e) => {
+              if ((e.target as HTMLElement).tagName === "INPUT") return;
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setSel(Math.max(0, Math.min(q.steps.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))));
+              }
+            }}
+          >
+            {delay > 0 && (
+              <tr className="seq-wait-row">
+                <td>–</td>
+                <td colSpan={5}>In this section it waits {formatDuration(delay * 1000)} first (Starts after, above)</td>
+              </tr>
+            )}
+            {q.steps.map((x, k) => {
+              const ends = q.steps.slice(0, k + 1).reduce((t, y) => t + y.fadeIn + y.hold, 0);
+              const time = (field: "fadeIn" | "hold" | "fadeOut", label: string) =>
+                q.units === "ms" ? (
+                  <DurationInput label={`Step ${k + 1} ${label}`} valueMs={x[field]} minMs={field === "hold" ? 1 : 0} maxMs={field === "hold" ? 600000 : 60000} stepMs={10} bare="ms" onChange={(v) => setSteps(q.steps.map((y, j) => (j === k ? { ...y, [field]: v } : y)))} />
+                ) : (
+                  <NumberInput label={`Step ${k + 1} ${label}`} value={x[field]} min={field === "hold" ? 0.05 : 0} max={field === "hold" ? 256 : 64} step={0.25} suffix="beats" onChange={(v) => setSteps(q.steps.map((y, j) => (j === k ? { ...y, [field]: v } : y)))} />
+                );
+              return (
+                <tr
+                  key={x.id}
+                  className={`${k === i ? "on" : ""}${isPause(x) ? " pause" : ""}`}
+                  aria-selected={k === i}
+                  tabIndex={k === i ? 0 : -1}
+                  onClick={() => setSel(k)}
+                  onFocusCapture={() => k !== i && setSel(k)}
+                >
+                  <td className="seq-n">{k + 1}</td>
+                  <td className="seq-lights">
+                    <span>
+                      <i className="seq-swatch" style={{ "--c": stepColor(x) } as CSSProperties} aria-hidden="true" />
+                      {isPause(x) ? "Pause" : `${x.lights.length} light${x.lights.length === 1 ? "" : "s"}`}
+                    </span>
+                  </td>
+                  <td>{time("fadeIn", "fade in")}</td>
+                  <td>{time("hold", "hold")}</td>
+                  <td>{time("fadeOut", "fade out")}</td>
+                  <td className="seq-ends">{q.units === "ms" ? formatDuration(ends) : `${Math.round(ends * 100) / 100} b`}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {st && (
         <div className="seq-step-editor">
           <h4 className="subhead">
-            Step {i + 1} {isPause(st) ? "· pause" : `· ${st.lights.length} light${st.lights.length === 1 ? "" : "s"}`}
+            Step {i + 1}: {isPause(st) ? "pause" : `${st.lights.length} light${st.lights.length === 1 ? "" : "s"}`}, color and brightness
           </h4>
           <div className="seq-step-grid">
             <div>
@@ -332,31 +368,8 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
               <Field label={`Brightness ${Math.round((st.level ?? 1) * 100)}%`}>
                 <input type="range" min={5} max={100} value={Math.round((st.level ?? 1) * 100)} aria-label="Step brightness" onChange={(e) => patch({ level: +e.target.value >= 100 ? undefined : +e.target.value / 100 })} />
               </Field>
-              <div className="seq-times">
-                <Field label="Fade in">
-                  {q.units === "ms" ? (
-                    <DurationInput label="Fade in" valueMs={st.fadeIn} maxMs={60000} stepMs={10} bare="ms" onChange={(fadeIn) => patch({ fadeIn })} />
-                  ) : (
-                    <NumberInput label="Fade in" value={st.fadeIn} min={0} max={64} step={0.25} suffix={unit} onChange={(fadeIn) => patch({ fadeIn })} />
-                  )}
-                </Field>
-                <Field label="Hold">
-                  {q.units === "ms" ? (
-                    <DurationInput label="Hold" valueMs={st.hold} minMs={1} maxMs={600000} stepMs={10} bare="ms" onChange={(hold) => patch({ hold })} />
-                  ) : (
-                    <NumberInput label="Hold" value={st.hold} min={0.05} max={256} step={0.25} suffix={unit} onChange={(hold) => patch({ hold })} />
-                  )}
-                </Field>
-                <Field label="Fade out">
-                  {q.units === "ms" ? (
-                    <DurationInput label="Fade out" valueMs={st.fadeOut} maxMs={60000} stepMs={10} bare="ms" onChange={(fadeOut) => patch({ fadeOut })} />
-                  ) : (
-                    <NumberInput label="Fade out" value={st.fadeOut} min={0} max={64} step={0.25} suffix={unit} onChange={(fadeOut) => patch({ fadeOut })} />
-                  )}
-                </Field>
-              </div>
               <p className="hint">
-                {q.units === "beats" ? `At this section's ${bpm} BPM, a beat is ${Math.round(60000 / bpm)} ms. ` : ""}Changes apply everywhere this sequence is used. Pop out the preview to keep it beside you while you edit.
+                {q.units === "beats" ? `At this section's ${bpm} BPM, a beat is ${Math.round(60000 / bpm)} ms. ` : ""}Changes apply everywhere this chaser is used. Times are set in the table above. Pop out the preview to keep it beside you while you edit.
               </p>
             </div>
           </div>

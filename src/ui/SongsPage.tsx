@@ -1621,7 +1621,7 @@ function LookEditor({
           </Group>
 
           {showSequencesCard && (
-          <Group card={card("sequences")} icon="list" title="Sequences" description="Your own chasers, built step by step or imported from your show file, running on top of this section's look.">
+          <Group card={card("sequences")} icon="list" title="Chasers" description="Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.">
             <SequencesCard s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
           </Group>
           )}
@@ -1830,7 +1830,7 @@ const CARD_LABELS: Record<string, { label: string; icon: IconName }> = {
   movers: { label: "Moving heads", icon: "mover" },
   focus: { label: "Focus", icon: "focus" },
   effects: { label: "Effects", icon: "sparkle" },
-  sequences: { label: "Sequences", icon: "list" },
+  sequences: { label: "Chasers", icon: "list" },
   timing: { label: "Start and end", icon: "play" },
 };
 
