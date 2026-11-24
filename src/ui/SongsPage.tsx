@@ -311,7 +311,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
-                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} />
+                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop()} />
               </PreviewWindow>
             )}
           </div>
@@ -1087,8 +1087,8 @@ function ColorLayoutEditor({
 }
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
-function SectionPreview({ s, rig, sequences, replay, compact, view, names }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string> }) {
-  if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} />;
+function SectionPreview({ s, rig, sequences, replay, compact, view, names, loop }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string>; loop?: boolean }) {
+  if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} loop={loop} />;
   if (compact) return <div className="blackout-preview compact"><Icon name="moon" size={18} /></div>;
   return (
     <div className="blackout-preview">
@@ -1275,6 +1275,11 @@ function LookEditor({
   const visibleCards = blackout ? ["timing"] : Object.keys(cards);
   // ---- Tabs: one card at a time, or "All" for the long page with every card.
   const [tab, setTabState] = useState<string>(rememberedTab);
+  const [loop, setLoopState] = useState<boolean>(rememberedLoop);
+  const setLoop = (on: boolean) => {
+    setLoopState(on);
+    rememberLoop(on);
+  };
   const setTab = (id: string) => {
     setTabState(id);
     rememberTab(id);
@@ -1366,7 +1371,7 @@ function LookEditor({
           ) : (
             <figure className="preview-figure" ref={previewRef}>
               <div className="preview-frame">
-                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} />
+                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop} />
                 <div className="preview-views" role="radiogroup" aria-label="View the stage from">
                   {(
                     [
@@ -1378,6 +1383,9 @@ function LookEditor({
                       {label}
                     </button>
                   ))}
+                  <button type="button" role="switch" aria-checked={loop} className={loop ? "on loop" : "loop"} onClick={() => setLoop(!loop)} title={loop ? "Starts the section over when it ends. Click to play it once." : "Plays the section once. Click to start it over each time it ends."}>
+                    <Icon name="repeat" size={13} /> Loop
+                  </button>
                 </div>
                 <div className="preview-tools">
                   <button
@@ -1864,6 +1872,23 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
       <p className="hint">Width and height are QLC+'s numbers: how far the heads travel each way from where they point, up to 127, and never past the end of their range. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}</p>
     </div>
   );
+}
+
+/** Whether the preview starts a section over when it ends. On unless turned off; remembered in this browser. */
+const LOOP_KEY = "lightsmith.previewLoop.v1";
+function rememberedLoop(): boolean {
+  try {
+    return localStorage.getItem(LOOP_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+function rememberLoop(on: boolean) {
+  try {
+    localStorage.setItem(LOOP_KEY, on ? "1" : "0");
+  } catch {
+    /* not remembered; fine */
+  }
 }
 
 /** The stage preview's view: from the audience or from above. Remembered in this browser. */

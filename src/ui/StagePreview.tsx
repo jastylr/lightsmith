@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -50,6 +50,7 @@ export function StagePreview({
   startAt = 0,
   view: viewMode = "front",
   names,
+  loop = true,
 }: {
   section: Section;
   rig: Rig;
@@ -62,13 +63,41 @@ export function StagePreview({
   view?: "front" | "above";
   /** Fixture names from the show file, for labels in the view from above. */
   names?: Map<number, string>;
+  /** Start the section over when it reaches its end, so chasers and timed effects come round again. */
+  loop?: boolean;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const lengthSec = sectionMs(section) / 1000;
   useEffect(() => {
     if (startAt > 0) svgRef.current?.setCurrentTime?.(startAt);
     // Only on mount: replaying remounts the preview.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Looping: every time the section's length comes round, wind every animation
+  // back to the start (the first time from wherever playback began).
+  useEffect(() => {
+    if (!loop || compact || lengthSec <= 0) return;
+    let timer = 0;
+    const svg = svgRef.current;
+    const next = () => {
+      const now = svg?.getCurrentTime?.() ?? 0;
+      timer = window.setTimeout(
+        () => {
+          svg?.setCurrentTime?.(0);
+          next();
+        },
+        Math.max(50, (lengthSec - (now % lengthSec)) * 1000),
+      );
+    };
+    next();
+    return () => window.clearTimeout(timer);
+  }, [loop, compact, lengthSec]);
+  // A thin line along the bottom shows how far through the section the preview is.
+  const progress = !compact && lengthSec > 0 && (
+    <rect x="0" y={H - 3} width="0" height="3" fill="rgba(255,255,255,0.35)" pointerEvents="none">
+      <animate attributeName="width" from="0" to={W} dur={`${lengthSec}s`} begin="0s" fill="freeze" />
+    </rect>
+  );
   const view = useMemo(() => {
     const mood = moodById(section.mood);
     const en = energyOf(section.energy);
@@ -359,6 +388,7 @@ export function StagePreview({
             </g>
           );
         })}
+        {progress}
         {uncalibrated > 0 && (
           <text x={W / 2} y={H - 20} textAnchor="middle" className="pv-hint">{`${uncalibrated} moving ${uncalibrated === 1 ? "head isn't" : "heads aren't"} set up yet: see "Where it faces" on the Stage page`}</text>
         )}
@@ -766,6 +796,7 @@ export function StagePreview({
           <animate attributeName="opacity" values="0;0.35;0;0" keyTimes="0;0.05;0.12;1" dur={`${beat / 2}s`} repeatCount="indefinite" />
         </rect>
       )}
+      {progress}
     </svg>
   );
 }
