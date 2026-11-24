@@ -41,6 +41,8 @@ import {
   lengthLabel,
   sectionTypeById,
   sectionsFromTemplate,
+  chaserFit,
+  formatDuration,
   effectTargets,
   MATRIX_EFFECTS,
   stageOrder,
@@ -129,6 +131,12 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     setPviewState(v);
     rememberView(v);
   };
+  // Which sections use each chaser, across every song: for "shared with" notes.
+  const chaserUses = useMemo(() => {
+    const m = new Map<string, { song: string; section: string; sectionId: string }[]>();
+    for (const sg of store.project.songs) for (const x of sg.sections) for (const u of x.sequences ?? []) m.set(u.id, [...(m.get(u.id) ?? []), { song: sg.title || "Untitled song", section: x.name, sectionId: x.id }]);
+    return m;
+  }, [store.project.songs]);
   const fixtureNames = useMemo(() => new Map((store.showFile?.fixtures ?? []).map((f) => [f.id, f.name])), [store.showFile]);
   // Replaying the preview restarts its animations; "skip" starts sequences at once.
   const [replay, setReplay] = useState<Replay>({ n: 0, skip: false });
@@ -289,7 +297,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
+          <Timeline sequences={store.project.sequences ?? []} song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -299,7 +307,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -438,7 +446,9 @@ function Timeline({
   addButton,
   gesture,
   onPlayFrom,
+  sequences,
 }: {
+  sequences: Sequence[];
   /** Playback started (or jumped) to `at` seconds into a section: restart the preview there. */
   onPlayFrom: (section: string, at: number) => void;
   song: Song;
@@ -693,6 +703,18 @@ function Timeline({
                     onKeyDownCapture={(e) => e.key === "Enter" && onSelect(s.id)}
                   >
                     <span className="block-light" />
+                    {/* Where each chaser runs in the section: solid for the first run, faint where it repeats. */}
+                    {(s.sequences ?? []).map((u, k) => {
+                      const q = sequences.find((x) => x.id === u.id);
+                      if (!q) return null;
+                      const fit = chaserFit(q, u.delay, s);
+                      const pct = (v: number) => `${Math.min(100, (v / Math.max(1, fit.sectionMs)) * 100)}%`;
+                      return (
+                        <span key={u.id} className={fit.overMs > 0 ? "block-chaser over" : "block-chaser"} style={{ left: pct(fit.startMs), width: `calc(${pct(fit.repeats ? fit.sectionMs : fit.endMs)} - ${pct(fit.startMs)})`, bottom: `${3 + k * 5}px` }} title={`${q.name}: ${formatDuration(fit.startMs)} to ${formatDuration(fit.endMs)}${fit.repeats ? ", repeating" : ""}`}>
+                          <i style={{ width: fit.repeats ? `${Math.min(100, (fit.runMs / Math.max(1, fit.sectionMs - fit.startMs)) * 100)}%` : "100%" }} />
+                        </span>
+                      );
+                    })}
                     <span className="block-text">
                       <strong>{s.name}</strong>
                       <small>{fmt(ms)}</small>
@@ -1105,7 +1127,9 @@ function LookEditor({
   view,
   onView,
   names,
+  chaserUses,
 }: {
+  chaserUses: Map<string, { song: string; section: string; sectionId: string }[]>;
   view: PreviewView;
   onView: (v: PreviewView) => void;
   names: Map<number, string>;
@@ -1660,7 +1684,7 @@ function LookEditor({
 
           {showSequencesCard && (
           <Group card={card("sequences")} icon="list" title="Chasers" description="Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.">
-            <SequencesCard s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
+            <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
           </Group>
           )}
 

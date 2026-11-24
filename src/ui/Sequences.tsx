@@ -12,6 +12,7 @@ import {
   QUICK_STARTS,
   quickStart,
   sequenceMs,
+  chaserFit,
   type FixtureProfile,
   type QuickStartId,
   type Rig,
@@ -23,7 +24,6 @@ import {
   type Workspace,
 } from "../core";
 import { AddColor, cssColor } from "./ColorPicker";
-import { askConfirm } from "./ConfirmDialog";
 import { Dropdown, DurationInput, Field, NumberInput, Segmented, type Option } from "./controls";
 import { Icon } from "./icons";
 import { MiniStage, type Light } from "./LightPicker";
@@ -46,7 +46,10 @@ export function SequencesCard({
   onSection,
   onSequences,
   onPlay,
+  usedIn,
 }: {
+  /** Every section that uses each chaser, across all songs. */
+  usedIn: Map<string, { song: string; section: string; sectionId: string }[]>;
   s: Section;
   sequences: Sequence[];
   rig: Rig;
@@ -65,27 +68,43 @@ export function SequencesCard({
   const [notes, setNotes] = useState<string[]>([]);
   const chasers = useMemo(() => (showFile ? chasersIn(showFile) : []), [showFile]);
 
+  /** The other sections using a chaser, besides this one. */
+  const elsewhere = (id: string) => (usedIn.get(id) ?? []).filter((x) => x.sectionId !== s.id);
+  const where = (x: { song: string; section: string }) => `${x.song} › ${x.section}`;
+  const uniqueName = (base: string) => {
+    let name = base;
+    for (let n = 2; sequences.some((q) => q.name === name); n++) name = `${base} (${n})`;
+    return name;
+  };
   const attach = (q: Sequence, delay = 0, also: Sequence[] = []) => {
     if (also.length) onSequences([...sequences, ...also]);
     onSection({ sequences: [...(s.sequences ?? []), { id: q.id, delay }] });
     setOpen(q.id);
   };
   const addOptions: Option<string>[] = [
-    ...sequences.filter((q) => !uses.some((u) => u.id === q.id)).map((q) => ({ value: `use:${q.id}`, label: q.name, description: `Made or imported earlier, with your changes · ${q.steps.length} steps`, group: "Already in your project" })),
     ...QUICK_STARTS.map((q) => ({ value: `quick:${q.id}`, label: q.label, description: q.description, group: "Start from" })),
     { value: "blank", label: "Empty chaser", description: "Add steps yourself", group: "Start from" },
-    ...chasers.map((c) => ({
-      value: `import:${c.id}`,
-      label: c.name,
-      description: `${c.path ? `${c.path} · ` : ""}${c.steps} steps${sequences.some((q) => q.name === c.name) ? " · imported before: this brings in a fresh copy" : ""}`,
-      group: "Import from your QLC+ show file",
-    })),
+    ...chasers.map((c) => ({ value: `import:${c.id}`, label: c.name, description: `${c.path ? `${c.path} · ` : ""}${c.steps} steps · a fresh copy`, group: "Import from your QLC+ show file" })),
+    // One another section uses: the same chaser (edits change both), or a copy of it.
+    ...sequences
+      .filter((q) => !uses.some((u) => u.id === q.id) && elsewhere(q.id).length)
+      .flatMap((q) => [
+        { value: `use:${q.id}`, label: `${q.name}: the same one`, description: `Used in ${elsewhere(q.id).map(where).join(", ")}. Editing it changes it there too.`, group: "Use one from another section" },
+        { value: `copy:${q.id}`, label: `${q.name}: a copy`, description: "A separate copy for this section; changes stay here.", group: "Use one from another section" },
+      ]),
   ];
+
   const add = (v: string) => {
     setNotes([]);
     if (v.startsWith("use:")) {
       const q = sequences.find((x) => x.id === v.slice(4));
       if (q) attach(q);
+    } else if (v.startsWith("copy:")) {
+      const q = sequences.find((x) => x.id === v.slice(5));
+      if (q) {
+        const copy: Sequence = { ...structuredClone(q), id: newId("seq"), name: uniqueName(`${q.name} (copy)`) };
+        attach(copy, 0, [copy]);
+      }
     } else if (v.startsWith("quick:")) {
       const q = quickStart(v.slice(6) as QuickStartId, rig, profiles);
       attach(q, 0, [q]);
@@ -96,9 +115,7 @@ export function SequencesCard({
       try {
         const r = importChaser(showFile, Number(v.slice(7)), profiles);
         // A fresh copy of one imported before gets its own name, so the two can be told apart.
-        let name = r.sequence.name;
-        for (let n = 2; sequences.some((q) => q.name === name); n++) name = `${r.sequence.name} (${n})`;
-        r.sequence.name = name;
+        r.sequence.name = uniqueName(r.sequence.name);
         attach(r.sequence, r.delay, [r.sequence]);
         setNotes([`Imported "${r.sequence.name}": ${r.sequence.steps.length} steps${r.delay ? `, starting ${r.delay} s into the section` : ""}.`, ...r.notes]);
       } catch (e) {
@@ -106,15 +123,20 @@ export function SequencesCard({
       }
     }
   };
-  const remove = (id: string) => onSection({ sequences: (s.sequences ?? []).filter((u) => u.id !== id) });
+  /** Take a chaser out of this section; if no other section uses it, it's gone from the project (Undo brings it back). */
+  const remove = (id: string) => {
+    onSection({ sequences: (s.sequences ?? []).filter((u) => u.id !== id) });
+    if (!elsewhere(id).length) onSequences(sequences.filter((q) => q.id !== id));
+  };
+  /** Give this section its own copy of a shared chaser. */
+  const separate = (q: Sequence) => {
+    const copy: Sequence = { ...structuredClone(q), id: newId("seq"), name: uniqueName(`${q.name} (copy)`) };
+    onSequences([...sequences, copy]);
+    onSection({ sequences: (s.sequences ?? []).map((u) => (u.id === q.id ? { ...u, id: copy.id } : u)) });
+    setOpen(copy.id);
+  };
   const setDelay = (id: string, delay: number) => onSection({ sequences: (s.sequences ?? []).map((u) => (u.id === id ? { ...u, delay } : u)) });
   const replace = (q: Sequence) => onSequences(sequences.map((x) => (x.id === q.id ? q : x)));
-  const destroy = async (q: Sequence) => {
-    const elsewhere = "It's removed from every section that uses it.";
-    if (!(await askConfirm({ title: `Delete "${q.name}"?`, message: elsewhere, confirmLabel: "Delete chaser", danger: true }))) return;
-    onSequences(sequences.filter((x) => x.id !== q.id));
-    remove(q.id);
-  };
 
   return (
     <div className="sequences">
@@ -140,11 +162,23 @@ export function SequencesCard({
               <button type="button" className="cue-action" onClick={() => onPlay(false)} title="Play this section in the preview from the start, delay included" aria-label="Play from the start">
                 <Icon name="play" size={15} />
               </button>
-              <button type="button" className="cue-action danger" onClick={() => remove(u.id)} title="Take this chaser out of the section (it stays in your chasers)" aria-label={`Remove ${q.name} from this section`}>
+              <button type="button" className="cue-action danger" onClick={() => remove(u.id)} title={elsewhere(q.id).length ? `Remove from this section (it stays in ${elsewhere(q.id).map(where).join(", ")})` : "Remove this chaser (Undo brings it back)"} aria-label={`Remove ${q.name}`}>
                 <Icon name="x" size={15} />
               </button>
             </div>
-            {isOpen && <SequenceEditor q={q} delay={u.delay} bpm={s.bpm} lights={lights} palette={palette} onChange={replace} onDelete={() => destroy(q)} onPlay={() => onPlay(true)} />}
+            <ChaserTiming q={q} delay={u.delay} s={s} onFit={(bars) => onSection({ bars })} />
+            {elsewhere(q.id).length > 0 && (
+              <div className="seq-shared">
+                <Icon name="link" size={14} />
+                <span>
+                  Shared with {elsewhere(q.id).map(where).join(", ")}. Editing it here changes it there too.
+                </span>
+                <button type="button" className="ghost small" onClick={() => separate(q)}>
+                  Make a separate copy
+                </button>
+              </div>
+            )}
+            {isOpen && <SequenceEditor q={q} delay={u.delay} bpm={s.bpm} lights={lights} palette={palette} onChange={replace} onPlay={() => onPlay(true)} />}
           </div>
         );
       })}
@@ -169,7 +203,7 @@ export function SequencesCard({
 }
 
 /** Edit one sequence: its timing units and run order, and each step. */
-function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, onPlay }: { q: Sequence; delay: number; bpm: number; lights: Light[]; palette: string[]; onChange: (q: Sequence) => void; onDelete: () => void; onPlay: () => void }) {
+function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onPlay }: { q: Sequence; delay: number; bpm: number; lights: Light[]; palette: string[]; onChange: (q: Sequence) => void; onPlay: () => void }) {
   const [sel, setSel] = useState(0);
   const i = Math.min(sel, q.steps.length - 1);
   const st = q.steps[i];
@@ -232,9 +266,6 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
     <div className="seq-editor">
       <div className="seq-top">
         <input className="position-name" value={q.name} aria-label="Chaser name" onChange={(e) => onChange({ ...q, name: e.target.value })} />
-        <button type="button" className="cue-action danger" onClick={onDelete} title="Delete this chaser everywhere" aria-label={`Delete ${q.name}`}>
-          <Icon name="trash" size={15} />
-        </button>
       </div>
       <div className="seq-settings">
         <Field label="Runs">
@@ -454,6 +485,38 @@ function SequenceEditor({ q, delay, bpm, lights, palette, onChange, onDelete, on
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * When a chaser starts and ends against the section's length, in words, with
+ * a button to fit the section to it (rounded up to whole bars).
+ */
+function ChaserTiming({ q, delay, s, onFit }: { q: Sequence; delay: number; s: Section; onFit: (bars: number) => void }) {
+  const fit = chaserFit(q, delay, s);
+  const t = (ms: number) => formatDuration(Math.round(ms));
+  const bad = fit.overMs > 0 || fit.earlyMs > 2000;
+  const fitMs = (fit.fitBars * 60000 * s.beatsPerBar) / s.bpm;
+  return (
+    <div className={bad ? "seq-timing warn" : "seq-timing"}>
+      <span>
+        Starts at {t(fit.startMs)}, {fit.repeats ? "first run ends" : "ends"} at {t(fit.endMs)} · the section is {t(fit.sectionMs)}.{" "}
+        {fit.overMs > 0
+          ? fit.repeats
+            ? `Its first run is ${t(fit.overMs)} longer than the section.`
+            : `It runs ${t(fit.overMs)} past the end of the section, so the end is cut off.`
+          : fit.earlyMs > 2000
+            ? `It finishes ${t(fit.earlyMs)} before the section ends; the look shows after that.`
+            : fit.repeats
+              ? "It repeats until the section ends."
+              : ""}
+      </span>
+      {fit.fitBars !== s.bars && (
+        <button type="button" className="ghost small" onClick={() => onFit(fit.fitBars)} title={`Set the section to ${fit.fitBars} bars (${t(fitMs)}), ${t(fitMs - fit.endMs)} longer than the chaser: sections are whole bars`}>
+          <Icon name="fit" size={14} /> Fit the section to it ({fit.fitBars} bars)
+        </button>
       )}
     </div>
   );

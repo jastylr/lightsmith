@@ -3,7 +3,7 @@
  * start, or imports from a chaser in their QLC+ show file.
  */
 import type { FixtureProfile } from "./fixture";
-import { newId, tidyStepColors, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type SequenceUnits } from "./model";
+import { newId, tidyStepColors, type Rig, type RigFixture, type Section, type Sequence, type SequenceOrder, type SequenceStep, type SequenceUnits } from "./model";
 import { childElements, getAttr, textOf, type XmlElement } from "./xml";
 import type { Workspace } from "./workspace";
 
@@ -15,6 +15,42 @@ export function toMs(value: number, units: SequenceUnits, bpm: number): number {
 /** How long one pass through the sequence takes, in milliseconds (each step's fade in plus hold). */
 export function sequenceMs(q: Pick<Sequence, "steps" | "units">, bpm: number): number {
   return q.steps.reduce((t, st) => t + toMs(st.fadeIn, q.units, bpm) + toMs(st.hold, q.units, bpm), 0);
+}
+
+/** How a chaser sits in its section: when it starts and ends, and the section's length to compare. */
+export interface ChaserFit {
+  startMs: number;
+  /** One run through its steps. */
+  runMs: number;
+  endMs: number;
+  sectionMs: number;
+  /** It repeats (loop or back and forth) until the section ends. */
+  repeats: boolean;
+  /** How far one run goes past the end of the section (0 if it doesn't). */
+  overMs: number;
+  /** How long before the section ends a one-shot chaser finishes (0 if it doesn't). */
+  earlyMs: number;
+  /** Whole bars that cover the start delay and one run. */
+  fitBars: number;
+}
+
+export function chaserFit(q: Pick<Sequence, "steps" | "units" | "order">, delaySec: number, s: Pick<Section, "bpm" | "bars" | "beatsPerBar">): ChaserFit {
+  const startMs = Math.max(0, delaySec * 1000);
+  const runMs = sequenceMs(q, s.bpm);
+  const endMs = startMs + runMs;
+  const barMs = (60000 / s.bpm) * s.beatsPerBar;
+  const secMs = s.bars * barMs;
+  const repeats = q.order !== "once";
+  return {
+    startMs,
+    runMs,
+    endMs,
+    sectionMs: secMs,
+    repeats,
+    overMs: Math.max(0, endMs - secMs),
+    earlyMs: repeats ? 0 : Math.max(0, secMs - endMs),
+    fitBars: Math.max(1, Math.ceil(endMs / barMs - 1e-9)),
+  };
 }
 
 export const isPause = (st: Pick<SequenceStep, "lights">) => st.lights.length === 0;

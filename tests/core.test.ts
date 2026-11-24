@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  normalizeProject,
+  chaserFit,
   beamDirection,
   calibrationOf,
   tidyStepColors,
@@ -1084,4 +1086,28 @@ test("where a calibrated moving head points", () => {
   // Not measured yet: no calibration.
   assert.equal(calibrationOf({ fixtureId: 1, role: "mover", side: "C", order: 0 }), undefined);
   assert.equal(calibrationOf({ fixtureId: 1, role: "mover", side: "C", order: 0, panFront: 90 })?.panRange, 540);
+});
+
+test("how a chaser fits its section, and the bars that would fit it", () => {
+  const q = { units: "ms" as const, order: "once" as const, steps: [{ id: "a", lights: [1], fadeIn: 0, hold: 10000, fadeOut: 0 }, { id: "b", lights: [1], fadeIn: 900, hold: 10000, fadeOut: 0 }] };
+  // 120 BPM, 4/4: a bar is 2 s. 8 bars = 16 s. The chaser starts at 3.2 s and runs 20.9 s.
+  const fit = chaserFit(q, 3.2, { bpm: 120, bars: 8, beatsPerBar: 4 });
+  assert.equal(fit.runMs, 20900);
+  assert.equal(fit.endMs, 24100);
+  assert.equal(fit.overMs, 8100);
+  assert.equal(fit.earlyMs, 0);
+  assert.equal(fit.fitBars, 13, "24.1 s needs 13 bars (26 s)");
+  const short = chaserFit(q, 0, { bpm: 120, bars: 16, beatsPerBar: 4 });
+  assert.equal(short.earlyMs, 32000 - 20900);
+  // A looping chaser repeats to the end, so it never finishes early.
+  assert.equal(chaserFit({ ...q, order: "loop" }, 0, { bpm: 120, bars: 16, beatsPerBar: 4 }).earlyMs, 0);
+});
+
+test("chasers no section uses are dropped when a project loads", () => {
+  const sec = { ...newSection("verse", 120), sequences: [{ id: "used", delay: 0 }] };
+  const p = normalizeProject({ version: 1, rig: { fixtures: [] }, songs: [{ ...newSong("A", 120), sections: [sec] }], sequences: [
+    { id: "used", name: "Kept", units: "beats", order: "loop", steps: [] },
+    { id: "orphan", name: "Left over", units: "beats", order: "loop", steps: [] },
+  ] });
+  assert.deepEqual(p.sequences!.map((q) => q.name), ["Kept"]);
 });

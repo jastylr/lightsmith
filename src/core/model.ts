@@ -641,7 +641,8 @@ export function normalizeProject(p: Project): Project {
     // Keep everything the rig holds (stage size, saved positions), not just its fixtures.
     rig: { ...(p.rig ?? {}), fixtures: [...(p.rig?.fixtures ?? [])] },
     songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
-    ...(p.sequences ? { sequences: p.sequences.map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
+    // Chasers belong to the sections that use them: one no section uses is dropped.
+    ...(p.sequences ? { sequences: p.sequences.filter((q) => p.songs.some((song) => song.sections.some((s) => (s.sequences ?? []).some((u) => u.id === q.id)))).map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
     ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])] } } : {}),
     ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
