@@ -557,6 +557,16 @@ Why `Math.max`? The pan and tilt motors move at the same time, so each step take
 
 *Which way is up?* QLC+'s 3D view stores rotations as three angles applied one after another. Whether a bar stands upright depends on all of them together, so `standsUp` works out where the bar's length ends up pointing (`|cos(Y) · sin(Z)| > 0.7`) instead of looking at one angle.
 
+*Where does a head point?* With a head calibrated on the Stage page, `beamDirection` turns pan and tilt into a direction in 3D, using *spherical coordinates*: tilt gives the angle away from straight up (the elevation), pan gives the compass direction (the azimuth), and
+
+```ts
+x = sin(el) · sin(az)   // across the stage
+up = cos(el)            // up (down, for a hung head)
+z = sin(el) · cos(az)   // towards the audience
+```
+
+The view from above draws `x` and `z`; the view from the audience draws `x` and `up`, which is why a beam aimed straight at you looks short there.
+
 **Mistakes to watch for.**
 - Mixing degrees and radians. JavaScript's `Math.cos` takes radians.
 - Corners vs middles. QLC+ stores a fixture's *corner*, not its middle, so every light came in shifted toward stage right until we added half the fixture's size.

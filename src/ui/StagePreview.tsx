@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -48,6 +48,8 @@ export function StagePreview({
   sequences = [],
   skipDelay = false,
   startAt = 0,
+  view: viewMode = "front",
+  names,
 }: {
   section: Section;
   rig: Rig;
@@ -56,6 +58,10 @@ export function StagePreview({
   skipDelay?: boolean;
   /** Seconds into the section to start the animations at (when the song plays from the middle of it). */
   startAt?: number;
+  /** From the audience (default), or from above: where each light sits and where the heads point. */
+  view?: "front" | "above";
+  /** Fixture names from the show file, for labels in the view from above. */
+  names?: Map<number, string>;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   useEffect(() => {
@@ -214,6 +220,41 @@ export function StagePreview({
   const rainDur = Math.max(0.6, stepT * cells * 2.2);
   const patternOn = new Set(patternTargets(section, rig));
 
+  // ---- moving heads: where each points, over one cycle of its movement
+  /**
+   * For each head: its color, level, cycle timing, and, once it's calibrated
+   * on the Stage page, the beam's real direction at rest and around its
+   * movement (sampled from the same EFX shape the export writes).
+   */
+  const SAMPLES = 24;
+  const headInfo = movers.map((f, i) => {
+    const moverFocused = focusSet.has(f.fixtureId);
+    const o = ownOf(f.fixtureId);
+    const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fillJob("mover", stageIndex(movers, i), 1);
+    const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
+    const dur = movement.bars ? moverTiming(section, movement, rig).beats * beat : 0;
+    const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f));
+    const fan = section.moverSpread === "offset" && section.moverShape?.fan ? section.moverShape.fan : 0;
+    const phase = section.moverSpread === "together" ? 0 : fan ? -((stageIndex(movers, i) * fan) % 360) / 360 * dur : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
+    const cal = calibrationOf(f);
+    const rest = movement.id === "static" ? aimOf(section, rig, f) : { pan: shaped.x, tilt: shaped.y };
+    const restDir = cal ? beamDirection(cal, rest.pan, rest.tilt) : undefined;
+    // Around the shape: QLC+'s point, turned by the shape's rotation, scaled by width and height.
+    const rot = (shaped.rotation * Math.PI) / 180;
+    const path =
+      cal && movement.algorithm && dur > 0
+        ? Array.from({ length: SAMPLES + 1 }, (_, k) => {
+            const t = ((f.reverse ? -1 : 1) * (k / SAMPLES)) * Math.PI * 2;
+            const [px, py] = efxPoint(movement.algorithm!, t);
+            const rx = px * Math.cos(rot) - py * Math.sin(rot);
+            const ry = px * Math.sin(rot) + py * Math.cos(rot);
+            return beamDirection(cal, shaped.x + rx * shaped.width, shaped.y + ry * shaped.height);
+          })
+        : undefined;
+    return { f, i, o, c, moverLevel, dur, phase, shaped, cal, restDir, path, moverFocused };
+  });
+  const uncalibrated = headInfo.filter((h) => !h.cal).length;
+
   // ---- stage geometry (audience view, gentle perspective)
   const BACK = 168; // where the back wall meets the floor
   const HANG_Y = 22; // where lights hung from the truss are clamped
@@ -228,6 +269,102 @@ export function StagePreview({
   const ids = useId().replace(/[^a-zA-Z0-9]/g, "");
   const u = (name: string) => `pv${ids}-${name}`;
   const url = (name: string) => `url(#${u(name)})`;
+
+  if (viewMode === "above") {
+    // ---- the view from above: every light where it sits, and where the heads point.
+    const all = rig.fixtures.filter((f) => f.pos && f.role !== "ignore");
+    // Leave the top clear for the preview's own buttons, and the bottom for the labels.
+    const L = 54, R = W - 54, T = 56, B = H - 40;
+    const sx = (x: number) => L + x * (R - L);
+    const sy = (y: number) => T + Math.max(0, Math.min(1.08, y)) * (B - T);
+    const label = all.length <= 32;
+    const shortName = (name: string, id: number) => /\[(\d+)\]/.exec(name)?.[1] ?? String(id + 1);
+    const reachPx = 120;
+    /** The beam's footprint from above: a wedge from the head, as long as it leans. */
+    const wedge = (x0: number, y0: number, d: { x: number; z: number }, spread: number) => {
+      const tx = x0 + d.x * reachPx;
+      const ty = y0 + d.z * reachPx;
+      const len = Math.hypot(tx - x0, ty - y0) || 1;
+      const nx = -(ty - y0) / len, ny = (tx - x0) / len;
+      const w = 4 + 14 * spread * (len / reachPx);
+      return `${x0},${y0} ${(tx + nx * w).toFixed(1)},${(ty + ny * w).toFixed(1)} ${(tx - nx * w).toFixed(1)},${(ty - ny * w).toFixed(1)}`;
+    };
+    const spread = beam.zoom === undefined ? 1 : 0.45 + 1.3 * beam.zoom;
+    return (
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact above" : "preview above"} role="img" aria-label={`${section.name} from above: where each light sits and where the moving heads point`}>
+        <rect x="0" y="0" width={W} height={H} fill="#121015" />
+        <rect x={L - 14} y={T - 14} width={R - L + 28} height={B - T + 22} rx="6" fill="#1b1820" stroke="#2c2832" />
+        <line x1={L - 14} y1={T - 14} x2={R + 14} y2={T - 14} stroke="#4a4452" strokeWidth="3" />
+        <text x={W / 2} y={T - 20} textAnchor="middle" className="pv-label">Backdrop</text>
+        <text x={W / 2} y={H - 6} textAnchor="middle" className="pv-label">Audience</text>
+        <text x={L - 22} y={(T + B) / 2} textAnchor="middle" className="pv-label" transform={`rotate(-90 ${L - 22} ${(T + B) / 2})`}>Stage right</text>
+        <text x={R + 22} y={(T + B) / 2} textAnchor="middle" className="pv-label" transform={`rotate(90 ${R + 22} ${(T + B) / 2})`}>Stage left</text>
+        {/* Moving heads' beams first, so every light's glyph sits on top. */}
+        {headInfo.map((h) => {
+          if (!h.cal || !h.restDir) return null;
+          const x0 = sx(h.f.pos!.x), y0 = sy(h.f.pos!.y);
+          const pts = (d: { x: number; z: number }) => wedge(x0, y0, d, spread);
+          const pointsAnim =
+            animate && h.path && h.dur > 0 ? <animate attributeName="points" values={h.path.map(pts).join(";")} dur={`${h.dur}s`} begin={`${h.phase}s`} repeatCount="indefinite" /> : null;
+          return (
+            <g key={`beam-${h.f.fixtureId}`}>
+              <polygon points={pts(h.restDir)} fill={h.c.fill} opacity={h.o.off ? 0 : 0.18 + 0.5 * h.moverLevel} style={{ mixBlendMode: "screen" }}>
+                {h.c.anim}
+                {pointsAnim}
+              </polygon>
+              {chaserOf(h.f.fixtureId).map(({ key, color, anim }) => (
+                <g key={key} opacity="0">
+                  {anim}
+                  <polygon points={pts(h.restDir!)} fill={color} opacity="0.7">
+                    {pointsAnim}
+                  </polygon>
+                </g>
+              ))}
+            </g>
+          );
+        })}
+        {all.map((f) => {
+          const x = sx(f.pos!.x), y = sy(f.pos!.y);
+          const o = ownOf(f.fixtureId);
+          const list = f.role === "backdrop" ? backFx : f.role === "side" ? sides : f.role === "front" ? fronts : movers;
+          const k = list.indexOf(f);
+          const job = f.role as ColorJob;
+          const c = focusSet.has(f.fixtureId) ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : f.role === "backdrop" ? { fill: barColor(k, 0), anim: null } : fillJob(job, stageIndex(list, k), 1);
+          const head = f.role === "mover" ? headInfo.find((h) => h.f === f) : undefined;
+          const name = names?.get(f.fixtureId) ?? "";
+          return (
+            <g key={f.fixtureId}>
+              <title>{`${name || `Fixture ${f.fixtureId}`}${head && !head.cal ? ": set where it faces on the Stage page to see where it points" : ""}`}</title>
+              {f.role === "backdrop" ? (
+                <rect x={x - (f.upright !== false ? 5 : 16)} y={y - 4} width={f.upright !== false ? 10 : 32} height="8" rx="2" fill={o.off ? DARK_LENS : c.fill}>
+                  {c.anim}
+                </rect>
+              ) : (
+                <circle cx={x} cy={y} r={f.role === "mover" ? 8 : 7} fill={o.off ? DARK_LENS : c.fill} stroke={head && !head.cal ? "#9a93a3" : "#0e0c11"} strokeWidth={head && !head.cal ? 1.4 : 1.5} strokeDasharray={head && !head.cal ? "2.5 2" : undefined}>
+                  {c.anim}
+                </circle>
+              )}
+              {chaserOf(f.fixtureId).map(({ key, color, anim }) => (
+                <g key={key} opacity="0">
+                  {anim}
+                  {f.role === "backdrop" ? <rect x={x - 5} y={y - 4} width="10" height="8" rx="2" fill={color} /> : <circle cx={x} cy={y} r="8" fill={color} />}
+                </g>
+              ))}
+              {head && !head.cal && (
+                <text x={x} y={y + 3.5} textAnchor="middle" className="pv-q">?</text>
+              )}
+              {label && (
+                <text x={x} y={y + (f.role === "backdrop" ? 15 : 19)} textAnchor="middle" className="pv-num">{shortName(name, f.fixtureId)}</text>
+              )}
+            </g>
+          );
+        })}
+        {uncalibrated > 0 && (
+          <text x={W / 2} y={H - 20} textAnchor="middle" className="pv-hint">{`${uncalibrated} moving ${uncalibrated === 1 ? "head isn't" : "heads aren't"} set up yet: see "Where it faces" on the Stage page`}</text>
+        )}
+      </svg>
+    );
+  }
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={compact ? "preview compact" : "preview"} role="img" aria-label={`Preview of ${section.name}`}>
@@ -509,10 +646,15 @@ export function StagePreview({
         // stage left (checked against a real pair: pan 42, tilt 70 on both, one
         // turned to face the back, makes an X). A head facing the back mirrors it.
         const home = movement.id === "static" ? aimOf(section, rig, f) : { pan: shaped.x, tilt: shaped.y };
-        const lean = Math.max(-70, Math.min(70, ((128 - home.pan) / 128) * 70)) * (f.facesBack ? -1 : 1);
-        const reach = 1 - 0.45 * Math.min(1, Math.abs(home.tilt - 128) / 128);
+        // Calibrated on the Stage page: the beam's real direction, seen from the
+        // audience (sideways and up; a beam aimed at you looks short).
+        const hi = headInfo[i]!;
+        const toLean = (d: { x: number; up: number }) => (Math.atan2(d.x, mountOf(f) === "truss" ? -d.up : d.up) * 180) / Math.PI;
+        const lean = hi.restDir ? toLean(hi.restDir) : Math.max(-70, Math.min(70, ((128 - home.pan) / 128) * 70)) * (f.facesBack ? -1 : 1);
+        const reach = hi.restDir ? Math.max(0.15, Math.hypot(hi.restDir.x, hi.restDir.up)) : 1 - 0.45 * Math.min(1, Math.abs(home.tilt - 128) / 128);
+        const swingValues = hi.path && hi.restDir ? hi.path.map((d) => (toLean(d) - lean).toFixed(2)) : values.split(";");
         const rotateAnim = (cx: number, cy: number) =>
-          animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={values.split(";").map((v) => `${v} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
+          animate && dur > 0 && <animateTransform attributeName="transform" type="rotate" values={swingValues.map((v) => `${Number(v) * (mountOf(f) === "truss" && hi.restDir ? -1 : 1)} ${cx} ${cy}`).join(";")} dur={`${dur}s`} begin={`${phase}s`} repeatCount="indefinite" additive="sum" />;
         // Zoom widens or narrows the beam; a strobe flickers it.
         const spread = beam.zoom === undefined ? 1 : 0.45 + 1.3 * beam.zoom;
         const flicker =

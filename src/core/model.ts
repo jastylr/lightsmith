@@ -38,6 +38,17 @@ export interface RigFixture {
    * other at full speed. Sets how fast a movement can really run.
    */
   panSeconds?: number;
+  /** Moving heads: how far it pans and tilts end to end, in degrees (from the definition, or typed in). */
+  panRange?: number;
+  tiltRange?: number;
+  /**
+   * Moving heads: the pan value that points it straight at the audience
+   * with its tilt below 128. Measured once on the rig; with it, the preview
+   * can show where the head really points.
+   */
+  panFront?: number;
+  /** Which way raising pan turns the beam: towards stage left (the audience's right) or stage right. */
+  panTurns?: "left" | "right";
   /** Movers: run movement in the opposite direction (e.g. a head facing the other way). */
   reverse?: boolean;
   /** Older projects: floor or truss, before heights were kept. Use mountOf(). */

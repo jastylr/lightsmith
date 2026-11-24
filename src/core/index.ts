@@ -10,3 +10,4 @@ export * from "./history";
 export * from "./sequences";
 export * from "./projectFile";
 export * from "./duration";
+export * from "./aim";

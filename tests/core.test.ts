@@ -7,6 +7,8 @@ import {
   focusLights,
   generateSong,
   generateSet,
+  beamDirection,
+  calibrationOf,
   tidyStepColors,
   stepLightColor,
   formatDuration,
@@ -1061,4 +1063,25 @@ test("a chaser step can light some lights in one color and some in another", () 
   const plain = tidyStepColors(tidy, () => "white");
   assert.equal(plain.color, undefined);
   assert.equal(plain.lightColors, undefined);
+});
+
+test("where a calibrated moving head points", () => {
+  const cal = { panRange: 540, tiltRange: 270, panFront: 100, panTurns: "left" as const, hung: false };
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  // Straight up at tilt 128, whatever the pan.
+  const up = beamDirection(cal, 37, 128);
+  assert.ok(near(up.up, 1) && near(up.x, 0) && near(up.z, 0));
+  // At the front pan, tilt below 128 leans towards the audience; above, towards the backdrop.
+  const front = beamDirection(cal, 100, 60);
+  assert.ok(front.z > 0.8 && near(front.x, 0));
+  assert.ok(beamDirection(cal, 100, 196).z < -0.8);
+  // A quarter turn of pan (90° = 42.5 steps on a 540° head) points it at stage left.
+  const side = beamDirection(cal, 100 + 42.5, 60);
+  assert.ok(side.x > 0.8 && Math.abs(side.z) < 1e-6);
+  assert.ok(beamDirection({ ...cal, panTurns: "right" }, 142.5, 60).x < -0.8, "or stage right, the other way round");
+  // Hung heads point down.
+  assert.ok(near(beamDirection({ ...cal, hung: true }, 0, 128).up, -1));
+  // Not measured yet: no calibration.
+  assert.equal(calibrationOf({ fixtureId: 1, role: "mover", side: "C", order: 0 }), undefined);
+  assert.equal(calibrationOf({ fixtureId: 1, role: "mover", side: "C", order: 0, panFront: 90 })?.panRange, 540);
 });

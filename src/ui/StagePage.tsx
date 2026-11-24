@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { DEFAULT_PAN_SECONDS, defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
+import { DEFAULT_PAN_RANGE, DEFAULT_TILT_RANGE, DEFAULT_PAN_SECONDS, defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { DurationInput, Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { PositionsCard } from "./PositionsCard";
@@ -77,6 +77,36 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
 
   const commit = (next: Rig) => store.setRig(settleRig(next));
   const update = (id: number, patch: Partial<RigFixture>) => commit({ ...rig, fixtures: rig.fixtures.map((f) => (f.fixtureId === id ? { ...f, ...patch, userSet: true } : f)) });
+  /** The other moving heads of the same make and model as this one. */
+  const modelOf = (f: RigFixture) => {
+    const d = store.profiles.get(f.fixtureId)?.def;
+    return d ? `${d.manufacturer}/${d.model}` : "";
+  };
+  const sameModel = (from: RigFixture) => rig.fixtures.filter((f) => f !== from && f.role === "mover" && modelOf(f) && modelOf(f) === modelOf(from));
+  /**
+   * Copy a head's setup to the others like it: ranges, which way pan turns and
+   * its speed to all of them, and the front pan to those facing the same way
+   * (a head turned round has its own).
+   */
+  const copyToLike = (from: RigFixture) => {
+    const like = new Set(sameModel(from));
+    commit({
+      ...rig,
+      fixtures: rig.fixtures.map((f) =>
+        like.has(f)
+          ? {
+              ...f,
+              panRange: from.panRange,
+              tiltRange: from.tiltRange,
+              panTurns: from.panTurns,
+              panSeconds: from.panSeconds,
+              ...(!!f.facesBack === !!from.facesBack && from.panFront !== undefined ? { panFront: from.panFront } : {}),
+              userSet: true,
+            }
+          : f,
+      ),
+    });
+  };
 
   /** Screen point → stage shares for the current view. */
   const toStage = (clientX: number, clientY: number) => {
@@ -337,7 +367,16 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
 
         <aside className="inspector" aria-label="Selected light">
           {sel && selFixture ? (
-            <Inspector rf={sel} fixture={selFixture} profile={store.profiles.get(sel.fixtureId)} stage={rig.stage} canBe={(r) => canBe(sel.fixtureId, r)} onChange={(p) => update(sel.fixtureId, p)} />
+            <Inspector
+              rf={sel}
+              fixture={selFixture}
+              profile={store.profiles.get(sel.fixtureId)}
+              stage={rig.stage}
+              canBe={(r) => canBe(sel.fixtureId, r)}
+              onChange={(p) => update(sel.fixtureId, p)}
+              likeThis={sameModel(sel).length}
+              onCopyToLike={() => copyToLike(sel)}
+            />
           ) : (
             <div className="inspector-empty">
               <Icon name="stage" size={28} />
@@ -496,7 +535,12 @@ function Inspector({
   stage,
   canBe,
   onChange,
+  likeThis,
+  onCopyToLike,
 }: {
+  /** Other moving heads of the same make and model. */
+  likeThis?: number;
+  onCopyToLike?: () => void;
   rf: RigFixture;
   fixture: WsFixture;
   profile?: FixtureProfile;
@@ -647,6 +691,38 @@ function Inspector({
             Seconds to pan from one end of its range to the other at full speed. To time it, set pan to 0 in QLC+'s Simple Desk, then jump to 255 and count. Lightsmith slows any movement these heads can't keep up with, so they trace the shape instead of twitching on the spot. Leave it at {DEFAULT_PAN_SECONDS} if you're not sure.
           </p>
           <DurationInput label="Time to pan all the way" valueMs={(rf.panSeconds ?? DEFAULT_PAN_SECONDS) * 1000} minMs={500} maxMs={10000} stepMs={100} onChange={(ms) => onChange({ panSeconds: ms / 1000 })} />
+
+          <h3>Where it faces</h3>
+          <p className="hint">
+            So the preview can show where this head really points, from the audience and from above. In QLC+'s Simple Desk: set tilt to about 80, then change pan until the beam points straight at the audience, and enter that pan here. Then raise pan a little and note which way the beam turns. This only changes the preview, never the show.
+          </p>
+          <div className="aim-cal">
+            <Field label="Pan that faces the audience" hint={rf.panFront === undefined ? "Not set yet" : undefined}>
+              <NumberInput label="Pan that faces the audience" value={rf.panFront ?? 128} min={0} max={255} step={1} onChange={(v) => onChange({ panFront: Math.round(v) })} />
+            </Field>
+            <Field label="Raising pan turns it towards">
+              <Segmented
+                label="Raising pan turns it towards"
+                value={rf.panTurns ?? "left"}
+                options={[
+                  { value: "left", label: "Stage left" },
+                  { value: "right", label: "Stage right" },
+                ]}
+                onChange={(panTurns: "left" | "right") => onChange({ panTurns })}
+              />
+            </Field>
+            <Field label="Pan range" hint={profile?.def.focus?.panMax ? "From its definition" : "Check the spec sheet"}>
+              <NumberInput label="Pan range in degrees" value={rf.panRange ?? DEFAULT_PAN_RANGE} min={90} max={720} step={10} suffix="°" onChange={(v) => onChange({ panRange: Math.round(v) })} />
+            </Field>
+            <Field label="Tilt range" hint={profile?.def.focus?.tiltMax ? "From its definition" : "Check the spec sheet"}>
+              <NumberInput label="Tilt range in degrees" value={rf.tiltRange ?? DEFAULT_TILT_RANGE} min={90} max={360} step={10} suffix="°" onChange={(v) => onChange({ tiltRange: Math.round(v) })} />
+            </Field>
+          </div>
+          {!!likeThis && onCopyToLike && (
+            <button type="button" className="ghost small" onClick={onCopyToLike} title="Ranges, pan direction and speed go to all of them; the front pan goes to those facing the same way">
+              <Icon name="copy" size={14} /> Use this setup for the {likeThis} other {likeThis === 1 ? "head" : "heads"} like it
+            </button>
+          )}
         </div>
       )}
     </div>

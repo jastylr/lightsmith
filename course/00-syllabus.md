@@ -566,6 +566,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 ---
 
+**The preview from above, and heads calibrated** (added after the band asked for other views). A second view of the stage from above: every light in the show file where it sits, however many, and each moving head's beam as a wedge as long as it leans, moving around its shape. It needs each head's calibration, measured once on the rig and kept on the Stage page: pan and tilt range (read from the definition's `<Physical><Focus PanMax TiltMax/>` when it has them), the pan that faces the audience, and which way raising pan turns (`calibrationOf`, `beamDirection` in `src/core/aim.ts`: spherical coordinates, elevation from tilt and azimuth from pan, flipped when tilt passes the middle). The same directions make the audience view honest: lean is the beam's direction projected onto the audience's plane (`atan2`), and a beam aimed at you looks short. Copying one head's setup to every head of the same model, with the front pan only to heads facing the same way. SMIL `<animate attributeName="points">` moves a polygon through sampled shapes. A full-screen button with the Fullscreen API; the view choice remembered in the browser.
+
 ### Chapter 21. Songs: Effects, Chasers, and Start and end
 
 **Needs special attention.** Read these deep dives first: [2. unions and narrowing](deep-dives.md#dd-2) ●; [11. time, tempo and decimals](deep-dives.md#dd-11) ●.

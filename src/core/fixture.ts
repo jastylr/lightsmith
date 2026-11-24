@@ -80,6 +80,21 @@ export interface FixtureDef {
   modes: ModeDef[];
   /** The physical size most modes share. */
   size?: FixtureSize;
+  /** How far a moving head pans and tilts, in degrees, when the definition says (<Physical><Focus PanMax TiltMax/>). */
+  focus?: { panMax?: number; tiltMax?: number };
+}
+
+/** Read <Physical><Focus PanMax TiltMax/>; 0 or missing means the definition doesn't say. */
+function focusIn(e: XmlElement): { panMax?: number; tiltMax?: number } | undefined {
+  const physical = firstChild(e, "Physical");
+  const focus = physical ? firstChild(physical, "Focus") : undefined;
+  if (!focus) return undefined;
+  const deg = (a: string) => {
+    const v = Number(getAttr(focus, a) ?? 0);
+    return v > 0 ? v : undefined;
+  };
+  const out = { panMax: deg("PanMax"), tiltMax: deg("TiltMax") };
+  return out.panMax || out.tiltMax ? out : undefined;
 }
 
 const COLOR_KINDS: Record<string, ChannelKind> = {
@@ -170,6 +185,7 @@ export function parseFixtureDef(xml: string): FixtureDef {
     channels,
     modes,
     size: sizeIn(root),
+    focus: childElements(root, "Mode").map(focusIn).find(Boolean) ?? focusIn(root),
   };
 }
 

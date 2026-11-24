@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
   EFFECTS,
@@ -124,6 +124,12 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const song = songs.find((s) => s.id === songId) ?? songs[0];
   const [selected, setSelected] = useState<string | null>(song?.sections[0]?.id ?? null);
   const [popped, setPopped] = useState(false);
+  const [pview, setPviewState] = useState<PreviewView>(rememberedView);
+  const setPview = (v: PreviewView) => {
+    setPviewState(v);
+    rememberView(v);
+  };
+  const fixtureNames = useMemo(() => new Map((store.showFile?.fixtures ?? []).map((f) => [f.id, f.name])), [store.showFile]);
   // Replaying the preview restarts its animations; "skip" starts sequences at once.
   const [replay, setReplay] = useState<Replay>({ n: 0, skip: false });
 
@@ -293,11 +299,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
-                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} />
+                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} />
               </PreviewWindow>
             )}
           </div>
@@ -1059,8 +1065,8 @@ function ColorLayoutEditor({
 }
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
-function SectionPreview({ s, rig, sequences, replay, compact }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean }) {
-  if (!isBlackout(s)) return <StagePreview key={replay?.n ?? 0} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} />;
+function SectionPreview({ s, rig, sequences, replay, compact, view, names }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string> }) {
+  if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} />;
   if (compact) return <div className="blackout-preview compact"><Icon name="moon" size={18} /></div>;
   return (
     <div className="blackout-preview">
@@ -1096,7 +1102,13 @@ function LookEditor({
   onPresets,
   control,
   onControl,
+  view,
+  onView,
+  names,
 }: {
+  view: PreviewView;
+  onView: (v: PreviewView) => void;
+  names: Map<number, string>;
   control: ShowControl | undefined;
   onControl: (c: ShowControl) => void;
   presets: LookPreset[];
@@ -1330,10 +1342,36 @@ function LookEditor({
           ) : (
             <figure className="preview-figure" ref={previewRef}>
               <div className="preview-frame">
-                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} />
-                <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
-                  <Icon name="popout" size={15} /> Pop out
-                </button>
+                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} />
+                <div className="preview-views" role="radiogroup" aria-label="View the stage from">
+                  {(
+                    [
+                      ["front", "Audience"],
+                      ["above", "Above"],
+                    ] as const
+                  ).map(([v, label]) => (
+                    <button key={v} type="button" role="radio" aria-checked={view === v} className={view === v ? "on" : ""} onClick={() => onView(v)} title={v === "front" ? "The stage as the audience sees it" : "From above: where every light sits and where the moving heads point"}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="preview-tools">
+                  <button
+                    type="button"
+                    className="preview-popout"
+                    onClick={(e) => {
+                      const frame = (e.currentTarget as HTMLElement).closest(".preview-frame") as HTMLElement | null;
+                      if (document.fullscreenElement) void document.exitFullscreen();
+                      else void frame?.requestFullscreen?.();
+                    }}
+                    title="Fill the screen with the preview (Esc to come back)"
+                  >
+                    <Icon name="expand" size={15} /> Full screen
+                  </button>
+                  <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
+                    <Icon name="popout" size={15} /> Pop out
+                  </button>
+                </div>
               </div>
               <figcaption className="hint">{blackout ? "A blackout: a gap, a pause or a dramatic stop with no lights." : "A sketch of this section on your stage, at its tempo."}</figcaption>
             </figure>
@@ -1394,7 +1432,7 @@ function LookEditor({
             mini={
               previewGone && !popped ? (
                 <button type="button" className="card-nav-mini" onClick={() => previewRef.current?.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" })} title="Back up to the full preview">
-                  <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} compact />
+                  <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} compact view={view} names={names} />
                 </button>
               ) : null
             }
@@ -1802,6 +1840,24 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
       <p className="hint">Width and height are QLC+'s numbers: how far the heads travel each way from where they point, up to 127, and never past the end of their range. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}</p>
     </div>
   );
+}
+
+/** The stage preview's view: from the audience or from above. Remembered in this browser. */
+type PreviewView = "front" | "above";
+const VIEW_KEY = "lightsmith.previewView.v1";
+function rememberedView(): PreviewView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "above" ? "above" : "front";
+  } catch {
+    return "front";
+  }
+}
+function rememberView(v: PreviewView) {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    /* not remembered; fine */
+  }
 }
 
 /** The settings tab last picked: every section opens on it. Remembered in this browser. */

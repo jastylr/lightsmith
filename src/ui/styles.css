@@ -4452,3 +4452,80 @@ body.is-resizing * {
 .seq-colors .lo-add .icon {
   filter: drop-shadow(0 0 2px #000);
 }
+
+/* ---- Preview: views and full screen ---- */
+.preview-tools {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  display: flex;
+  gap: 0.4rem;
+}
+.preview-tools .preview-popout {
+  position: static;
+}
+.preview-views {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  display: flex;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(20, 18, 23, 0.72);
+  backdrop-filter: blur(4px);
+}
+.preview-views button {
+  height: 1.7rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.preview-views button.on {
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+}
+.preview-views button:focus-visible {
+  outline: 2px solid var(--tungsten);
+  outline-offset: 1px;
+}
+.preview-frame:fullscreen {
+  display: grid;
+  place-items: center;
+  background: #0b0a0d;
+}
+.preview-frame:fullscreen > svg {
+  width: 100vw;
+  max-height: 100vh;
+}
+.preview.above .pv-label {
+  fill: #7d7686;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+.preview.above .pv-num {
+  fill: #b6aebf;
+  font-size: 9px;
+  font-weight: 600;
+}
+.preview.above .pv-q {
+  fill: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.preview.above .pv-hint {
+  fill: #9a93a3;
+  font-size: 9.5px;
+}
+.aim-cal {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1rem;
+  margin-bottom: 0.6rem;
+}

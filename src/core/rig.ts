@@ -129,6 +129,12 @@ export function guessRig(fixtures: WsFixture[], profiles: Map<number, FixturePro
     if (role === "mover") {
       rf.home = rf.home ?? old?.home ?? defaultHome(rf.facesBack);
       if (rf.panSeconds === undefined && old?.panSeconds !== undefined) rf.panSeconds = old.panSeconds;
+      // Calibration for the preview: kept when the rig is guessed again; ranges start from the definition.
+      rf.panRange ??= old?.panRange ?? p?.def.focus?.panMax;
+      rf.tiltRange ??= old?.tiltRange ?? p?.def.focus?.tiltMax;
+      rf.panFront ??= old?.panFront;
+      rf.panTurns ??= old?.panTurns;
+      for (const k of ["panRange", "tiltRange", "panFront", "panTurns"] as const) if (rf[k] === undefined) delete rf[k];
       // A home still on the default follows the head if it now faces the other way.
       if (old && !!old.facesBack !== !!rf.facesBack && isDefaultHome(rf.home, old.facesBack)) rf.home = defaultHome(rf.facesBack);
     }
