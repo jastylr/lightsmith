@@ -1131,8 +1131,8 @@ test("a recording's waveform, timing and saved note", async () => {
   assert.deepEqual(normalizeAudio({ key: "k", durationMs: 1000, offsetMs: "x" }), { key: "k", name: "Recording", durationMs: 1000, offsetMs: 0 });
   assert.equal(normalizeAudio({ name: "no key" }), undefined);
   const p = normalizeProject({ version: 1, rig: { fixtures: [] }, songs: [{ ...newSong("A", 120), audio: { key: "", name: "x", durationMs: 5, offsetMs: 0 } }, { ...newSong("B", 120), audio }] });
-  assert.equal(p.songs[0].audio, undefined);
-  assert.deepEqual(p.songs[1].audio, audio);
+  assert.equal(p.songs[0]!.audio, undefined);
+  assert.deepEqual(p.songs[1]!.audio, audio);
   const a = await fingerprint(new TextEncoder().encode("abc").buffer as ArrayBuffer);
   assert.equal(a, "ba7816bf8f01cfea", "SHA-256 of abc");
 });
