@@ -14,6 +14,8 @@ import {
   newSection,
   patternById,
   sectionMs,
+  barsForLength,
+  type Snap,
   clampOffset,
   recordingMs,
   timelineMs,
@@ -22,7 +24,6 @@ import {
   COLOR_JOBS,
   jobPalette,
   switchesColors,
-  barsForSeconds,
   openGobo,
   strobeRange,
   type BeamSettings,
@@ -39,7 +40,6 @@ import {
   type Sequence,
   type StrobeSpeed,
   type Workspace,
-  sectionBeats,
   isBlackout,
   lengthLabel,
   sectionTypeById,
@@ -579,13 +579,19 @@ function Timeline({
     box.addEventListener("wheel", wheel, { passive: false });
     return () => box.removeEventListener("wheel", wheel);
   }, []);
-  const [resizing, setResizing] = useState<{ id: string; fine: boolean } | null>(null);
+  const [resizing, setResizing] = useState<{ id: string; snap: Snap } | null>(null);
+  // How lengths snap: whole bars, beats, or freely (songs not recorded to a click).
+  const [snap, setSnapNow] = useState<Snap>(rememberedSnap);
+  const setSnap = (v: Snap) => {
+    setSnapNow(v);
+    rememberSnap(v);
+  };
   const audio = song.audio;
   // The recording can run on past the last section: the timeline shows all of it.
   const totalSec = timelineMs(song.sections.reduce((t, s) => t + sectionMs(s), 0), audio) / 1000;
   const el = audioTrack.status === "ready" ? audioTrack.el : null;
-  const latest = useRef({ song, onResize, scale });
-  latest.current = { song, onResize, scale };
+  const latest = useRef({ song, onResize, scale, snap });
+  latest.current = { song, onResize, scale, snap };
 
   // Fit the song to the strip when it's first shown (and when switching songs).
   const fit = () => {
@@ -748,20 +754,23 @@ function Timeline({
     const block = (e.currentTarget as HTMLElement).parentElement!;
     gesture.begin(); // the whole drag is one undo step
     const left = block.offsetLeft;
+    // Where on the handle it was grabbed, so the edge doesn't jump to the pointer (it shows when not snapping).
+    const grab = block.getBoundingClientRect().right - e.clientX;
     let clientX = e.clientX;
-    let fine = e.altKey;
+    // Option (Alt) snaps one step finer; Option and Shift together don't snap at all.
+    let alt = e.altKey;
+    let shift = e.shiftKey;
+    const mode = () => finerSnap(latest.current.snap, alt, shift);
     let raf = 0;
-    setResizing({ id, fine });
+    setResizing({ id, snap: mode() });
     const update = () => {
       const { song: sg, onResize: resize, scale: sc } = latest.current;
       const s = sg.sections.find((x) => x.id === id);
       const t = track.current;
       if (!s || !t) return;
-      const x = clientX - t.getBoundingClientRect().left - left;
-      const beatSec = 60 / s.bpm;
-      const raw = x / sc / beatSec;
-      const beats = fine ? Math.max(1, Math.round(raw)) : Math.max(1, Math.round(raw / s.beatsPerBar)) * s.beatsPerBar;
-      if (beats !== sectionBeats(s)) resize(id, beats / s.beatsPerBar);
+      const x = clientX + grab - t.getBoundingClientRect().left - left;
+      const bars = barsForLength((x / sc) * 1000, s, mode());
+      if (Math.abs(bars - s.bars) > 1e-9) resize(id, bars);
     };
     // Scroll the strip when dragging near its ends.
     const tick = () => {
@@ -781,14 +790,16 @@ function Timeline({
     raf = requestAnimationFrame(tick);
     const move = (ev: PointerEvent) => {
       clientX = ev.clientX;
-      fine = ev.altKey;
-      setResizing({ id, fine });
+      alt = ev.altKey;
+      shift = ev.shiftKey;
+      setResizing({ id, snap: mode() });
       update();
     };
     const key = (ev: KeyboardEvent) => {
-      if (ev.key !== "Alt") return;
-      fine = ev.type === "keydown";
-      setResizing({ id, fine });
+      if (ev.key !== "Alt" && ev.key !== "Shift") return;
+      alt = ev.altKey;
+      shift = ev.shiftKey;
+      setResizing({ id, snap: mode() });
       update();
     };
     const end = () => {
@@ -810,13 +821,18 @@ function Timeline({
     window.addEventListener("keyup", key);
   };
 
-  // Shift + arrows: a bar longer or shorter; with Alt, a beat.
+  // Shift + arrows: a bar longer or shorter; with Alt, a beat. With snapping off, 50 ms (with Alt, 10 ms).
   const resizeKey = (e: ReactKeyboardEvent, s: Section) => {
     const dir = e.key === "ArrowRight" ? 1 : -1;
-    const beats = sectionBeats(s);
-    const bpb = s.beatsPerBar;
-    const next = e.altKey ? beats + dir : dir > 0 ? Math.floor(beats / bpb) * bpb + bpb : Math.ceil(beats / bpb) * bpb - bpb;
-    onResize(s.id, Math.max(1, next) / bpb);
+    const ms = sectionMs(s);
+    const beatMs = 60000 / s.bpm;
+    const barMs = beatMs * s.beatsPerBar;
+    if (snap === "off") return onResize(s.id, barsForLength(ms + dir * (e.altKey ? 10 : 50), s, "off"));
+    const unit = e.altKey || snap === "beat" ? beatMs : barMs;
+    // Step to the next line of the grid, so a length between lines lands on one.
+    const at = ms / unit;
+    const next = (dir > 0 ? Math.floor(at + 1e-6) + 1 : Math.ceil(at - 1e-6) - 1) * unit;
+    onResize(s.id, barsForLength(next, s, unit === barMs ? "bar" : "beat"));
   };
 
   const step = tickStep(scale);
@@ -911,9 +927,9 @@ function Timeline({
                 return (
                   <div className="resize-bubble" style={{ left: right }}>
                     <span>
-                      <strong>{lengthLabel(s)}</strong> · {fmt(sectionMs(s))}
+                      <strong>{lengthLabel(s)}</strong> · {resizing.snap === "off" ? formatDuration(sectionMs(s)) : fmt(sectionMs(s))}
                     </span>
-                    <small>{resizing.fine ? "Snapping to beats" : "Hold Alt for beats"}</small>
+                    <small>{SNAP_HINT[resizing.snap]}</small>
                   </div>
                 );
               })()}
@@ -937,6 +953,10 @@ function Timeline({
         </div>
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
+        <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">
+          <span>Snap</span>
+          <Segmented label="Snap section lengths to" value={snap} onChange={setSnap} options={[{ value: "bar", label: "Bars" }, { value: "beat", label: "Beats" }, { value: "off", label: "Off" }]} />
+        </div>
         <div className="zoom" role="group" aria-label="Zoom the timeline">
           <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
@@ -1607,11 +1627,11 @@ function LookEditor({
                 </button>
               )}
             </Field>
-            <Field label="Length" hint={sectionBeats(s) % s.beatsPerBar ? `+ ${sectionBeats(s) % s.beatsPerBar} beat${sectionBeats(s) % s.beatsPerBar === 1 ? "" : "s"}` : undefined}>
-              <NumberInput label="Length in bars" value={Math.floor(sectionBeats(s) / s.beatsPerBar)} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + (sectionBeats(s) % s.beatsPerBar) / s.beatsPerBar })} />
+            <Field label="Length" hint={lengthLabel(s).includes("+") ? lengthLabel(s).slice(lengthLabel(s).indexOf("+")) : undefined}>
+              <NumberInput label="Length in whole bars" value={Math.max(1, Math.floor(s.bars + 1e-6))} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + Math.max(0, s.bars - Math.floor(s.bars + 1e-6)) })} />
             </Field>
-            <Field label="In time" hint="Like QLC+: 1m05s200ms. Rounds to whole bars.">
-              <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForSeconds(ms / 1000, s.bpm, s.beatsPerBar) })} />
+            <Field label="In time" hint="Like QLC+: 1m05s200ms. Kept exactly, to 10 ms.">
+              <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForLength(ms, s, "off") })} />
             </Field>
             <Field label="Beats per bar">
               <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />
@@ -2050,6 +2070,30 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
 }
 
 /** Whether the preview starts a section over when it ends. On unless turned off; remembered in this browser. */
+const SNAP_HINT: Record<Snap, string> = {
+  bar: "Snapping to bars. Option for beats, Option+Shift for free",
+  beat: "Snapping to beats. Option+Shift for free",
+  off: "Not snapping",
+};
+/** One step finer than the timeline's snap while Option (and Shift) are held. */
+const finerSnap = (base: Snap, alt: boolean, shift: boolean): Snap => (alt && shift ? "off" : alt ? (base === "bar" ? "beat" : "off") : base);
+const SNAP_KEY = "lightsmith.snap.v1";
+function rememberedSnap(): Snap {
+  try {
+    const v = localStorage.getItem(SNAP_KEY);
+    return v === "beat" || v === "off" ? v : "bar";
+  } catch {
+    return "bar";
+  }
+}
+function rememberSnap(v: Snap) {
+  try {
+    localStorage.setItem(SNAP_KEY, v);
+  } catch {
+    /* not remembered */
+  }
+}
+
 /** The timeline's closest zoom: 400 pixels a second, so single beats are easy to place. */
 const MAX_SCALE = 400;
 const TALL_KEY = "lightsmith.waveTall.v1";

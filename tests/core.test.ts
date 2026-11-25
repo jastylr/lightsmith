@@ -58,6 +58,7 @@ import {
   aimOf,
   mirroredAim,
   barsForSeconds,
+  barsForLength,
   fixtureSize,
   isBar,
   mountOf,
@@ -1146,4 +1147,15 @@ test("a recording's waveform, timing and saved note", async () => {
   assert.equal(parseSignedDuration("-4s"), -4000);
   assert.equal(parseSignedDuration("12.5"), 12500);
   assert.equal(parseSignedDuration("-x"), null);
+});
+
+test("section lengths snap to bars, beats, or not at all", () => {
+  const s = { bpm: 120, beatsPerBar: 4 }; // a bar is 2 s, a beat 0.5 s
+  assert.equal(barsForLength(9300, s, "bar"), 5);
+  assert.equal(barsForLength(9300, s, "beat"), 19 / 4);
+  const free = barsForLength(9304, s, "off");
+  assert.equal(Math.round(sectionMs({ ...s, bars: free })), 9300, "free lengths keep to 10 ms");
+  assert.equal(barsForLength(20, s, "off") * 2000, 100, "at least 100 ms");
+  assert.equal(lengthLabel({ bars: 4.25, beatsPerBar: 4 }), "4 bars + 1 beat");
+  assert.equal(lengthLabel({ bars: free, beatsPerBar: 4 }), "4 bars + 2.6 beats");
 });

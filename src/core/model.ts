@@ -812,6 +812,14 @@ export const sectionBeats = (s: Pick<Section, "bars" | "beatsPerBar">) => Math.m
 
 /** "16 bars", "1 bar", or "16 bars + 2 beats". */
 export function lengthLabel(s: Pick<Section, "bars" | "beatsPerBar">): string {
+  // A length set freely (not to the beat) shows its beats to two decimals.
+  const exact = s.bars * s.beatsPerBar;
+  if (Math.abs(exact - Math.round(exact)) > 0.005) {
+    const whole = Math.floor(exact / s.beatsPerBar);
+    const rest = Number((exact - whole * s.beatsPerBar).toFixed(2));
+    const barText = `${whole} ${whole === 1 ? "bar" : "bars"}`;
+    return whole ? `${barText} + ${rest} beats` : `${rest} beats`;
+  }
   const beats = sectionBeats(s);
   const bars = Math.floor(beats / s.beatsPerBar);
   const rest = beats - bars * s.beatsPerBar;
@@ -819,6 +827,23 @@ export function lengthLabel(s: Pick<Section, "bars" | "beatsPerBar">): string {
   if (!rest) return barText;
   const beatText = `${rest} ${rest === 1 ? "beat" : "beats"}`;
   return bars ? `${barText} + ${beatText}` : beatText;
+}
+
+/** How a section's length snaps when you drag or type it: to whole bars, to beats, or not at all. */
+export type Snap = "bar" | "beat" | "off";
+
+/**
+ * A section's length in bars for a length in milliseconds. "off" keeps it to
+ * the nearest 10 ms (at least 100 ms), for songs not recorded to a click,
+ * where sections fall between beats. The length is still kept in bars, so it
+ * stretches with the tempo like any other.
+ */
+export function barsForLength(ms: number, s: Pick<Section, "bpm" | "beatsPerBar">, snap: Snap): number {
+  const beatMs = 60000 / s.bpm;
+  const barMs = beatMs * s.beatsPerBar;
+  if (snap === "bar") return Math.max(1, Math.round(ms / barMs));
+  if (snap === "beat") return Math.max(1, Math.round(ms / beatMs)) / s.beatsPerBar;
+  return Math.max(100, Math.round(ms / 10) * 10) / barMs;
 }
 
 /** The whole number of bars nearest to a length in seconds, at least one. */

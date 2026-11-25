@@ -174,11 +174,11 @@ export function RecordingControls({
         <span>{busy ? "Reading the file…" : audio.name}</span>
       </button>
       <label className="recording-start" title="Where the recording begins on the timeline. 13s: the music comes in 13 seconds into the song, after a sample you play live. A minus time such as -4s skips the first 4 seconds of the recording, such as a count-in. You can also drag the waveform.">
-        <span>Recording starts at</span>
+        <span>Starts at</span>
         <DurationInput signed label="Where the recording starts on the song's timeline" valueMs={recordingStartMs(audio)} minMs={-Math.max(0, audio.durationMs - 1000)} maxMs={600_000} onChange={(ms) => onOffset(clampOffset(-ms, audio))} />
       </label>
       <button type="button" className="ghost small" onClick={() => onOffset(clampOffset(-Math.round(playheadMs), audio))} title="Start the recording where the playhead is: drag the playhead to where the music should come in, then click this.">
-        Start at playhead
+        Use playhead
       </button>
       <button type="button" className="ghost small icon-only" onClick={() => onTall(!tall)} aria-pressed={tall} aria-label={tall ? "Make the waveform shorter" : "Make the waveform taller"} title={tall ? "Make the waveform shorter" : "Make the waveform taller"}>
         <Icon name="expand" size={15} />

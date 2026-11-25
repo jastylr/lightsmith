@@ -4708,10 +4708,37 @@ body.is-scrubbing * {
   color: var(--muted);
 }
 .recording-start .number.duration {
-  width: 7rem;
   flex: none;
+}
+.recording-start .number.duration input {
+  min-width: 0;
+  width: 6rem;
+}
+.recording-name {
+  max-width: 11rem;
 }
 .recording-error {
   font-size: 0.8rem;
   color: var(--bad);
+}
+.snap-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.snap-pick .segmented button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+.timeline-foot {
+  gap: 0.6rem;
+}
+.timeline-foot .transport-time {
+  min-width: 5.6rem;
+}
+.recording {
+  gap: 0.3rem;
 }
