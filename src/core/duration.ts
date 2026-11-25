@@ -25,6 +25,17 @@ export function formatDuration(ms: number): string {
   return out;
 }
 
+/** A time that can be negative: -4000 → "-4s". */
+export const formatSignedDuration = (ms: number) => (ms < 0 ? `-${formatDuration(-ms)}` : formatDuration(ms));
+
+/** Read a time that can start with a minus sign. */
+export function parseSignedDuration(text: string, bare: "s" | "ms" = "s"): number | null {
+  const t = text.trim();
+  const neg = /^[-−]/.test(t);
+  const ms = parseDuration(neg ? t.slice(1) : t, bare);
+  return ms === null ? null : neg ? -ms : ms;
+}
+
 /**
  * Read a time someone typed. Takes QLC+'s style ("10s200ms", "1m30s",
  * "10s.20", "500ms") and the everyday ones ("10.2s", "1:30", "2.5"). A bare

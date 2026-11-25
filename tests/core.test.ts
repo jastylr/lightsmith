@@ -1127,7 +1127,12 @@ test("a recording's waveform, timing and saved note", async () => {
   assert.equal(timelineMs(198_000, audio), 198_000);
   assert.equal(recordingMs(1000, audio), 5200);
   assert.equal(recordingMs(196_000, audio), null);
-  assert.equal(clampOffset(-50, audio), 0);
+  assert.equal(clampOffset(-50, audio), -50, "a recording can start after the song does");
+  assert.equal(clampOffset(-700_000, audio), -600_000);
+  const later = { ...audio, offsetMs: -13_000 };
+  assert.equal(recordingMs(5000, later), -8000, "8 s before the recording comes in");
+  assert.equal(recordingMs(13_000, later), 0);
+  assert.equal(timelineMs(60_000, later), 213_000);
   assert.deepEqual(normalizeAudio({ key: "k", durationMs: 1000, offsetMs: "x" }), { key: "k", name: "Recording", durationMs: 1000, offsetMs: 0 });
   assert.equal(normalizeAudio({ name: "no key" }), undefined);
   const p = normalizeProject({ version: 1, rig: { fixtures: [] }, songs: [{ ...newSong("A", 120), audio: { key: "", name: "x", durationMs: 5, offsetMs: 0 } }, { ...newSong("B", 120), audio }] });
@@ -1135,4 +1140,10 @@ test("a recording's waveform, timing and saved note", async () => {
   assert.deepEqual(p.songs[1]!.audio, audio);
   const a = await fingerprint(new TextEncoder().encode("abc").buffer as ArrayBuffer);
   assert.equal(a, "ba7816bf8f01cfea", "SHA-256 of abc");
+  const { formatSignedDuration, parseSignedDuration } = await import("../src/core/duration");
+  assert.equal(formatSignedDuration(-4200), "-4s200ms");
+  assert.equal(formatSignedDuration(13000), "13s");
+  assert.equal(parseSignedDuration("-4s"), -4000);
+  assert.equal(parseSignedDuration("12.5"), 12500);
+  assert.equal(parseSignedDuration("-x"), null);
 });

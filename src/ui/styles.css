@@ -4631,6 +4631,34 @@ body.is-resizing * {
 .bar-line.start {
   background: rgba(255, 196, 107, 0.45);
 }
+.bar-line.bar {
+  background: rgba(255, 255, 255, 0.11);
+}
+.bar-line.beat {
+  background: rgba(255, 255, 255, 0.045);
+}
+.timeline-row.with-audio.tall .timeline,
+.timeline-row.with-audio.tall .timeline-add {
+  height: 290px;
+}
+.timeline-row.with-audio.tall .wave-lane {
+  height: 146px;
+}
+.playhead-grip {
+  position: absolute;
+  top: 0;
+  left: -8px;
+  width: 16px;
+  height: 22px;
+  pointer-events: auto;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.playhead.scrubbing,
+body.is-scrubbing,
+body.is-scrubbing * {
+  cursor: ew-resize !important;
+}
 .wave-note {
   position: sticky;
   left: 0;

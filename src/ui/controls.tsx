@@ -1,4 +1,4 @@
-import { formatDuration, parseDuration } from "../core";
+import { formatDuration, formatSignedDuration, parseDuration, parseSignedDuration } from "../core";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Icon } from "./icons";
 
@@ -269,7 +269,10 @@ export function DurationInput({
   stepMs = 100,
   bare = "s",
   label,
+  signed = false,
 }: {
+  /** Allows a minus sign (minMs below 0). */
+  signed?: boolean;
   valueMs: number;
   onChange: (ms: number) => void;
   minMs?: number;
@@ -278,22 +281,23 @@ export function DurationInput({
   bare?: "s" | "ms";
   label: string;
 }) {
-  const [draft, setDraft] = useState(formatDuration(valueMs));
+  const fmtD = signed ? formatSignedDuration : formatDuration;
+  const [draft, setDraft] = useState(fmtD(valueMs));
   const [bad, setBad] = useState(false);
   useEffect(() => {
-    setDraft(formatDuration(valueMs));
+    setDraft(fmtD(valueMs));
     setBad(false);
   }, [valueMs]);
   const clamp = (ms: number) => Math.max(minMs, Math.min(maxMs, ms));
   const commit = () => {
-    const ms = parseDuration(draft, bare);
+    const ms = signed ? parseSignedDuration(draft, bare) : parseDuration(draft, bare);
     if (ms === null) {
       setBad(true);
       return;
     }
     setBad(false);
     const next = clamp(ms);
-    setDraft(formatDuration(next));
+    setDraft(fmtD(next));
     if (next !== valueMs) onChange(next);
   };
   return (
@@ -315,13 +319,13 @@ export function DurationInput({
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
           else if (e.key === "Escape") {
-            setDraft(formatDuration(valueMs));
+            setDraft(fmtD(valueMs));
             setBad(false);
           } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
             e.preventDefault();
-            const base = parseDuration(draft, bare) ?? valueMs;
+            const base = (signed ? parseSignedDuration(draft, bare) : parseDuration(draft, bare)) ?? valueMs;
             const next = clamp(base + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? stepMs * 10 : stepMs));
-            setDraft(formatDuration(next));
+            setDraft(fmtD(next));
             onChange(next);
           }
         }}

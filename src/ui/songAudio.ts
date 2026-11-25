@@ -7,7 +7,7 @@
  * kept under its fingerprint, with its waveform worked out once.
  */
 import { useEffect, useState } from "react";
-import { computePeaks, fingerprint, type SongAudio } from "../core";
+import { computePeaks, fingerprint, PEAKS_PER_SECOND, type SongAudio } from "../core";
 
 export interface StoredAudio {
   key: string;
@@ -15,6 +15,8 @@ export interface StoredAudio {
   durationMs: number;
   blob: Blob;
   peaks: Uint8Array;
+  /** The waveform's resolution when it was worked out: an older, coarser one is worked out again. */
+  perSecond?: number;
 }
 
 const DB = "lightsmith-audio";
@@ -55,25 +57,32 @@ export async function loadAudioFile(file: File): Promise<StoredAudio> {
   const bytes = await file.arrayBuffer();
   const key = await fingerprint(bytes);
   const known = await getAudio(key).catch(() => undefined);
-  if (known) return { ...known, name: file.name };
+  if (known && known.perSecond === PEAKS_PER_SECOND) return { ...known, name: file.name };
+  const stored = await analyse(key, file.name, new Blob([bytes], { type: file.type || "audio/mpeg" }));
+  await putAudio(stored);
+  return stored;
+}
+
+/** Decode a recording once to work out its length and waveform. */
+async function analyse(key: string, name: string, blob: Blob): Promise<StoredAudio> {
   const Ctx = window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext;
   let decoded: AudioBuffer;
   try {
-    // decodeAudioData takes the buffer over, so give it a copy.
-    decoded = await new Ctx(1, 1, 44100).decodeAudioData(bytes.slice(0));
+    decoded = await new Ctx(1, 1, 44100).decodeAudioData(await blob.arrayBuffer());
   } catch {
-    throw new Error(`"${file.name}" isn't a sound file this browser can play. Try an MP3, WAV, M4A or OGG file.`);
+    throw new Error(`"${name}" isn't a sound file this browser can play. Try an MP3, WAV, M4A or OGG file.`);
   }
   const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
-  const stored: StoredAudio = {
-    key,
-    name: file.name,
-    durationMs: Math.round(decoded.duration * 1000),
-    blob: new Blob([bytes], { type: file.type || "audio/mpeg" }),
-    peaks: computePeaks(channels, decoded.sampleRate),
-  };
-  await putAudio(stored);
-  return stored;
+  return { key, name, durationMs: Math.round(decoded.duration * 1000), blob, peaks: computePeaks(channels, decoded.sampleRate), perSecond: PEAKS_PER_SECOND };
+}
+
+/** A recording from the store, its waveform worked out again if it was saved at an older, coarser resolution. */
+async function getCurrent(key: string): Promise<StoredAudio | undefined> {
+  const a = await getAudio(key);
+  if (!a || a.perSecond === PEAKS_PER_SECOND) return a;
+  const fresh = await analyse(a.key, a.name, a.blob).catch(() => a);
+  if (fresh !== a) await putAudio(fresh).catch(() => undefined);
+  return fresh;
 }
 
 export type AudioTrack =
@@ -95,7 +104,7 @@ export function useSongAudio(audio: SongAudio | undefined, muted: boolean): Audi
     let url = "";
     let el: HTMLAudioElement | null = null;
     setTrack({ status: "loading" });
-    getAudio(key)
+    getCurrent(key)
       .then((a) => {
         if (!live) return;
         if (!a) return setTrack({ status: "missing" });

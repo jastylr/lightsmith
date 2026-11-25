@@ -238,7 +238,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           title: "Use a different recording?",
           message: (
             <>
-              This song was laid out against <strong>{was.name}</strong> ({fmt(was.durationMs)}). <strong>{file.name}</strong> ({fmt(a.durationMs)}) isn't the same file, so the sections may not line up with it. Where the song starts in the recording is kept.
+              This song was laid out against <strong>{was.name}</strong> ({fmt(was.durationMs)}). <strong>{file.name}</strong> ({fmt(a.durationMs)}) isn't the same file, so the sections may not line up with it. Where the recording starts on the timeline is kept.
             </>
           ),
           confirmLabel: "Use this file",
@@ -354,7 +354,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             onOffset={setOffset}
             onPickAudio={() => filePick.current?.click()}
             onDropAudio={(f) => void attachAudio(f)}
-            recording={<RecordingControls audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
+            recording={(ctx) => <RecordingControls {...ctx} audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
             sequences={store.project.sequences ?? []}
             song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
@@ -518,7 +518,7 @@ function Timeline({
   onPickAudio: () => void;
   onDropAudio: (f: File) => void;
   /** The recording's controls, shown under the timeline. */
-  recording: ReactNode;
+  recording: (ctx: { playheadMs: number; tall: boolean; onTall: (t: boolean) => void }) => ReactNode;
   sequences: Sequence[];
   /** Playback started (or jumped) to `at` seconds into a section: restart the preview there. */
   onPlayFrom: (section: string, at: number) => void;
@@ -535,7 +535,50 @@ function Timeline({
   const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x", gesture);
   const scroller = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(10); // pixels per second
+  const [scale, setScaleNow] = useState(10); // pixels per second
+  const [tall, setTallNow] = useState(rememberedTall);
+  const setTall = (t: boolean) => {
+    setTallNow(t);
+    rememberTall(t);
+  };
+  // Zooming keeps one moment in the same place on screen: where the pointer is, or the playhead.
+  const zoomAnchor = useRef<{ sec: number; x: number } | null>(null);
+  const zoom = (next: number, clientX?: number) => {
+    const box = scroller.current;
+    const tr = track.current;
+    const v = Math.max(1, Math.min(MAX_SCALE, next));
+    if (box && tr) {
+      const b = box.getBoundingClientRect();
+      const t0 = tr.getBoundingClientRect().left;
+      const head = (posRef.current / 1000) * scale + t0;
+      // The pointer, else the playhead if it's in view, else the middle.
+      const x = clientX ?? (head >= b.left && head <= b.right ? head : b.left + b.width / 2);
+      zoomAnchor.current = { sec: (x - t0) / scale, x: x - b.left };
+    }
+    setScaleNow(v);
+  };
+  useLayoutEffect(() => {
+    const a = zoomAnchor.current;
+    const box = scroller.current;
+    const tr = track.current;
+    if (!a || !box || !tr) return;
+    zoomAnchor.current = null;
+    box.scrollLeft += tr.getBoundingClientRect().left + a.sec * scale - (box.getBoundingClientRect().left + a.x);
+  }, [scale]);
+  // Ctrl or Cmd and the wheel (or a trackpad pinch) zooms around the pointer.
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box) return;
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomRef.current(latest.current.scale * Math.exp(-e.deltaY * 0.004), e.clientX);
+    };
+    box.addEventListener("wheel", wheel, { passive: false });
+    return () => box.removeEventListener("wheel", wheel);
+  }, []);
   const [resizing, setResizing] = useState<{ id: string; fine: boolean } | null>(null);
   const audio = song.audio;
   // The recording can run on past the last section: the timeline shows all of it.
@@ -547,7 +590,7 @@ function Timeline({
   // Fit the song to the strip when it's first shown (and when switching songs).
   const fit = () => {
     const w = (scroller.current?.clientWidth ?? 800) - 24;
-    setScale(Math.max(2, Math.min(40, w / Math.max(totalSec, 10))));
+    setScaleNow(Math.max(2, Math.min(40, w / Math.max(totalSec, 10))));
   };
   useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -571,7 +614,8 @@ function Timeline({
     setPos(t);
     if (el && audio && !el.paused) {
       const r = recordingMs(t, audio);
-      if (r === null) el.pause();
+      // Before the recording comes in or after it ends: silence, and the music waits (or stops).
+      if (r === null || r < 0) el.pause();
       else el.currentTime = r / 1000;
     }
     const s = sectionAt(t);
@@ -635,6 +679,34 @@ function Timeline({
     }
     setPlaying((p) => !p);
   };
+  // Dragging the playhead, or along the ruler, moves through the song (and the music with it).
+  const [scrubbing, setScrubbing] = useState(false);
+  const seekRef = useRef(seek);
+  seekRef.current = seek;
+  const scrub = (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const at = (clientX: number) => {
+      const t = track.current;
+      return t ? ((clientX - t.getBoundingClientRect().left) / latest.current.scale) * 1000 : 0;
+    };
+    seek(at(e.clientX));
+    setScrubbing(true);
+    document.body.classList.add("is-scrubbing");
+    const move = (ev: PointerEvent) => seekRef.current(at(ev.clientX));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      document.body.classList.remove("is-scrubbing");
+      setScrubbing(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
   // Space plays and pauses, unless you're typing or on a control.
   const toggleRef = useRef(togglePlay);
   toggleRef.current = togglePlay;
@@ -762,17 +834,10 @@ function Timeline({
         onDropAudio(f);
       }}
     >
-      <div className={audio ? "timeline-row with-audio" : "timeline-row"}>
+      <div className={audio ? `timeline-row with-audio${tall ? " tall" : ""}` : "timeline-row"}>
         <div className="timeline" ref={scroller}>
           <div className="timeline-track" ref={track} style={{ width: width + 16 }}>
-            <div
-              className="ruler"
-              title="Click to play from here"
-              onPointerDown={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                seek(((e.clientX - r.left) / scale) * 1000);
-              }}
-            >
+            <div className="ruler" title="Click or drag to move the playhead" onPointerDown={scrub}>
               {Array.from({ length: Math.floor(totalSec / step) + 1 }, (_, i) => (
                 <span key={i} style={{ left: i * step * scale }}>
                   {fmt(i * step * 1000)}
@@ -831,7 +896,9 @@ function Timeline({
               })}
             </div>
             {audio && <WaveLane audio={audio} track={audioTrack} scale={scale} sections={song.sections} onSeek={seek} onOffset={onOffset} onPick={onPickAudio} gesture={gesture} />}
-            {(playing || pos > 0) && <div className="playhead" style={{ left: (pos / 1000) * scale }} aria-hidden="true" />}
+            <div className={scrubbing ? "playhead scrubbing" : "playhead"} style={{ left: (pos / 1000) * scale }}>
+              <span className="playhead-grip" onPointerDown={scrub} title="Drag to move the playhead" aria-hidden="true" />
+            </div>
             {resizing &&
               (() => {
                 const s = song.sections.find((v) => v.id === resizing.id);
@@ -868,16 +935,16 @@ function Timeline({
             {fmt(pos)} / {fmt(totalMs)}
           </span>
         </div>
-        {recording}
+        {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         <div className="zoom" role="group" aria-label="Zoom the timeline">
-          <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.max(1, v / 1.5))} aria-label="Zoom out" title="Zoom out">
+          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
           </button>
           <button type="button" className="ghost small" onClick={fit} title="Fit the whole song">
             Fit
           </button>
-          <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.min(80, v * 1.5))} aria-label="Zoom in" title="Zoom in">
+          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale * 1.5)} disabled={scale >= MAX_SCALE} aria-label="Zoom in" title="Zoom in">
             <Icon name="plus" size={14} />
           </button>
         </div>
@@ -1983,6 +2050,24 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
 }
 
 /** Whether the preview starts a section over when it ends. On unless turned off; remembered in this browser. */
+/** The timeline's closest zoom: 400 pixels a second, so single beats are easy to place. */
+const MAX_SCALE = 400;
+const TALL_KEY = "lightsmith.waveTall.v1";
+function rememberedTall(): boolean {
+  try {
+    return localStorage.getItem(TALL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function rememberTall(on: boolean) {
+  try {
+    localStorage.setItem(TALL_KEY, on ? "1" : "0");
+  } catch {
+    /* private mode: not remembered */
+  }
+}
+
 const LOOP_KEY = "lightsmith.previewLoop.v1";
 function rememberedLoop(): boolean {
   try {

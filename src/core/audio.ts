@@ -13,12 +13,18 @@ export interface SongAudio {
   /** The file's name, to ask for it on another computer. */
   name: string;
   durationMs: number;
-  /** How far into the recording the first section starts (skips a count-in or silence). */
+  /**
+   * How far into the recording the song starts. Positive skips the start of
+   * the recording (a count-in or silence); negative places the recording
+   * later, starting that far into the song (after a sample played live).
+   * The screen shows it the other way round, as where the recording starts
+   * on the timeline (`recordingStartMs`).
+   */
   offsetMs: number;
 }
 
-/** Waveform resolution: one loudness value per 20 ms. */
-export const PEAKS_PER_SECOND = 50;
+/** Waveform resolution: one loudness value per 10 ms, enough to see single beats when zoomed in. */
+export const PEAKS_PER_SECOND = 100;
 
 /**
  * Loudness over time, one value (0-255) per bucket: the RMS of all channels
@@ -70,16 +76,22 @@ export function timelineMs(sectionsMs: number, audio?: SongAudio): number {
   return Math.max(sectionsMs, audio ? audio.durationMs - audio.offsetMs : 0);
 }
 
-/** Where a moment in the song falls in the recording, or null if the recording has ended by then. */
+/** Where a moment in the song falls in the recording: negative before the recording starts, null once it has ended. */
 export function recordingMs(songMs: number, audio: SongAudio): number | null {
   const r = songMs + audio.offsetMs;
   return r < audio.durationMs ? r : null;
 }
 
-/** The song start kept within the recording. */
+/** Furthest into the song a recording can start. */
+export const MAX_RECORDING_START_MS = 600_000;
+
+/** Kept so at least a second of the recording plays, and it starts no later than ten minutes into the song. */
 export function clampOffset(ms: number, audio: Pick<SongAudio, "durationMs">): number {
-  return Math.max(0, Math.min(Math.max(0, audio.durationMs - 1000), Math.round(ms)));
+  return Math.max(-MAX_RECORDING_START_MS, Math.min(Math.max(0, audio.durationMs - 1000), Math.round(ms)));
 }
+
+/** Where the recording starts on the song's timeline (negative: before the song, so its start is skipped). */
+export const recordingStartMs = (audio: Pick<SongAudio, "offsetMs">) => -audio.offsetMs;
 
 /** A saved note of a recording, checked when a project is loaded; anything broken is dropped. */
 export function normalizeAudio(a: unknown): SongAudio | undefined {

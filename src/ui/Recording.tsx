@@ -4,7 +4,7 @@
  * slide, mute or remove it.
  */
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { clampOffset, formatDuration, peaksPath, sectionMs, type Section, type SongAudio } from "../core";
+import { clampOffset, formatDuration, peaksPath, recordingStartMs, sectionMs, type Section, type SongAudio } from "../core";
 import { DurationInput } from "./controls";
 import { Icon } from "./icons";
 import type { AudioTrack } from "./songAudio";
@@ -46,14 +46,19 @@ export function WaveLane({
   const latest = useRef({ audio, scale, onOffset });
   latest.current = { audio, scale, onOffset };
 
-  // Bar lines under the blocks, strongest where a section starts. Skipped when bars are too close to see.
+  // Lines under the blocks: strongest where a section starts, then bars, then beats once
+  // zoomed in far enough to see them. Lines too close together to see are left out.
   const bars = useMemo(() => {
-    const out: { x: number; start: boolean }[] = [];
+    const out: { x: number; kind: "start" | "bar" | "beat" }[] = [];
     let t = 0;
     for (const s of sections) {
-      const barMs = (60000 / s.bpm) * s.beatsPerBar;
-      if ((barMs / 1000) * scale >= 6) for (let b = 0; b < s.bars; b++) out.push({ x: ((t + b * barMs) / 1000) * scale, start: b === 0 });
-      else out.push({ x: (t / 1000) * scale, start: true });
+      const beatMs = 60000 / s.bpm;
+      const beatPx = (beatMs / 1000) * scale;
+      const beats = s.bars * s.beatsPerBar;
+      for (let b = 0; b < beats; b++) {
+        const kind = b === 0 ? "start" : b % s.beatsPerBar === 0 ? "bar" : "beat";
+        if (kind === "start" || (kind === "bar" && beatPx * s.beatsPerBar >= 6) || (kind === "beat" && beatPx >= 12)) out.push({ x: ((t + b * beatMs) / 1000) * scale, kind });
+      }
       t += sectionMs(s);
     }
     return out;
@@ -98,7 +103,7 @@ export function WaveLane({
   return (
     <div className={`wave-lane${sliding ? " sliding" : ""}`} onPointerDown={down} title={track.status === "ready" ? "Click to play from here. Drag sideways to line the recording up with the sections." : undefined}>
       {bars.map((b, i) => (
-        <span key={i} className={b.start ? "bar-line start" : "bar-line"} style={{ left: b.x }} />
+        <span key={i} className={`bar-line ${b.kind}`} style={{ left: b.x }} />
       ))}
       {track.status === "ready" && (
         <svg className="wave" viewBox={`0 0 ${Math.max(1, track.peaks.length)} 2`} preserveAspectRatio="none" style={{ left: (-audio.offsetMs / 1000) * scale, width: (audio.durationMs / 1000) * scale }} aria-hidden="true">
@@ -131,7 +136,14 @@ export function RecordingControls({
   onRemove,
   busy,
   error,
+  playheadMs,
+  tall,
+  onTall,
 }: {
+  /** Where the playhead is, for "Start at the playhead". */
+  playheadMs: number;
+  tall: boolean;
+  onTall: (t: boolean) => void;
   audio?: SongAudio;
   track: AudioTrack;
   muted: boolean;
@@ -161,10 +173,16 @@ export function RecordingControls({
         <Icon name="music" size={14} />
         <span>{busy ? "Reading the file…" : audio.name}</span>
       </button>
-      <label className="recording-start" title="How far into the recording the first section starts. You can also drag the waveform.">
-        <span>Song starts at</span>
-        <DurationInput label="Where the song starts in the recording" valueMs={audio.offsetMs} maxMs={Math.max(0, audio.durationMs - 1000)} onChange={(ms) => onOffset(clampOffset(ms, audio))} />
+      <label className="recording-start" title="Where the recording begins on the timeline. 13s: the music comes in 13 seconds into the song, after a sample you play live. A minus time such as -4s skips the first 4 seconds of the recording, such as a count-in. You can also drag the waveform.">
+        <span>Recording starts at</span>
+        <DurationInput signed label="Where the recording starts on the song's timeline" valueMs={recordingStartMs(audio)} minMs={-Math.max(0, audio.durationMs - 1000)} maxMs={600_000} onChange={(ms) => onOffset(clampOffset(-ms, audio))} />
       </label>
+      <button type="button" className="ghost small" onClick={() => onOffset(clampOffset(-Math.round(playheadMs), audio))} title="Start the recording where the playhead is: drag the playhead to where the music should come in, then click this.">
+        Start at playhead
+      </button>
+      <button type="button" className="ghost small icon-only" onClick={() => onTall(!tall)} aria-pressed={tall} aria-label={tall ? "Make the waveform shorter" : "Make the waveform taller"} title={tall ? "Make the waveform shorter" : "Make the waveform taller"}>
+        <Icon name="expand" size={15} />
+      </button>
       <button type="button" className="ghost small icon-only" onClick={() => onMute(!muted)} disabled={track.status !== "ready"} aria-pressed={muted} aria-label={muted ? "Unmute the recording" : "Mute the recording"} title={muted ? "Unmute the recording" : "Mute the recording"}>
         <Icon name={muted ? "volumeOff" : "volume"} size={15} />
       </button>
