@@ -480,10 +480,13 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - **The Add menu**, with Blackout first.
 - **Keyboard.** Shift+arrows to resize, Delete to remove.
 - **Playback.** Play, pause, back to start, Space, and the playhead.
+- **The song's recording** (added when the band asked for audio to lay songs out against). Add a sound file, or drop one on the timeline. Its waveform appears under the blocks, with bar lines to line the sections up by eye. Click the waveform to play from there, or drag it sideways to slide the recording under the sections. A "Song starts at" field skips a count-in or silence. Mute, remove, or click the file name to use a different one. Play runs the music with the lights.
 
 **Concepts.** A time scale (pixels per second); the reusable sortable hook (`useSortable`); resize gestures and snapping; `requestAnimationFrame` loops; the "latest ref" pattern for long-running handlers; gestures as single undo steps; menus that must not be clipped.
 
-**Files.** `src/ui/SongsPage.tsx` (`Timeline`, `AddSectionMenu`), `src/ui/useSortable.ts`, `src/core/model.ts` (`sectionBeats`, `lengthLabel`, `isBlackout`).
+**Concepts (the recording).** Where a file belongs: the project keeps only a note of the recording (name, length, fingerprint, where the song starts: `SongAudio` in `src/core/audio.ts`), and the sound itself stays in the browser's IndexedDB, which stores files where localStorage holds only a few megabytes of text, so project files stay small and nothing is uploaded. A fingerprint (the start of a SHA-256 from `crypto.subtle`) finds the file again and tells a different file from the same one; on another computer the lane asks for the file by name, and a different file asks before it's used. Decoding once with the Web Audio API (`decodeAudioData`) to draw the waveform, then letting the decoded sound go (about 20 MB a minute) and playing the compressed file with an `<audio>` element. Loudness as RMS per 20 ms (`computePeaks`), not peak samples, because a loud rock master hits its ceiling almost everywhere. Drawing it once as one SVG path in its own units (`peaksPath`) and letting CSS stretch it when you zoom. Two clocks: with a recording the music is the master clock and the playhead follows `audio.currentTime`, so sound and lights can't drift apart; seeking moves the music too, and past the recording's end the timeline carries on alone (`recordingMs`, `timelineMs`). Telling a click from a drag on one surface. Browsers only play sound after the user has done something, which Play always is.
+
+**Files.** `src/ui/SongsPage.tsx` (`Timeline`, `AddSectionMenu`), `src/ui/useSortable.ts`, `src/ui/Recording.tsx` (`WaveLane`, `RecordingControls`), `src/ui/songAudio.ts` (IndexedDB, `loadAudioFile`, `useSongAudio`), `src/core/audio.ts`, `src/core/model.ts` (`sectionBeats`, `lengthLabel`, `isBlackout`).
 
 ---
 

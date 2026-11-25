@@ -2,6 +2,7 @@
  * The saved project: how the user's rig is used, and their songs.
  * Plain JSON so it can live in the browser or be exported as a file.
  */
+import { normalizeAudio, type SongAudio } from "./audio";
 import { COLOR_CHANGES, energyOf, moodById, patternById, SONG_TEMPLATES, sectionTypeById, type ColorChange, type EffectId, type MoverSpread } from "./presets";
 
 export type Role = "backdrop" | "side" | "mover" | "front" | "ignore";
@@ -360,6 +361,8 @@ export interface Song {
   sections: Section[];
   /** A message that jumps straight to this song in the set (its page in QLC+). */
   trigger?: Trigger;
+  /** The song's recording, as a reference for laying it out (the sound stays in the browser). */
+  audio?: SongAudio;
 }
 
 // ---------------------------------------------------------------------------
@@ -640,7 +643,10 @@ export function normalizeProject(p: Project): Project {
     version: 1,
     // Keep everything the rig holds (stage size, saved positions), not just its fixtures.
     rig: { ...(p.rig ?? {}), fixtures: [...(p.rig?.fixtures ?? [])] },
-    songs: (p.songs ?? []).map((song) => ({ ...song, sections: song.sections.map(normalizeSection) })),
+    songs: (p.songs ?? []).map(({ audio, ...song }) => {
+      const a = normalizeAudio(audio);
+      return { ...song, sections: song.sections.map(normalizeSection), ...(a ? { audio: a } : {}) };
+    }),
     // Chasers belong to the sections that use them: one no section uses is dropped.
     ...(p.sequences ? { sequences: p.sequences.filter((q) => p.songs.some((song) => song.sections.some((s) => (s.sequences ?? []).some((u) => u.id === q.id)))).map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),

@@ -1111,3 +1111,28 @@ test("chasers no section uses are dropped when a project loads", () => {
   ] });
   assert.deepEqual(p.sequences!.map((q) => q.name), ["Kept"]);
 });
+
+test("a recording's waveform, timing and saved note", async () => {
+  const { computePeaks, peaksPath, timelineMs, recordingMs, normalizeAudio, fingerprint, clampOffset } = await import("../src/core/audio");
+  // 1 s quiet then 1 s loud, at 1000 samples a second, 10 values a second.
+  const ch = Float32Array.from({ length: 2000 }, (_, i) => (i < 1000 ? 0.1 : 0.8) * (i % 2 ? 1 : -1));
+  const peaks = computePeaks([ch, ch], 1000, 10);
+  assert.equal(peaks.length, 20);
+  assert.equal(peaks[15], 255, "the loudest part is full height");
+  assert.equal(peaks[2], Math.round((0.1 / 0.8) * 255));
+  assert.match(peaksPath(peaks), /^M0 0\.\d+L/);
+  assert.ok(peaksPath(peaks).endsWith("Z"));
+  const audio = { key: "k", name: "Song.mp3", durationMs: 200_000, offsetMs: 4200 };
+  assert.equal(timelineMs(180_000, audio), 195_800, "the recording runs past the sections");
+  assert.equal(timelineMs(198_000, audio), 198_000);
+  assert.equal(recordingMs(1000, audio), 5200);
+  assert.equal(recordingMs(196_000, audio), null);
+  assert.equal(clampOffset(-50, audio), 0);
+  assert.deepEqual(normalizeAudio({ key: "k", durationMs: 1000, offsetMs: "x" }), { key: "k", name: "Recording", durationMs: 1000, offsetMs: 0 });
+  assert.equal(normalizeAudio({ name: "no key" }), undefined);
+  const p = normalizeProject({ version: 1, rig: { fixtures: [] }, songs: [{ ...newSong("A", 120), audio: { key: "", name: "x", durationMs: 5, offsetMs: 0 } }, { ...newSong("B", 120), audio }] });
+  assert.equal(p.songs[0].audio, undefined);
+  assert.deepEqual(p.songs[1].audio, audio);
+  const a = await fingerprint(new TextEncoder().encode("abc").buffer as ArrayBuffer);
+  assert.equal(a, "ba7816bf8f01cfea", "SHA-256 of abc");
+});

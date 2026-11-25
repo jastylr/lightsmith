@@ -11,3 +11,4 @@ export * from "./sequences";
 export * from "./projectFile";
 export * from "./duration";
 export * from "./aim";
+export * from "./audio";

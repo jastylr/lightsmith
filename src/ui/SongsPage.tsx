@@ -14,6 +14,9 @@ import {
   newSection,
   patternById,
   sectionMs,
+  clampOffset,
+  recordingMs,
+  timelineMs,
   applyLook,
   moverTiming,
   COLOR_JOBS,
@@ -82,6 +85,8 @@ import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { PreviewWindow } from "./PreviewWindow";
+import { RecordingControls, WaveLane } from "./Recording";
+import { loadAudioFile, useSongAudio, type AudioTrack } from "./songAudio";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
 import { moveItem, useSortable } from "./useSortable";
@@ -140,6 +145,13 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const fixtureNames = useMemo(() => new Map((store.showFile?.fixtures ?? []).map((f) => [f.id, f.name])), [store.showFile]);
   // Replaying the preview restarts its animations; "skip" starts sequences at once.
   const [replay, setReplay] = useState<Replay>({ n: 0, skip: false });
+  // The song's recording: kept in the browser, played with the lights.
+  const [muted, setMuted] = useState(false);
+  const track = useSongAudio(song?.audio, muted);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const filePick = useRef<HTMLInputElement>(null);
+  useEffect(() => setAudioError(null), [song?.id]);
 
   useEffect(() => {
     if (song && !song.sections.some((s) => s.id === selected)) setSelected(song.sections[0]?.id ?? null);
@@ -213,6 +225,35 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     setSelected(rest[Math.min(i, rest.length - 1)]?.id ?? null);
   };
   const total = song.sections.reduce((t, s) => t + sectionMs(s), 0);
+
+  /** Read a sound file into the song. Loading a different file than the one the project names asks first. */
+  const attachAudio = async (file: File) => {
+    setAudioError(null);
+    setAudioBusy(true);
+    try {
+      const a = await loadAudioFile(file);
+      const was = song.audio;
+      if (was && was.key !== a.key && track.status === "missing") {
+        const ok = await askConfirm({
+          title: "Use a different recording?",
+          message: (
+            <>
+              This song was laid out against <strong>{was.name}</strong> ({fmt(was.durationMs)}). <strong>{file.name}</strong> ({fmt(a.durationMs)}) isn't the same file, so the sections may not line up with it. Where the song starts in the recording is kept.
+            </>
+          ),
+          confirmLabel: "Use this file",
+        });
+        if (!ok) return;
+      }
+      set({ audio: { key: a.key, name: a.name, durationMs: a.durationMs, offsetMs: clampOffset(was?.offsetMs ?? 0, a) } });
+    } catch (err) {
+      setAudioError(err instanceof Error ? err.message : "That file couldn't be read.");
+    } finally {
+      setAudioBusy(false);
+    }
+  };
+  const setOffset = (offsetMs: number) => song.audio && set({ audio: { ...song.audio, offsetMs } });
+
   const names = new Map(store.fixtures.map((f) => [f.id, f.name]));
   const lights: Light[] = store.project.rig.fixtures
     .filter((f) => f.role !== "ignore" && store.profiles.has(f.fixtureId))
@@ -297,7 +338,25 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         />
       ) : (
         <>
-          <Timeline sequences={store.project.sequences ?? []} song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
+          <input
+            ref={filePick}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void attachAudio(f);
+            }}
+          />
+          <Timeline
+            audioTrack={track}
+            onOffset={setOffset}
+            onPickAudio={() => filePick.current?.click()}
+            onDropAudio={(f) => void attachAudio(f)}
+            recording={<RecordingControls audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
+            sequences={store.project.sequences ?? []}
+            song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -447,7 +506,19 @@ function Timeline({
   gesture,
   onPlayFrom,
   sequences,
+  audioTrack,
+  onOffset,
+  onPickAudio,
+  onDropAudio,
+  recording,
 }: {
+  /** The song's recording, if it has one: drawn under the blocks and played with the lights. */
+  audioTrack: AudioTrack;
+  onOffset: (ms: number) => void;
+  onPickAudio: () => void;
+  onDropAudio: (f: File) => void;
+  /** The recording's controls, shown under the timeline. */
+  recording: ReactNode;
   sequences: Sequence[];
   /** Playback started (or jumped) to `at` seconds into a section: restart the preview there. */
   onPlayFrom: (section: string, at: number) => void;
@@ -466,7 +537,10 @@ function Timeline({
   const track = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(10); // pixels per second
   const [resizing, setResizing] = useState<{ id: string; fine: boolean } | null>(null);
-  const totalSec = song.sections.reduce((t, s) => t + sectionMs(s), 0) / 1000;
+  const audio = song.audio;
+  // The recording can run on past the last section: the timeline shows all of it.
+  const totalSec = timelineMs(song.sections.reduce((t, s) => t + sectionMs(s), 0), audio) / 1000;
+  const el = audioTrack.status === "ready" ? audioTrack.el : null;
   const latest = useRef({ song, onResize, scale });
   latest.current = { song, onResize, scale };
 
@@ -495,23 +569,41 @@ function Timeline({
     const t = Math.max(0, Math.min(totalMs, ms));
     posRef.current = t;
     setPos(t);
+    if (el && audio && !el.paused) {
+      const r = recordingMs(t, audio);
+      if (r === null) el.pause();
+      else el.currentTime = r / 1000;
+    }
     const s = sectionAt(t);
     if (s && s.id !== selected) onSelect(s.id);
   };
-  const latestPlay = useRef({ song, selected, onSelect, totalMs, scale });
-  latestPlay.current = { song, selected, onSelect, totalMs, scale };
+  const latestPlay = useRef({ song, selected, onSelect, totalMs, scale, el });
+  latestPlay.current = { song, selected, onSelect, totalMs, scale, el };
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
     let last = performance.now();
     const frame = (now: number) => {
-      const { song: sg, selected: sel, onSelect: pick, totalMs: total, scale: sc } = latestPlay.current;
-      const t = posRef.current + (now - last);
+      const { song: sg, selected: sel, onSelect: pick, totalMs: total, scale: sc, el: music } = latestPlay.current;
+      let t = posRef.current + (now - last);
       last = now;
+      // With a recording, the music is the clock: the playhead follows it, so lights and sound can't drift apart.
+      const a = sg.audio;
+      if (music && a) {
+        if (!music.paused && !music.ended) t = music.currentTime * 1000 - a.offsetMs;
+        else if (music.paused) {
+          const r = recordingMs(t, a);
+          if (r !== null && r >= 0) {
+            music.currentTime = r / 1000;
+            void music.play().catch(() => undefined);
+          }
+        }
+      }
       if (t >= total) {
         posRef.current = total;
         setPos(total);
         setPlaying(false);
+        music?.pause();
         return;
       }
       posRef.current = t;
@@ -527,7 +619,10 @@ function Timeline({
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      latestPlay.current.el?.pause();
+    };
   }, [playing]);
   const togglePlay = () => {
     if (!playing) {
@@ -655,8 +750,19 @@ function Timeline({
   const step = tickStep(scale);
   const width = totalSec * scale;
   return (
-    <div className="timeline-wrap">
-      <div className="timeline-row">
+    <div
+      className="timeline-wrap"
+      onDragOver={(e) => {
+        if ([...e.dataTransfer.items].some((i) => i.kind === "file" && i.type.startsWith("audio/"))) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("audio/"));
+        if (!f) return;
+        e.preventDefault();
+        onDropAudio(f);
+      }}
+    >
+      <div className={audio ? "timeline-row with-audio" : "timeline-row"}>
         <div className="timeline" ref={scroller}>
           <div className="timeline-track" ref={track} style={{ width: width + 16 }}>
             <div
@@ -724,6 +830,7 @@ function Timeline({
                 );
               })}
             </div>
+            {audio && <WaveLane audio={audio} track={audioTrack} scale={scale} sections={song.sections} onSeek={seek} onOffset={onOffset} onPick={onPickAudio} gesture={gesture} />}
             {(playing || pos > 0) && <div className="playhead" style={{ left: (pos / 1000) * scale }} aria-hidden="true" />}
             {resizing &&
               (() => {
@@ -761,7 +868,8 @@ function Timeline({
             {fmt(pos)} / {fmt(totalMs)}
           </span>
         </div>
-        <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>
+        {recording}
+        {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         <div className="zoom" role="group" aria-label="Zoom the timeline">
           <button type="button" className="ghost small icon-only" onClick={() => setScale((v) => Math.max(1, v / 1.5))} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
