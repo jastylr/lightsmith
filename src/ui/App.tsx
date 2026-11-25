@@ -20,6 +20,27 @@ export function App() {
   const [step, setStep] = useState<StepId>(ready ? "songs" : "import");
   const [songId, setSongId] = useState<string>(store.project.songs[0]?.id ?? "");
 
+  // The sidebar folds down to a strip of icons, for more room on the page. Remembered.
+  const [collapsed, setCollapsedNow] = useState(rememberedRail);
+  const setCollapsed = (c: boolean) => {
+    setCollapsedNow(c);
+    rememberRail(c);
+  };
+  // Cmd/Ctrl+\ folds and unfolds it.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setCollapsedNow((c) => {
+          rememberRail(!c);
+          return !c;
+        });
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+
   // Cmd/Ctrl+Z undoes; Shift+Cmd/Ctrl+Z or Ctrl+Y redoes.
   const { undo, redo } = store;
   useEffect(() => {
@@ -57,16 +78,21 @@ export function App() {
   ];
 
   return (
-    <div className="shell">
+    <div className={collapsed ? "shell rail-collapsed" : "shell"}>
       <aside className="rail">
-        <Logo />
+        <div className="rail-head">
+          <Logo />
+          <button type="button" className="rail-toggle" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"} title={`${collapsed ? "Show the sidebar" : "Fold the sidebar away for more room"} (${mod}\\)`}>
+            <Icon name={collapsed ? "chevronRight" : "chevronLeft"} size={16} />
+          </button>
+        </div>
         <p className="rail-tag">Light shows for QLC+, built from your songs</p>
         <div className="undo-bar" role="group" aria-label="Undo and redo">
-          <button type="button" className="undo-button" onClick={undo} disabled={!store.canUndo} title={`Undo (${mod}Z)`}>
-            <Icon name="undo" size={15} /> Undo
+          <button type="button" className="undo-button" onClick={undo} disabled={!store.canUndo} title={`Undo (${mod}Z)`} aria-label="Undo">
+            <Icon name="undo" size={15} /> <span className="rail-hide">Undo</span>
           </button>
-          <button type="button" className="undo-button" onClick={redo} disabled={!store.canRedo} title={`Redo (${mac ? "⇧⌘Z" : "Ctrl+Y"})`}>
-            <Icon name="redo" size={15} /> Redo
+          <button type="button" className="undo-button" onClick={redo} disabled={!store.canRedo} title={`Redo (${mac ? "⇧⌘Z" : "Ctrl+Y"})`} aria-label="Redo">
+            <Icon name="redo" size={15} /> <span className="rail-hide">Redo</span>
           </button>
           <button
             type="button"
@@ -77,8 +103,9 @@ export function App() {
             }}
             disabled={!store.workspace && store.project.songs.length === 0}
             title="Save everything in one .lightsmith file, to back it up or open it on another computer"
+            aria-label="Save project"
           >
-            <Icon name="download" size={15} /> Save project
+            <Icon name="download" size={15} /> <span className="rail-hide">Save project</span>
           </button>
         </div>
         <LevelSwitch />
@@ -86,8 +113,14 @@ export function App() {
           <ol className="rail-steps">
             {steps.map((s, i) => (
               <li key={s.id}>
-                <button className={step === s.id ? "rail-step on" : "rail-step"} onClick={() => setStep(s.id)} disabled={s.id !== "import" && !ready} aria-current={step === s.id ? "step" : undefined}>
-                  <span className="rail-num">{i + 1}</span>
+                <button className={step === s.id ? "rail-step on" : "rail-step"} onClick={() => setStep(s.id)} disabled={s.id !== "import" && !ready} aria-current={step === s.id ? "step" : undefined} aria-label={`${i + 1}. ${s.label}: ${s.status}`} title={collapsed ? `${s.label}: ${s.status}` : undefined}>
+                  <span className="rail-num">
+                    <span className="rail-num-n">{i + 1}</span>
+                    {/* The folded sidebar shows each step's icon instead of its number. */}
+                    <span className="rail-num-icon">
+                      <Icon name={s.icon} size={16} />
+                    </span>
+                  </span>
                   <span className="rail-text">
                     <span className="rail-label">
                       <Icon name={s.icon} size={16} /> {s.label}
@@ -152,6 +185,22 @@ export function App() {
       <ConfirmHost />
     </div>
   );
+}
+
+const RAIL_KEY = "lightsmith.railCollapsed.v1";
+function rememberedRail(): boolean {
+  try {
+    return localStorage.getItem(RAIL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function rememberRail(c: boolean) {
+  try {
+    localStorage.setItem(RAIL_KEY, c ? "1" : "0");
+  } catch {
+    /* not remembered */
+  }
 }
 
 /** How much of the app shows: Simple, Standard or Pro. Only hides controls; the show never changes. */

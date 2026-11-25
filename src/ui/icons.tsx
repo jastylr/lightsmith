@@ -26,6 +26,7 @@ const PATHS = {
   chevronDown: "M6 9l6 6l6-6",
   chevronUp: "M6 15l6-6l6 6",
   chevronRight: "M9 6l6 6l-6 6",
+  chevronLeft: "M15 6l-6 6 6 6",
   edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
   rain: "M7 13v4M12 15v4M17 13v4M7 11a5 5 0 1 1 9.6-2A3.5 3.5 0 1 1 17 11z",
   bolt: "M13 3L5 14h6l-1 7l8-11h-6z",

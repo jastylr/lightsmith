@@ -279,6 +279,7 @@ flowchart LR
 - Step status lines computed from data ("8 fixtures", "1 song").
 - Design tokens as CSS custom properties (`--house`, `--tungsten`, `--line`), and why the whole theme can change in one place.
 - Layout with CSS Grid and Flexbox; the narrow-screen layout where the menu becomes a top bar.
+- Folding the menu away for room (asked for by the band once the timeline grew): a button or Cmd/Ctrl+\\ folds it to a 64px strip of icons (logo mark, Undo, Redo, Save, each step's icon with its name and status as a tooltip), remembered in the browser. Why fold to icons instead of hiding it completely: the steps stay one click away. Animating `grid-template-columns`, turned off for reduced motion; keeping an accessible name (`aria-label`) when a button's text is hidden; folding only applies on wide screens (a `min-width` media query), since narrow ones already use the top bar; with the song list folded away, the page shows its own song picker.
 - One global stylesheet: how it's organized by page, and its main risk (the real `.brightness` name collision).
 - The icon set as SVG paths, the logo, accessible icon-only buttons.
 - App-wide keyboard shortcuts and where to register them.

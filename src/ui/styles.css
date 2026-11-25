@@ -4742,3 +4742,129 @@ body.is-scrubbing * {
 .recording {
   gap: 0.3rem;
 }
+
+/* ------------------------------------------------------------- folding sidebar */
+.shell {
+  transition: grid-template-columns 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
+  }
+}
+.rail {
+  overflow-x: hidden;
+}
+.rail-head {
+  position: relative;
+}
+.rail-toggle {
+  position: absolute;
+  top: -0.6rem;
+  right: -0.5rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--faint);
+}
+.rail-toggle:hover {
+  color: var(--text);
+  background: var(--deck);
+  border-color: var(--line);
+}
+.logo-mark {
+  display: none;
+}
+@media (min-width: 981px) {
+.shell.rail-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+.rail-collapsed .rail {
+  padding: 1rem 0.55rem;
+  align-items: center;
+  gap: 0.9rem;
+}
+.rail-collapsed .rail-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.rail-collapsed .logo {
+  margin: 0;
+}
+.rail-collapsed .logo-img,
+.rail-collapsed .rail-tag,
+.rail-collapsed .rail-hide,
+.rail-collapsed .rail-text,
+.rail-collapsed .rail-songs,
+.rail-collapsed .rail-foot,
+.rail-collapsed .level-switch {
+  display: none;
+}
+.rail-collapsed .logo-mark {
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+.rail-collapsed .rail-toggle {
+  position: static;
+}
+.rail-collapsed .undo-bar {
+  flex-direction: column;
+  margin: 0;
+}
+.rail-collapsed .undo-button {
+  width: 2.4rem;
+  flex: none;
+  padding: 0;
+}
+.rail-collapsed .rail-steps {
+  align-items: center;
+}
+.rail-collapsed .rail-step {
+  width: auto;
+  padding: 0.35rem;
+}
+.rail-collapsed .rail-num {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+.rail-collapsed .rail-num-n {
+  display: none;
+}
+.rail-collapsed .rail-num-icon {
+  display: grid;
+}
+/* With the song list folded away, the song picker shows in the page instead. */
+.rail-collapsed .song-switch-narrow {
+  display: flex;
+}
+}
+@media (max-width: 980px) {
+  .rail-toggle {
+    display: none;
+  }
+}
+/* Without a recording, the add button keeps its size and the hint takes the rest of the row. */
+.recording:not(:has(.recording-name)) {
+  flex: none;
+}
+.recording > .ghost {
+  white-space: nowrap;
+}
+.timeline-foot {
+  flex-wrap: wrap;
+}
+.timeline-foot .hint {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.rail-num-icon {
+  display: none;
+}

@@ -9,6 +9,8 @@ export function Logo() {
   return (
     <span className="logo">
       <img className="logo-img" src="lightsmith-logo.png" alt={APP_NAME} width={280} height={79} />
+      {/* The anvil alone, for the folded sidebar. */}
+      <img className="logo-mark" src="favicon.png" alt="" width={36} height={36} />
     </span>
   );
 }
