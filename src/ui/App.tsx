@@ -79,7 +79,8 @@ export function App() {
 
   return (
     <div className={collapsed ? "shell rail-collapsed" : "shell"}>
-      <aside className="rail">
+      {/* Keyed on folding, so its contents fade in again each time. */}
+      <aside className="rail" key={collapsed ? "folded" : "open"}>
         <div className="rail-head">
           <Logo />
         </div>

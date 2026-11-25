@@ -4744,12 +4744,20 @@ body.is-scrubbing * {
 }
 
 /* ------------------------------------------------------------- folding sidebar */
-.shell {
-  transition: grid-template-columns 200ms ease;
+/* Folding changes the page's width in one step: animating the width would lay out the whole
+   page (timeline, preview, settings) on every frame, which stutters. Only the sidebar's
+   contents fade in, which costs nothing. */
+.rail > * {
+  animation: rail-in 160ms ease-out;
+}
+@keyframes rail-in {
+  from {
+    opacity: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shell {
-    transition: none;
+  .rail > * {
+    animation: none;
   }
 }
 .rail {
@@ -4843,11 +4851,11 @@ body.is-scrubbing * {
 .rail-edge {
   position: fixed;
   z-index: 30;
-  top: 26px;
+  top: 50%;
   left: var(--rail-w);
   width: 26px;
   height: 26px;
-  margin-left: -13px;
+  margin: -13px 0 0 -13px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -4856,7 +4864,7 @@ body.is-scrubbing * {
   background: var(--raised);
   color: var(--muted);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  transition: left 200ms ease, color 120ms, border-color 120ms;
+  transition: color 120ms, border-color 120ms;
 }
 .rail-edge:hover {
   color: var(--tungsten-ink);
@@ -4883,11 +4891,6 @@ body.is-scrubbing * {
 }
 .rail-collapse + .rail-foot {
   margin-top: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .rail-edge {
-    transition: none;
-  }
 }
 @media (max-width: 980px) {
   .rail-edge,
