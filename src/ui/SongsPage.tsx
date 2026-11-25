@@ -555,6 +555,7 @@ function Timeline({
       const x = clientX ?? (head >= b.left && head <= b.right ? head : b.left + b.width / 2);
       zoomAnchor.current = { sec: (x - t0) / scale, x: x - b.left };
     }
+    fitted.current = false;
     setScaleNow(v);
   };
   useLayoutEffect(() => {
@@ -590,15 +591,33 @@ function Timeline({
   // The recording can run on past the last section: the timeline shows all of it.
   const totalSec = timelineMs(song.sections.reduce((t, s) => t + sectionMs(s), 0), audio) / 1000;
   const el = audioTrack.status === "ready" ? audioTrack.el : null;
-  const latest = useRef({ song, onResize, scale, snap });
-  latest.current = { song, onResize, scale, snap };
+  const latest = useRef({ song, onResize, scale, snap, totalSec });
+  latest.current = { song, onResize, scale, snap, totalSec };
 
   // Fit the song to the strip when it's first shown (and when switching songs).
+  // While the song is fitted (not zoomed by hand), it stays fitted when the strip changes width,
+  // for example when the sidebar folds away.
+  const fitted = useRef(true);
   const fit = () => {
     const w = (scroller.current?.clientWidth ?? 800) - 24;
-    setScaleNow(Math.max(2, Math.min(40, w / Math.max(totalSec, 10))));
+    fitted.current = true;
+    setScaleNow(Math.max(2, Math.min(40, w / Math.max(latest.current.totalSec, 10))));
   };
   useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  useEffect(() => {
+    const box = scroller.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    let last = box.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (box.clientWidth === last) return;
+      last = box.clientWidth;
+      if (fitted.current) fitRef.current();
+    });
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
 
   // ---- Playback: a playhead runs through the song at each section's length,
   // selecting each section as it starts so the preview shows it.

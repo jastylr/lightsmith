@@ -82,9 +82,6 @@ export function App() {
       <aside className="rail">
         <div className="rail-head">
           <Logo />
-          <button type="button" className="rail-toggle" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} aria-label={collapsed ? "Show the sidebar" : "Hide the sidebar"} title={`${collapsed ? "Show the sidebar" : "Fold the sidebar away for more room"} (${mod}\\)`}>
-            <Icon name={collapsed ? "chevronRight" : "chevronLeft"} size={16} />
-          </button>
         </div>
         <p className="rail-tag">Light shows for QLC+, built from your songs</p>
         <div className="undo-bar" role="group" aria-label="Undo and redo">
@@ -158,6 +155,10 @@ export function App() {
             ))}
           </ol>
         </nav>
+        <button type="button" className="rail-collapse" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} title={`${collapsed ? "Expand the sidebar" : "Collapse the sidebar to icons, for more room"} (${mod}\\)`}>
+          <Icon name={collapsed ? "chevronsRight" : "chevronsLeft"} size={16} />
+          <span className="rail-hide">Collapse sidebar</span>
+        </button>
         <div className="rail-foot">
           <p>Free and open source. Your files stay in this browser.</p>
           <a href={REPO_URL} target="_blank" rel="noreferrer">
@@ -165,6 +166,10 @@ export function App() {
           </a>
         </div>
       </aside>
+      {/* A handle on the sidebar's edge, always in view, that folds and unfolds it. */}
+      <button type="button" className="rail-edge" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"} title={`${collapsed ? "Expand the sidebar" : "Collapse the sidebar"} (${mod}\\)`}>
+        <Icon name={collapsed ? "chevronRight" : "chevronLeft"} size={14} />
+      </button>
 
       <main className="main">
         {store.error && (

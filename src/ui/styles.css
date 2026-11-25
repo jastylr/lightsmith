@@ -4758,31 +4758,24 @@ body.is-scrubbing * {
 .rail-head {
   position: relative;
 }
-.rail-toggle {
-  position: absolute;
-  top: -0.6rem;
-  right: -0.5rem;
-  width: 1.9rem;
-  height: 1.9rem;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--faint);
-}
-.rail-toggle:hover {
-  color: var(--text);
-  background: var(--deck);
-  border-color: var(--line);
-}
 .logo-mark {
   display: none;
 }
 @media (min-width: 981px) {
 .shell.rail-collapsed {
+  --rail-w: 64px;
   grid-template-columns: 64px minmax(0, 1fr);
+}
+.rail-collapsed .page {
+  max-width: 1520px;
+}
+.rail-collapsed .page.songs {
+  max-width: none;
+}
+.rail-collapsed .rail-collapse {
+  width: 2.4rem;
+  justify-content: center;
+  padding: 0.5rem 0;
 }
 .rail-collapsed .rail {
   padding: 1rem 0.55rem;
@@ -4811,9 +4804,6 @@ body.is-scrubbing * {
   display: block;
   width: 36px;
   height: 36px;
-}
-.rail-collapsed .rail-toggle {
-  position: static;
 }
 .rail-collapsed .undo-bar {
   flex-direction: column;
@@ -4846,10 +4836,68 @@ body.is-scrubbing * {
   display: flex;
 }
 }
+/* The handle on the sidebar's edge, and the Collapse button at its foot. */
+.shell {
+  --rail-w: 264px;
+}
+.rail-edge {
+  position: fixed;
+  z-index: 30;
+  top: 26px;
+  left: var(--rail-w);
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition: left 200ms ease, color 120ms, border-color 120ms;
+}
+.rail-edge:hover {
+  color: var(--tungsten-ink);
+  background: var(--tungsten);
+  border-color: var(--tungsten);
+}
+.rail-collapse {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: auto;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.rail-collapse:hover {
+  color: var(--text);
+  background: var(--deck);
+  border-color: var(--line);
+}
+.rail-collapse + .rail-foot {
+  margin-top: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail-edge {
+    transition: none;
+  }
+}
 @media (max-width: 980px) {
-  .rail-toggle {
+  .rail-edge,
+  .rail-collapse {
     display: none;
   }
+}
+/* The Songs page, where the work is done, uses all the width there is. */
+.page.songs {
+  max-width: none;
 }
 /* Without a recording, the add button keeps its size and the hint takes the rest of the row. */
 .recording:not(:has(.recording-name)) {
