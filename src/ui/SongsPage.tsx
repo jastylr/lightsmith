@@ -140,7 +140,9 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [playingId, setPlayingId] = useState<string | null>(null);
   const playingRef = useRef<string | null>(null);
   const onPlaying = (id: string | null) => {
-    if (id === null && playingRef.current) setSelected(playingRef.current);
+    // Stopping selects the section you stopped in, except while the preview fills the
+    // screen: changing the section being edited would rebuild the preview and end full screen.
+    if (id === null && playingRef.current && !document.fullscreenElement) setSelected(playingRef.current);
     playingRef.current = id;
     setPlayingId(id);
   };
@@ -168,6 +170,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const filePick = useRef<HTMLInputElement>(null);
   // Where the timeline puts its transport: above it, beside the song's tempo.
   const [transportSlot, setTransportSlot] = useState<HTMLDivElement | null>(null);
+  // A second place for the transport: floating over the preview when it fills the screen.
+  const [stageTransportSlot, setStageTransportSlot] = useState<HTMLDivElement | null>(null);
   useEffect(() => setAudioError(null), [song?.id]);
 
   useEffect(() => {
@@ -382,6 +386,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           />
           <Timeline
             transportSlot={transportSlot}
+            stageTransportSlot={stageTransportSlot}
             onTempo={setTempo}
             onSignature={setSignature}
             audioTrack={track}
@@ -400,7 +405,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} previewSection={playingId ? song.sections.find((x) => x.id === playingId) : undefined} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+              <LookEditor key={current.id} stageTransportRef={setStageTransportSlot} previewSection={playingId ? song.sections.find((x) => x.id === playingId) : undefined} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -548,6 +553,7 @@ function Timeline({
   onDropAudio,
   recording,
   transportSlot,
+  stageTransportSlot,
   onTempo,
   onSignature,
 }: {
@@ -555,6 +561,8 @@ function Timeline({
   onSignature: (beatsPerBar: number) => void;
   /** Where the transport bar goes (above the timeline, in the song's header). */
   transportSlot: HTMLElement | null;
+  /** Inside the preview: the transport shows there too while the preview fills the screen. */
+  stageTransportSlot: HTMLElement | null;
   /** The song's recording, if it has one: drawn under the blocks and played with the lights. */
   audioTrack: AudioTrack;
   onOffset: (ms: number) => void;
@@ -578,6 +586,14 @@ function Timeline({
   addButton: ReactNode;
   gesture: Gesture;
 }) {
+  // Whether the preview fills the screen (then the transport floats over it too).
+  const [stageFullScreen, setStageFullScreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setStageFullScreen(!!stageTransportSlot && !!document.fullscreenElement?.contains(stageTransportSlot));
+    onChange();
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [stageTransportSlot]);
   const keys = song.sections.map((s) => s.id);
   const { dragging, itemRef, handle, wasDrag } = useSortable(keys, onMove, "x", gesture);
   const scroller = useRef<HTMLDivElement>(null);
@@ -1043,6 +1059,7 @@ function Timeline({
       </div>
       <div className="timeline-foot">
         {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, transportSlot)}
+        {stageFullScreen && stageTransportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, stageTransportSlot)}
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">
@@ -1452,7 +1469,10 @@ function LookEditor({
   prevSection,
   nextSection,
   previewSection,
+  stageTransportRef,
 }: {
+  /** Where the song's transport floats while the preview fills the screen. */
+  stageTransportRef?: (el: HTMLDivElement | null) => void;
   /** While the song plays, the section to show in the preview (the one under the playhead). */
   previewSection?: Section;
   /** The sections either side, for linking (going straight into the next). */
@@ -1722,6 +1742,7 @@ function LookEditor({
                     <Icon name="repeat" size={13} /> Loop
                   </button>
                 </div>
+                <div className="stage-transport" ref={stageTransportRef} />
                 <div className="preview-tools">
                   <button
                     type="button"

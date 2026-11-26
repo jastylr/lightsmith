@@ -4534,9 +4534,44 @@ body.is-resizing * {
   place-items: center;
   background: #0b0a0d;
 }
-.preview-frame:fullscreen > svg {
+.preview-frame:fullscreen > .preview-crossfade {
   width: 100vw;
+}
+.preview-frame:fullscreen .preview-crossfade svg.preview {
+  width: 100%;
   max-height: 100vh;
+}
+.preview-frame:fullscreen .blackout-preview {
+  width: 100vw;
+  height: 100vh;
+}
+/* The song's transport, floating at the foot of the screen while the preview fills it. */
+.stage-transport {
+  display: none;
+}
+.preview-frame:fullscreen .stage-transport {
+  display: block;
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  width: min(1100px, calc(100vw - 2.5rem));
+  padding: 0.6rem;
+  border-radius: var(--r-lg);
+  background: rgba(20, 18, 23, 0.82);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  opacity: 0.55;
+  transition: opacity 200ms ease;
+}
+.preview-frame:fullscreen .stage-transport:hover,
+.preview-frame:fullscreen .stage-transport:focus-within {
+  opacity: 1;
+}
+.preview-frame:fullscreen .stage-transport:empty {
+  display: none;
 }
 .preview.above .pv-label {
   fill: #7d7686;
