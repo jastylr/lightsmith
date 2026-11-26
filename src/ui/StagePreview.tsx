@@ -298,6 +298,24 @@ export function StagePreview({
   const ids = useId().replace(/[^a-zA-Z0-9]/g, "");
   const u = (name: string) => `pv${ids}-${name}`;
   const url = (name: string) => `url(#${u(name)})`;
+  // Soft edges and glows: each blurred shape gets its own filter, whose region is the
+  // shape plus three standard deviations (as far as a blur visibly reaches). A shared
+  // filter needs a region generous enough for the smallest shape, so it blurred mostly
+  // empty space; on a Retina laptop that alone made the preview, and so the whole page,
+  // drop to about 20 frames a second.
+  const blurDefs: ReactElement[] = [];
+  const blur = (sd: number, x0: number, y0: number, x1: number, y1: number) => {
+    const id = u(`b${blurDefs.length}`);
+    const pad = sd * 3;
+    blurDefs.push(
+      <filter key={id} id={id} filterUnits="userSpaceOnUse" x={x0 - pad} y={y0 - pad} width={x1 - x0 + 2 * pad} height={y1 - y0 + 2 * pad}>
+        <feGaussianBlur stdDeviation={sd} />
+      </filter>,
+    );
+    return `url(#${id})`;
+  };
+  const soft = (cx: number, cy: number, rx: number, ry: number) => blur(6, cx - rx, cy - ry, cx + rx, cy + ry);
+  const glow = (cx: number, cy: number, rx: number, ry: number) => blur(16, cx - rx, cy - ry, cx + rx, cy + ry);
 
   if (viewMode === "above") {
     // ---- the view from above: every light where it sits, and where the heads point.
@@ -426,12 +444,6 @@ export function StagePreview({
         <mask id={u("beamDown")} maskContentUnits="objectBoundingBox">
           <rect width="1" height="1" fill={url("fadeDown")} />
         </mask>
-        <filter id={u("soft")} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" />
-        </filter>
-        <filter id={u("glow")} x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="16" />
-        </filter>
       </defs>
 
       {/* The room: back wall, truss, floor and the front of the stage */}
@@ -501,10 +513,10 @@ export function StagePreview({
               {swap}
               <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
                 {pulse}
-                <path d={`M${fx - 4} ${hy + 8} L${fx - 36 * sc} ${fy} L${fx + 36 * sc} ${fy} L${fx + 4} ${hy + 8} Z`} fill={paint} opacity="0.32" mask={url("beamDown")} filter={url("soft")}>
+                <path d={`M${fx - 4} ${hy + 8} L${fx - 36 * sc} ${fy} L${fx + 36 * sc} ${fy} L${fx + 4} ${hy + 8} Z`} fill={paint} opacity="0.32" mask={url("beamDown")} filter={blur(6, fx - 36 * sc, hy + 8, fx + 36 * sc, fy)}>
                   {anim}
                 </path>
-                <ellipse cx={fx} cy={fy + 2} rx={42 * sc} ry={8 * sc} fill={paint} opacity="0.6" filter={url("soft")}>
+                <ellipse cx={fx} cy={fy + 2} rx={42 * sc} ry={8 * sc} fill={paint} opacity="0.6" filter={soft(fx, fy + 2, 42 * sc, 8 * sc)}>
                   {anim}
                 </ellipse>
               </g>
@@ -528,13 +540,13 @@ export function StagePreview({
             {swap}
             <g opacity={o.off ? 0 : 0.2 + 0.8 * sideLevel}>
               {pulse}
-              <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={url("glow")}>
+              <ellipse cx={tx} cy={BACK - 60} rx="80" ry="55" fill={paint} opacity="0.35" filter={glow(tx, BACK - 60, 80, 55)}>
                 {anim}
               </ellipse>
-              <path d={`M${fx - 4 * sc} ${fy - 6 * sc} L${tx - 85} 30 L${tx + 85} 30 L${fx + 4 * sc} ${fy - 6 * sc} Z`} fill={paint} opacity="0.42" mask={url("beam")} filter={url("soft")}>
+              <path d={`M${fx - 4 * sc} ${fy - 6 * sc} L${tx - 85} 30 L${tx + 85} 30 L${fx + 4 * sc} ${fy - 6 * sc} Z`} fill={paint} opacity="0.42" mask={url("beam")} filter={blur(6, Math.min(fx - 4 * sc, tx - 85), 30, Math.max(fx + 4 * sc, tx + 85), fy - 6 * sc)}>
                 {anim}
               </path>
-              <ellipse cx={fx} cy={fy + 1} rx={28 * sc} ry={6 * sc} fill={paint} opacity="0.45" filter={url("soft")}>
+              <ellipse cx={fx} cy={fy + 1} rx={28 * sc} ry={6 * sc} fill={paint} opacity="0.45" filter={soft(fx, fy + 1, 28 * sc, 6 * sc)}>
                 {anim}
               </ellipse>
             </g>
@@ -562,7 +574,7 @@ export function StagePreview({
         const frontLevel = o.off ? 0 : focused ? 1 : (o.level ?? lv.front.level) * (focusing ? FOCUS_DIM : 1);
         return (
           <g key={f.fixtureId}>
-            {!o.off && <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * frontLevel} filter={url("glow")} />}
+            {!o.off && <ellipse cx={fx} cy={LIP - 14} rx="110" ry="18" fill={color} opacity={0.06 + 0.3 * frontLevel} filter={glow(fx, LIP - 14, 110, 18)} />}
             <rect x={fx - 7} y={LIP + 3} width="14" height="7" rx="2" fill="#26222b" stroke="#3d3844" strokeWidth="0.6" />
             <rect x={fx - 4.5} y={LIP + 3} width="9" height="1.6" rx="0.8" fill={o.off ? DARK_LENS : color} />
           </g>
@@ -585,10 +597,10 @@ export function StagePreview({
           const flat = bar.upright ? undefined : `translate(0 ${(bar.hung ? HANG_Y + 12 : BACK - 10) - midY}) rotate(90 ${x + barW / 2} ${midY})`;
           return (
             <g key={i} transform={flat}>
-              <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={url("glow")}>
+              <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="34" ry="62" fill={base.fill} opacity={0.32 * floorLevel} filter={glow(x + barW / 2, topY + (cells * cellH) / 2, 34, 62)}>
                 {base.anim}
               </ellipse>
-              <ellipse cx={x + barW / 2} cy={BACK + 4} rx="20" ry="4" fill={base.fill} opacity={0.4 * floorLevel} filter={url("soft")}>
+              <ellipse cx={x + barW / 2} cy={BACK + 4} rx="20" ry="4" fill={base.fill} opacity={0.4 * floorLevel} filter={soft(x + barW / 2, BACK + 4, 20, 4)}>
                 {base.anim}
               </ellipse>
               <rect x={x - 1.5} y={topY - 1.5} width={barW + 3} height={cells * cellH + 3} rx="2" fill="#141217" stroke="#34303a" strokeWidth="0.6" />
@@ -709,7 +721,7 @@ export function StagePreview({
                     <path d={`M${fx - 2.5} ${hh} L${fx - 15 * spread} ${hh + len * reach} L${fx + 15 * spread} ${hh + len * reach} L${fx + 2.5} ${hh} Z`} fill={color} mask={url("beamDown")} />
                   </g>
                 ))}
-                <ellipse cx={fx} cy={hh + len * reach} rx={18 * sc * spread} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={url("soft")}>
+                <ellipse cx={fx} cy={hh + len * reach} rx={18 * sc * spread} ry={5 * sc} fill={c.fill} opacity={o.off ? 0 : 0.5 * vis(moverLevel)} filter={soft(fx, hh + len * reach, 18 * sc * spread, 5 * sc)}>
                   {c.anim}
                 </ellipse>
                 {rotateAnim(fx, hh)}
@@ -727,7 +739,7 @@ export function StagePreview({
         }
         return (
           <g key={f.fixtureId}>
-            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={o.off ? 0 : 0.35 * vis(moverLevel)} filter={url("soft")}>
+            <ellipse cx={fx} cy={fy + 1} rx={18 * sc} ry={4 * sc} fill={c.fill} opacity={o.off ? 0 : 0.35 * vis(moverLevel)} filter={soft(fx, fy + 1, 18 * sc, 4 * sc)}>
               {c.anim}
             </ellipse>
             <g transform={`rotate(${lean} ${fx} ${hy})`}>
@@ -767,7 +779,7 @@ export function StagePreview({
               return (
                 <g key={key} opacity="0" pointerEvents="none">
                   {anim}
-                  <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="44" ry="80" fill={color} opacity="0.55" filter={url("glow")} />
+                  <ellipse cx={x + barW / 2} cy={topY + (cells * cellH) / 2} rx="44" ry="80" fill={color} opacity="0.55" filter={glow(x + barW / 2, topY + (cells * cellH) / 2, 44, 80)} />
                   <rect x={x - 0.5} y={topY} width={barW + 1} height={cells * cellH} rx="1.5" fill={color} />
                 </g>
               );
@@ -778,7 +790,7 @@ export function StagePreview({
             return (
               <g key={key} opacity="0" pointerEvents="none">
                 {anim}
-                <ellipse cx={cx} cy={cy} rx="46" ry="30" fill={color} opacity="0.5" filter={url("glow")} />
+                <ellipse cx={cx} cy={cy} rx="46" ry="30" fill={color} opacity="0.5" filter={glow(cx, cy, 46, 30)} />
                 <circle cx={cx} cy={cy} r="6" fill={color} />
               </g>
             );
@@ -797,6 +809,7 @@ export function StagePreview({
         </rect>
       )}
       {progress}
+      <defs>{blurDefs}</defs>
     </svg>
   );
 }
