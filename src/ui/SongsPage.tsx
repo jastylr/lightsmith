@@ -1539,7 +1539,11 @@ function LookEditor({
       summary: `${palette.map((c) => colorById(c).label).join(", ")} · ${lower(COLOR_CHANGES.find((c) => c.id === changeId)?.label ?? "")}`,
       changed: s.colors.length > 0 || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || s.colorChange !== "mood" || s.colorFade,
     },
-    lights: { summary: ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : "Every light follows the settings above", changed: ownLights > 0 },
+    // Lights: the focus (a spotlight on one player) and any lights with settings of their own.
+    lights: {
+      summary: [s.focus === "all" ? "" : `Spotlight on ${lower(sideName[s.focus])}`, ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : ""].filter(Boolean).join(" · ") || "No focus; every light follows the settings above",
+      changed: ownLights > 0 || s.focus !== "all",
+    },
     pattern: { summary: pattern.algorithm ? `${pattern.label} on ${patternTargets(s, rig).length} lights` : pattern.label, changed: s.pattern !== "solid" },
     movers: {
       summary: hasMovers
@@ -1547,11 +1551,10 @@ function LookEditor({
         : "No moving heads on your stage",
       changed: !!s.aim || s.movement !== "mood" || s.moverSpread !== "together" || !!s.beam || !!s.moverBeats,
     },
-    focus: { summary: s.focus === "all" ? "No focus" : `Spotlight on ${lower(sideName[s.focus])}`, changed: s.focus !== "all" },
-    effects: { summary: effectsOn.length ? effectsOn.map((e) => e.label).join(", ") : "None", changed: effectsOn.length > 0 },
-    sequences: {
-      summary: usedSequences.length ? usedSequences.map((q) => q.name).join(", ") : "None",
-      changed: usedSequences.length > 0,
+    // Effects: the built-in effects and any chasers, both layered on top of the look.
+    effects: {
+      summary: [...effectsOn.map((e) => e.label), ...usedSequences.map((q) => q.name)].join(", ") || "None",
+      changed: effectsOn.length > 0 || usedSequences.length > 0,
     },
     timing: {
       summary: `${transitionLabel} · ${s.autoAdvance && nextSection ? `goes straight into ${nextSection.name}` : prevSection?.autoAdvance ? `linked after ${prevSection.name}` : "waits for the next cue"}${control?.cueing === "step" ? (s.trigger ? ` · ${triggerText(s.trigger, control)}` : "") : triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
@@ -1608,12 +1611,12 @@ function LookEditor({
     for (const k of Object.keys(next) as (keyof MoverShape)[]) if (next[k] === undefined) delete next[k];
     onChange({ moverShape: Object.keys(next).length ? next : undefined });
   };
-  const showLightsCard = sees("lights", "standard") || Object.keys(s.lights ?? {}).length > 0;
-  const showSequencesCard = sees("sequences", "standard") || (s.sequences ?? []).length > 0;
+  const showOwnLights = sees("lights", "standard") || ownLights > 0;
+  const showChasers = sees("sequences", "standard") || (s.sequences ?? []).length > 0;
 
   // ---- the bar that stays at the top: jump to a card, see which one you're in,
   // and a small copy of the preview once the big one has scrolled away.
-  const navIds = visibleCards.filter((id) => (id === "lights" ? showLightsCard : id === "sequences" ? showSequencesCard : true));
+  const navIds = visibleCards;
   const navRef = useRef<HTMLDivElement>(null);
   // The tab you picked, or the first one this section has (a blackout has only Start and end).
   const shownTab = tab === "all" ? null : navIds.includes(tab) ? tab : (navIds[0] ?? null);
@@ -1801,11 +1804,35 @@ function LookEditor({
             {more("colors", [["standard", s.colorFade || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || Object.keys(s.colorRates ?? {}).length > 0]])}
           </Group>
 
-          {showLightsCard && (
-          <Group card={card("lights")} icon="stage" title="Individual lights" description="Give particular lights their own color or brightness, or switch them off, for this section. Everything else keeps following the mood and the settings above.">
-            <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
+          <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above.">
+            <h4 className="subhead">Focus</h4>
+            <p className="hint">For a solo or a quiet verse: the lights on that side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.</p>
+            <Segmented
+              label="Who to light"
+              value={s.focus}
+              onChange={(focus: Focus) => onChange({ focus })}
+              options={[
+                { value: "all", label: "No focus" },
+                ...focusOptions.map((f) => ({ value: f.side, label: sideName[f.side], disabled: f.ids.length === 0, title: f.ids.length ? undefined : `No lights on ${sideName[f.side].toLowerCase()}` })),
+              ]}
+            />
+            <p className="hint">
+              {s.focus === "all"
+                ? "Stage left and right are the performers' left and right, so stage left is on the right as the audience sees it."
+                : focusIds.length
+                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}. Lights you've switched off stay off.`
+                  : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
+            </p>
+            {showOwnLights ? (
+              <>
+                <h4 className="subhead">Individual lights</h4>
+                <p className="hint">Give particular lights their own color or brightness, or switch them off, for this section.</p>
+                <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
+              </>
+            ) : (
+              more("lights", [["standard", ownLights > 0]])
+            )}
           </Group>
-          )}
 
           <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
@@ -1909,26 +1936,7 @@ function LookEditor({
             )}
           </Group>
 
-          <Group card={card("focus")} icon="focus" title="Focus" description="Put one player in the spotlight, for a solo or a quiet verse. The lights on their side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.">
-            <Segmented
-              label="Who to light"
-              value={s.focus}
-              onChange={(focus: Focus) => onChange({ focus })}
-              options={[
-                { value: "all", label: "No focus" },
-                ...focusOptions.map((f) => ({ value: f.side, label: sideName[f.side], disabled: f.ids.length === 0, title: f.ids.length ? undefined : `No lights on ${sideName[f.side].toLowerCase()}` })),
-              ]}
-            />
-            <p className="hint">
-              {s.focus === "all"
-                ? "Stage left and right are the performers' left and right, so stage left is on the right as the audience sees it."
-                : focusIds.length
-                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}. Lights you've switched off stay off.`
-                  : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
-            </p>
-          </Group>
-
-          <Group card={card("effects")} icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern. Each runs on its usual lights; click the lights chip on an effect to choose others.">
+          <Group card={card("effects")} icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern: hits and flashes, then your chasers. Each effect runs on its usual lights; click the lights chip on an effect to choose others.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
@@ -1977,13 +1985,16 @@ function LookEditor({
               })}
             </div>
             {effectsOn.length > 0 && more("effects", [["standard", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec]])}
+            {showChasers ? (
+              <>
+                <h4 className="subhead">Chasers</h4>
+                <p className="hint">Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.</p>
+                <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
+              </>
+            ) : (
+              more("sequences", [["standard", usedSequences.length > 0]])
+            )}
           </Group>
-
-          {showSequencesCard && (
-          <Group card={card("sequences")} icon="list" title="Chasers" description="Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.">
-            <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
-          </Group>
-          )}
 
             </>
           )}
@@ -2272,7 +2283,9 @@ function rememberView(v: PreviewView) {
 const TAB_KEY = "lightsmith.tab.v1";
 function rememberedTab(): string {
   try {
-    return localStorage.getItem(TAB_KEY) ?? "mood";
+    // Focus and Chasers became parts of the Lights and Effects tabs.
+    const t = localStorage.getItem(TAB_KEY) ?? "mood";
+    return t === "focus" ? "lights" : t === "sequences" ? "effects" : t;
   } catch {
     return "mood";
   }
@@ -2292,9 +2305,7 @@ const CARD_LABELS: Record<string, { label: string; icon: IconName }> = {
   lights: { label: "Lights", icon: "stage" },
   pattern: { label: "Pattern", icon: "backdrop" },
   movers: { label: "Moving heads", icon: "mover" },
-  focus: { label: "Focus", icon: "focus" },
   effects: { label: "Effects", icon: "sparkle" },
-  sequences: { label: "Chasers", icon: "list" },
   timing: { label: "Start and end", icon: "play" },
 };
 
