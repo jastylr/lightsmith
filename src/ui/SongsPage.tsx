@@ -87,7 +87,7 @@ import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
-import { TransportBar } from "./Transport";
+import { songSignature, TransportBar } from "./Transport";
 import { loadAudioFile, useSongAudio, type AudioTrack } from "./songAudio";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
@@ -179,6 +179,13 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
 
   const set = (patch: Partial<Song>) => store.updateSong({ ...song, ...patch });
   const gesture: Gesture = { begin: store.beginGesture, end: store.endGesture };
+  /** The song's tempo: sections at the old song tempo follow it; ones with their own keep theirs. */
+  const setTempo = (bpm: number) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) });
+  /** The song's time signature: sections in the old one change; ones with their own keep theirs. */
+  const setSignature = (beatsPerBar: number) => {
+    const was = songSignature(song.sections);
+    set({ sections: song.sections.map((s) => (s.beatsPerBar === was ? { ...s, beatsPerBar } : s)) });
+  };
   const setSection = (id: string, patch: Partial<Section>) => set({ sections: song.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   const move = (from: number, to: number) => set({ sections: moveItem(song.sections, from, to) });
   const add = (type: string) => {
@@ -320,22 +327,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <Icon name="trash" size={16} />
             </button>
           </div>
-          <div className="song-meta">
-            <label className="stat stat-input">
-              <span>Song tempo</span>
-              <NumberInput
-                label="Song tempo in BPM"
-                value={song.bpm}
-                min={30}
-                max={300}
-                suffix="BPM"
-                onChange={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })}
-              />
-            </label>
-            <TapTempo label="Song tempo" onTempo={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })} />
+          {/* The transport sits here, drawn by the timeline (or, before a song has sections, by the page). */}
+          <div className="transport-slot" ref={setTransportSlot}>
+            {song.sections.length === 0 && <TransportBar sections={[]} songBpm={song.bpm} posMs={0} totalMs={0} playing={false} onPlay={() => undefined} onSeek={() => undefined} onTempo={setTempo} onSignature={setSignature} />}
           </div>
         </div>
-        <div className="transport-slot" ref={setTransportSlot} />
       </header>
 
       {song.sections.length === 0 ? (
@@ -362,6 +358,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           />
           <Timeline
             transportSlot={transportSlot}
+            onTempo={setTempo}
+            onSignature={setSignature}
             audioTrack={track}
             onOffset={setOffset}
             onPickAudio={() => filePick.current?.click()}
@@ -525,7 +523,11 @@ function Timeline({
   onDropAudio,
   recording,
   transportSlot,
+  onTempo,
+  onSignature,
 }: {
+  onTempo: (bpm: number) => void;
+  onSignature: (beatsPerBar: number) => void;
   /** Where the transport bar goes (above the timeline, in the song's header). */
   transportSlot: HTMLElement | null;
   /** The song's recording, if it has one: drawn under the blocks and played with the lights. */
@@ -1004,7 +1006,7 @@ function Timeline({
         {addButton}
       </div>
       <div className="timeline-foot">
-        {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} />, transportSlot)}
+        {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, transportSlot)}
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">

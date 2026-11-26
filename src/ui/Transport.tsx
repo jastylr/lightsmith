@@ -6,7 +6,65 @@
  */
 import { useState } from "react";
 import { msForBar, musicalPosition, type Section } from "../core";
+import { TapTempo } from "./controls";
 import { Icon } from "./icons";
+
+/** The song's time signature: the one most of its sections use (4/4 when it has none). */
+export function songSignature(sections: Pick<Section, "beatsPerBar">[]): number {
+  const count = new Map<number, number>();
+  for (const s of sections) count.set(s.beatsPerBar, (count.get(s.beatsPerBar) ?? 0) + 1);
+  let best = 4;
+  let most = 0;
+  for (const [b, n] of count) if (n > most) [best, most] = [b, n];
+  return best;
+}
+
+/**
+ * A number on the display you can edit: click it (or Tab to it and press
+ * Return), type, and press Return; Escape cancels; the up and down arrows step it.
+ */
+function LcdNumber({ value, min, max, label, format = String, onChange, wide }: { value: number; min: number; max: number; label: string; format?: (v: number) => string; onChange: (v: number) => void; wide?: boolean }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    const n = Number(draft);
+    if (draft !== null && draft.trim() !== "" && Number.isFinite(n)) onChange(Math.max(min, Math.min(max, Math.round(n * 10) / 10)));
+    setDraft(null);
+  };
+  if (draft !== null)
+    return (
+      <input
+        className={wide ? "lcd-edit wide" : "lcd-edit"}
+        autoFocus
+        inputMode="decimal"
+        aria-label={label}
+        value={draft}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9.]/g, ""))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setDraft(null);
+        }}
+        onBlur={commit}
+      />
+    );
+  return (
+    <button
+      type="button"
+      className="lcd-value"
+      onClick={() => setDraft(String(value))}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          onChange(Math.max(min, Math.min(max, value + (e.key === "ArrowUp" ? 1 : -1))));
+        }
+      }}
+      aria-label={`${label}: ${format(value)}. Click to change, or use the arrow keys`}
+      title="Click to change (or use the arrow keys)"
+    >
+      {format(value)}
+    </button>
+  );
+}
 
 /** 83400 → "1:23.4" */
 const clock = (ms: number) => {
@@ -24,7 +82,13 @@ export function TransportBar({
   playing,
   onPlay,
   onSeek,
+  onTempo,
+  onSignature,
 }: {
+  /** Set the song's tempo (sections that follow it change with it). */
+  onTempo: (bpm: number) => void;
+  /** Set the song's time signature (beats per bar) on the sections that follow it. */
+  onSignature: (beatsPerBar: number) => void;
   sections: Section[];
   songBpm: number;
   posMs: number;
@@ -86,15 +150,20 @@ export function TransportBar({
           <strong title={section?.name}>{section?.name ?? "No sections"}</strong>
           <span className="lcd-label">{section ? `Section ${p.section + 1} of ${sections.length}` : "Section"}</span>
         </div>
-        <div className="lcd-cell lcd-small">
-          <strong>{Math.round(p.bpm * 10) / 10}</strong>
-          <span className="lcd-label">BPM</span>
+        <div className="lcd-cell lcd-small lcd-tempo">
+          <span className="lcd-row">
+            <LcdNumber value={songBpm} min={30} max={300} label="Song tempo in BPM" onChange={onTempo} />
+            <TapTempo label="Song tempo" onTempo={onTempo} />
+          </span>
+          <span className="lcd-label" title={section && section.bpm !== songBpm ? `The song's tempo; ${section.name} has its own, ${section.bpm} BPM` : undefined}>
+            {section && section.bpm !== songBpm ? `BPM (this section ${Math.round(section.bpm * 10) / 10})` : "BPM"}
+          </span>
         </div>
         <div className="lcd-cell lcd-small">
-          <strong>
-            {p.beatsPerBar}/4
-          </strong>
-          <span className="lcd-label">Time sig.</span>
+          <LcdNumber value={songSignature(sections)} min={1} max={15} label="Beats per bar" format={(v) => `${v}/4`} onChange={onSignature} />
+          <span className="lcd-label" title={section && section.beatsPerBar !== songSignature(sections) ? `${section.name} has its own: ${section.beatsPerBar}/4` : undefined}>
+            {section && section.beatsPerBar !== songSignature(sections) ? `Time sig. (this ${section.beatsPerBar}/4)` : "Time sig."}
+          </span>
         </div>
         <div className="lcd-cell lcd-small">
           <strong>{clock(totalMs).replace(/\.\d$/, "")}</strong>

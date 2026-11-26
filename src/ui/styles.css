@@ -5113,3 +5113,48 @@ body.is-scrubbing * {
     font-size: 1.4rem;
   }
 }
+/* The transport shares the song's title line. */
+.song-line .transport-slot {
+  flex: 1 1 640px;
+  min-width: 0;
+}
+.lcd-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.lcd-value {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--tungsten-hi);
+  cursor: text;
+  text-align: left;
+  white-space: nowrap;
+}
+.lcd-value:hover,
+.lcd-value:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 196, 107, 0.45);
+  text-underline-offset: 4px;
+}
+.lcd-edit {
+  width: 3.6rem;
+  font: 600 1.05rem ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--tungsten-hi);
+  background: #1d1a20;
+  border: 1px solid var(--tungsten);
+  border-radius: var(--r-sm);
+  padding: 0 0.3rem;
+}
+.lcd .tap-tempo {
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  font-size: 0.72rem;
+  border-radius: var(--r-sm);
+}
