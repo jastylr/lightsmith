@@ -735,6 +735,8 @@ A *custom property* (`--accent`) follows the same rules, and children inherit it
 
 **In Lightsmith.** This exact bug happened. Each settings card was meant to have its own color, but every card came out orange. A general rule, `.group[data-card] { --accent: var(--tungsten); }`, was *more specific* than the per-card rules, so it beat them. Deleting it fixed every card at once.
 
+It happened again with the Extra channels sliders. The page has a general rule, `input[type="range"] { background: transparent; }`, which counts (0,1,1): one attribute and one element. The new `.extra-slider` rule, (0,1,0), drew the slider's track as a background, and lost: the sliders showed only their knobs. Writing it as `input.extra-slider`, (0,1,1) and later in the file, fixed it without `!important`.
+
 **Mistakes to watch for.** Reaching for `!important`. It wins today and starts a specificity war tomorrow. Make the selectors simpler instead. In the browser's dev tools, the Styles panel crosses out each rule that lost and shows which one won.
 
 **Try it.** In dev tools, inspect a settings tab and find the rule that sets its `--accent`. Change the value there and watch the icon and the underline change together.

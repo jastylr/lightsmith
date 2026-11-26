@@ -112,3 +112,41 @@ ${fixture(5, "Spot Mover", "8ch", 46, 8)}
   </Frame>
  </VirtualConsole>
 </Workspace>`;
+
+// A mover with channels Lightsmith leaves alone: a ring effect, its speed,
+// a maintenance reset, an unused channel. Used by the extra-channels tests.
+export const FX_MOVER_QXF = `<?xml version="1.0" encoding="UTF-8"?>
+<FixtureDefinition xmlns="http://www.qlcplus.org/FixtureDefinition">
+ <Manufacturer>Test</Manufacturer>
+ <Model>FX Mover</Model>
+ <Type>Moving Head</Type>
+ <Channel Name="Pan" Preset="PositionPan"/>
+ <Channel Name="Tilt" Preset="PositionTilt"/>
+ <Channel Name="Dimmer" Preset="IntensityMasterDimmer"/>
+ <Channel Name="Shutter">
+  <Group Byte="0">Shutter</Group>
+  <Capability Min="0" Max="9" Preset="ShutterOpen">Open</Capability>
+  <Capability Min="10" Max="255" Preset="StrobeSlowToFast">Strobe</Capability>
+ </Channel>
+ <Channel Name="Red" Preset="IntensityRed"/>
+ <Channel Name="Green" Preset="IntensityGreen"/>
+ <Channel Name="Blue" Preset="IntensityBlue"/>
+ <Channel Name="Ring effect">
+  <Group Byte="0">Effect</Group>
+  <Capability Min="0" Max="9">No effect</Capability>
+  <Capability Min="10" Max="129">Chase</Capability>
+  <Capability Min="130" Max="255">Rainbow</Capability>
+ </Channel>
+ <Channel Name="Ring speed" Preset="SpeedEffectSlowFast"/>
+ <Channel Name="Reset">
+  <Group Byte="0">Maintenance</Group>
+  <Capability Min="0" Max="255">Reset</Capability>
+ </Channel>
+ <Channel Name="Unused" Preset="NoFunction"/>
+ <Mode Name="11ch">
+  <Channel Number="0">Pan</Channel><Channel Number="1">Tilt</Channel><Channel Number="2">Dimmer</Channel>
+  <Channel Number="3">Shutter</Channel><Channel Number="4">Red</Channel><Channel Number="5">Green</Channel>
+  <Channel Number="6">Blue</Channel><Channel Number="7">Ring effect</Channel><Channel Number="8">Ring speed</Channel>
+  <Channel Number="9">Reset</Channel><Channel Number="10">Unused</Channel>
+ </Mode>
+</FixtureDefinition>`;

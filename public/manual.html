@@ -224,7 +224,7 @@
           <tr><td><strong>Lights</strong></td><td><strong>Focus</strong>, a spotlight on one player (those lights go warm white at full, the rest dim), and, in Full, <strong>Individual lights</strong> with their own color or brightness, or off.</td></tr>
           <tr><td><strong>Pattern</strong></td><td>A moving pattern across lights that can show one (chases, waves, sparkles), and its <strong>Speed</strong>: Auto follows the section's energy, or pick Half, Normal, Double or Very fast.</td></tr>
           <tr><td><strong>Moving heads</strong></td><td>Where they point and how they move (below).</td></tr>
-          <tr><td><strong>Effects</strong></td><td>Hits and flashes on top of the look, and, in Full, your <strong>Chasers</strong> (below).</td></tr>
+          <tr><td><strong>Effects</strong></td><td>Hits and flashes on top of the look, and, in Full, your <strong>Chasers</strong> and <strong>Extra channels</strong> (below).</td></tr>
           <tr><td><strong>Start and end</strong></td><td>How the look comes in (instantly, or a fade from 1 beat to 8 bars), whether it goes straight into the next section, and its cue.</td></tr>
         </table>
         <h3>Fades between sections</h3>
@@ -243,6 +243,15 @@
         <h2 id="chasers">Chasers and effects</h2>
         <p><strong>Chasers</strong> are your own sequences of steps: some lights in some colors for a moment, then the next. Build them as a table of steps, or import them from your QLC+ show file. Each chaser starts a set time into its section, runs once, loops or bounces. A chaser belongs to the sections that use it; one used in two sections can be shared or copied.</p>
         <p><strong>Effects</strong> sit on top of the look: lightning, a blinder hit, a pulse on every beat, sparkle, strobe hits. Each can be aimed at chosen lights.</p>
+        <h3 id="extra-channels">Extra channels</h3>
+        <p>Many lights have channels Lightsmith doesn't set itself: a moving head's bee-eye effect and LED ring, a panel's built-in programs, a second set of LEDs. In Full mode, <strong>Extra channels</strong> at the bottom of the Effects tab lets you set them for the section, much like the sliders in QLC+'s Simple Desk. Each kind of light in your rig (by model and mode) gets its own panel listing its extra channels, taken from its fixture definition.</p>
+        <ul>
+          <li>The chips at the top choose which of those lights your changes go to. All are chosen to start with; untick one to give it different values. A channel marked <strong>differs</strong> has different values on the chosen lights.</li>
+          <li>Each channel has a slider and a number from 0 to 255. Where the definition names its ranges (say "Rotate clockwise slow to fast"), pick one from the dropdown to jump to the middle of that range; the dropdown always shows which range the value is in.</li>
+          <li>Runs of color channels, such as LED 1 to LED 7 on a ring, sit in small blocks under <strong>Color channels</strong>, each with a color picker. The copy button gives every block like it the same values.</li>
+          <li>A channel you leave unset (the × button) isn't written by the section. Channels you do set go into their own scene in the section, with no fade, so an effect number jumps straight to the one you chose.</li>
+        </ul>
+        <p>Maintenance channels such as a reset, and channels the definition says do nothing, aren't offered. The preview doesn't show extra channels, so check them on the real lights.</p>
 
         <h2 id="preview">Previewing</h2>
         <p>The stage preview shows the selected section as QLC+ will play it, and loops it so a chaser that starts late comes round again (switch <strong>Loop</strong> off to play it once). Switch between the audience view and the view from above, open it full screen, or pop it out into its own window. Pressing Play on the timeline plays the whole song in order, with the recording if there is one. While it plays, the preview and the highlighted block follow the playhead and a <strong>Playing</strong> label in the preview's bottom corner names the section, but the settings below stay on the section you picked, so you can keep working while you listen; when you stop, the section the song stopped in is selected. Loop is ignored during playback, so each section hands straight over to the next.</p>

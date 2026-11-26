@@ -13,7 +13,7 @@
  *  - RGB matrices only drive color, so a scene must hold the dimmer.
  */
 import { APP_NAME } from "../config";
-import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
+import { capabilityNamed, extraChannels, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
@@ -654,6 +654,18 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
       const id = q ? sequenceChaser(q, use.delay, s.bpm, path) : undefined;
       if (id !== undefined) parts.push(id);
     }
+    // Channels set by hand (a ring, extra LEDs, a built-in effect): their own
+    // scene, with no fade, so an effect number jumps straight to the one asked
+    // for instead of sweeping through the others on the way.
+    const extraVals: Vals = new Map();
+    for (const [fid, chans] of Object.entries(s.extras ?? {})) {
+      const r = rig.fixtures.find((f) => f.fixtureId === Number(fid));
+      const p = r && profiles.get(r.fixtureId);
+      if (!p) continue;
+      const allowed = new Set(extraChannels(p).map((c) => c.channel));
+      for (const [ch, val] of Object.entries(chans)) if (allowed.has(Number(ch)) && Number.isFinite(val)) setVal(extraVals, r.fixtureId, Number(ch), val);
+    }
+    if (extraVals.size) parts.push(b.scene("Extra channels", path, extraVals, 0, 0));
     sectionIds.push(b.collection(label, path, parts));
   });
 

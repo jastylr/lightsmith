@@ -350,6 +350,44 @@ export function strobeOffValue(p: FixtureProfile, channel: number): number | und
 }
 
 /** A gobo slot or prism range by name; "open" (no gobo) and "off" (no prism) are looked up the same way. */
+/** A channel Lightsmith leaves to you: see `extraChannels`. */
+export interface ExtraChannel {
+  /** Offset in the fixture's mode, from 0. */
+  channel: number;
+  name: string;
+  kind: ChannelKind;
+  /** Named ranges from the definition ("Light strip color selection", 12-51). */
+  capabilities: Capability[];
+}
+
+/**
+ * The channels of a light that Lightsmith doesn't drive itself (a ring, a
+ * second set of LEDs, a built-in effect and its speed), which a section can
+ * set by hand. Left out: the channels Lightsmith writes (dimmer, the main
+ * color, pan and tilt, their speed, the strobe, zoom, gobo, prism), those the
+ * definition marks as doing nothing, and maintenance channels, since a reset
+ * in the middle of a song would stop the light for seconds.
+ */
+export function extraChannels(p: FixtureProfile): ExtraChannel[] {
+  const driven = new Set<number>();
+  const add = (c: number | undefined) => c !== undefined && driven.add(c);
+  add(p.masterDimmer);
+  for (const h of p.heads) for (const c of Object.values(h)) add(c);
+  [p.pan, p.panFine, p.tilt, p.tiltFine, p.ptSpeed?.channel, p.zoom?.channel, p.gobo?.channel, p.prism?.channel].forEach(add);
+  // Of the shutters, only the one that strobes is Lightsmith's (a second one,
+  // such as a ring's flicker, is the light's own).
+  add(strobeRange(p)?.channel);
+  const out: ExtraChannel[] = [];
+  p.mode.channels.forEach((n, i) => {
+    const c = p.def.channels.get(n);
+    if (!c || driven.has(i)) return;
+    if (c.preset === "NoFunction" || /maintenance/i.test(c.group ?? "") || /^maintenance/i.test(c.preset ?? "")) return;
+    if (/\breset\b|non-?functional|^no function/i.test(c.name)) return;
+    out.push({ channel: i, name: c.name, kind: c.kind, capabilities: c.capabilities });
+  });
+  return out;
+}
+
 export function capabilityNamed(caps: Capability[], name: string): Capability | undefined {
   return caps.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
 }

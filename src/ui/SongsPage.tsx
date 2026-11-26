@@ -90,6 +90,7 @@ import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
+import { ExtraChannelsEditor } from "./ExtraChannels";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
 import { songSignature, TransportBar } from "./Transport";
@@ -1730,6 +1731,7 @@ function LookEditor({
   };
   const showOwnLights = sees("lights", "full") || ownLights > 0;
   const showChasers = sees("sequences", "full") || (s.sequences ?? []).length > 0;
+  const hasExtras = Object.keys(s.extras ?? {}).length > 0;
 
   // ---- the bar that stays at the top: jump to a card, see which one you're in,
   // and a small copy of the preview once the big one has scrolled away.
@@ -2177,7 +2179,14 @@ function LookEditor({
                 <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
               </>
             ) : (
-              more("sequences", [["full", usedSequences.length > 0]])
+              more("sequences", [["full", usedSequences.length > 0 || hasExtras]])
+            )}
+            {(sees("sequences", "full") || hasExtras) && (
+              <>
+                <h4 className="subhead">Extra channels</h4>
+                <p className="hint">The channels of your lights that Lightsmith doesn't set itself, such as a ring of LEDs, a second color or a built-in effect and its speed. Set one here and it holds for this section; the channels you leave unset aren't written by it. These don't show in the preview, so check them on the real lights.</p>
+                <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
+              </>
             )}
           </Group>
 

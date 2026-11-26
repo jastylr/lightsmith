@@ -9,6 +9,7 @@ import {
   patternSpeedOf,
   copyLook,
   sectionJump,
+  extraChannels,
   generateSong,
   generateSet,
   normalizeProject,
@@ -100,7 +101,7 @@ import {
   type Section,
   type Song,
 } from "../src/core/index";
-import { BAR_QXF, MOVER_QXF, PAR_QXF, WORKSPACE_QXW } from "./fixtures";
+import { BAR_QXF, FX_MOVER_QXF, MOVER_QXF, PAR_QXF, WORKSPACE_QXW } from "./fixtures";
 
 const defs = () => {
   const m = new Map<string, FixtureDef>();
@@ -1351,4 +1352,27 @@ test("the Custom mood suggests nothing: one warm white, no pattern, still heads,
   assert.equal(m.label, "Custom");
   assert.deepEqual([m.colors, m.pattern, m.movement, m.colorChange], [["warmWhite"], "solid", "static", "hold"]);
   assert.equal(moodById("no-such-mood").id, "moody", "an unknown mood still falls back to Moody");
+});
+
+test("extra channels: only the ones Lightsmith leaves alone, and they export", () => {
+  const fx = buildProfile(parseFixtureDef(FX_MOVER_QXF), "11ch");
+  const extras = extraChannels(fx);
+  assert.deepEqual(extras.map((c) => c.name), ["Ring effect", "Ring speed"]);
+  assert.deepEqual(extras[0]!.capabilities.map((c) => c.name), ["No effect", "Chase", "Rainbow"]);
+  // Nothing extra on a fixture whose channels are all driven already.
+  assert.deepEqual(extraChannels(buildProfile(parseFixtureDef(MOVER_QXF), "8ch")), []);
+
+  const qxw = WORKSPACE_QXW.replace(/<Model>Spot Mover<\/Model>\s*<Mode>8ch<\/Mode>(\s*<ID>5<\/ID>[\s\S]*?<Channels>)8/, "<Model>FX Mover</Model><Mode>11ch</Mode>$111");
+  const ws = parseWorkspace(qxw);
+  const all = defs();
+  const d = parseFixtureDef(FX_MOVER_QXF);
+  all.set(fixtureKey(d.manufacturer, d.model), d);
+  const { profiles, missing } = matchProfiles(ws.fixtures, all);
+  assert.equal(missing.length, 0);
+  const rig = guessRig(ws.fixtures, profiles);
+  // Ring effect and speed are kept; pan (driven), reset and unused channels are not.
+  const s = { ...newSection("chorus", 120), extras: { "5": { "7": 140, "8": 300, "0": 10, "9": 200, "10": 5 } } };
+  generateSong({ ws, profiles, rig, song: { id: "x", title: "Extras", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.match(xml, /Name="Extra channels"[\s\S]*?<FixtureVal ID="5">7,140,8,255<\/FixtureVal>/);
 });

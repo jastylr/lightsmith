@@ -383,6 +383,12 @@ export interface Section {
   effectTargets?: Partial<Record<EffectId, number[]>>;
   transition: Transition;
   /**
+   * Channels set by hand on lights with more than Lightsmith drives (a ring,
+   * extra LEDs, a built-in effect): fixture ID → channel offset → value 0-255.
+   * Only the channels `extraChannels` offers are written.
+   */
+  extras?: Record<string, Record<string, number>>;
+  /**
    * How fast the backdrop's pattern runs: 1 is its usual pace, 2 twice as fast.
    * Missing: it follows the section's energy.
    */
@@ -582,6 +588,7 @@ export const LOOK_KEYS = [
   "pattern",
   "patternTargets",
   "patternSpeed",
+  "extras",
   "movement",
   "moverSpread",
   "moverBeats",
