@@ -46,6 +46,7 @@ export function Dropdown<T extends string>({
   label,
   className,
   placeholder,
+  arrowOnly,
 }: {
   value: T;
   options: Option<T>[];
@@ -54,6 +55,8 @@ export function Dropdown<T extends string>({
   className?: string;
   /** Shown when the value isn't one of the options (an action menu). */
   placeholder?: string;
+  /** Show only the arrow, next to something that already shows the value (the song title). */
+  arrowOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -100,7 +103,7 @@ export function Dropdown<T extends string>({
 
   let lastGroup: string | undefined;
   return (
-    <div className={`dropdown ${className ?? ""}`} ref={root}>
+    <div className={`dropdown ${arrowOnly ? "arrow-only " : ""}${className ?? ""}`} ref={root}>
       <button
         type="button"
         className="dropdown-button"
@@ -108,12 +111,13 @@ export function Dropdown<T extends string>({
         aria-expanded={open}
         aria-controls={id}
         aria-label={`${label}: ${current?.label ?? ""}`}
+        title={arrowOnly ? label : undefined}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKey}
       >
-        {current?.icon}
-        {current?.swatches && <Swatches colors={current.swatches} />}
-        <span className={current ? "dropdown-value" : "dropdown-value placeholder"}>{current?.label ?? placeholder}</span>
+        {!arrowOnly && current?.icon}
+        {!arrowOnly && current?.swatches && <Swatches colors={current.swatches} />}
+        {!arrowOnly && <span className={current ? "dropdown-value" : "dropdown-value placeholder"}>{current?.label ?? placeholder}</span>}
         <Icon name="chevronDown" size={16} className="dropdown-chevron" />
       </button>
       {open && (

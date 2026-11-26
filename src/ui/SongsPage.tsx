@@ -302,14 +302,24 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   return (
     <section className="page songs">
       <header className="song-head">
-        <div className="song-pick song-switch-narrow">
-          <Dropdown label="Song" value={song.id} options={songs.map((s) => ({ value: s.id, label: s.title || "Untitled song" }))} onChange={setSongId} className="song-switch" />
-        </div>
         <div className="song-line">
-          {/* The hidden copy of the title sizes the box to the text. */}
-          <span className="song-title-wrap" data-value={song.title || "Song title"}>
-            <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" size={1} />
-          </span>
+          {/* The title is typed in place; the arrow beside it switches songs (the same list as the sidebar's). */}
+          <div className="song-name">
+            {/* The hidden copy of the title sizes the box to the text. */}
+            <span className="song-title-wrap" data-value={song.title || "Song title"}>
+              <input className="song-title" aria-label="Song title" value={song.title} onChange={(e) => set({ title: e.target.value })} placeholder="Song title" size={1} />
+            </span>
+            {songs.length > 1 && (
+              <Dropdown
+                arrowOnly
+                label="Switch to another song"
+                value={song.id}
+                options={songs.map((s) => ({ value: s.id, label: s.title || "Untitled song", description: songLength(s) }))}
+                onChange={setSongId}
+                className="song-switch"
+              />
+            )}
+          </div>
           <div className="song-actions">
             <button type="button" className="icon-button" onClick={() => setSongId(store.addSong())} aria-label="Add a song" title="Add a song">
               <Icon name="plus" size={17} />
@@ -2355,3 +2365,9 @@ const CardNav = forwardRef<
     </div>
   );
 });
+
+/** A song's length as the sidebar shows it, such as 3:59. */
+function songLength(song: Song): string {
+  const sec = Math.round(song.sections.reduce((t, x) => t + sectionMs(x), 0) / 1000);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}

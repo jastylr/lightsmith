@@ -1081,13 +1081,34 @@ li.bad .fx-source {
   gap: 1rem 1.5rem;
   flex-wrap: wrap;
 }
-.song-pick {
+.song-name {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.15rem;
+  /* At least as wide as the Sections column below, so the icons after it line up
+     with the section editor; longer titles grow it. */
+  min-width: var(--cue-col);
+  max-width: 100%;
 }
-.song-switch-narrow {
-  display: none;
+/* The arrow beside the title that switches songs. */
+.dropdown.arrow-only .dropdown-button {
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  justify-content: center;
+  border-color: transparent;
+  background: transparent;
+}
+.dropdown.arrow-only .dropdown-button:hover,
+.dropdown.arrow-only .dropdown-button[aria-expanded="true"] {
+  border-color: var(--line);
+  background: var(--raised);
+}
+.dropdown.arrow-only .dropdown-chevron {
+  margin: 0;
+}
+.song-switch .dropdown-list {
+  min-width: 260px;
 }
 .song-actions {
   display: flex;
@@ -1161,14 +1182,9 @@ li.bad .fx-source {
   background: rgba(242, 167, 59, 0.12);
   color: var(--tungsten-hi);
 }
-.song-switch {
-  width: 260px;
-}
 .song-title-wrap {
   display: inline-grid;
-  /* At least as wide as the Sections column below, so the icons line up
-     with the section editor; longer titles grow the box. */
-  min-width: var(--cue-col);
+  min-width: 0;
   max-width: 100%;
 }
 .song-title-wrap::after {
@@ -2290,9 +2306,6 @@ body.is-resizing * {
   .rail-text small,
   .rail-songs {
     display: none;
-  }
-  .song-switch-narrow {
-    display: flex;
   }
   .rail-steps {
     flex-direction: row;
@@ -4262,6 +4275,16 @@ body.is-resizing * {
 .undo-button.save-button {
   flex-basis: 100%;
 }
+/* In the top bar of a narrow window they all fit on one row. */
+@media (max-width: 980px) {
+  .undo-bar {
+    flex-wrap: nowrap;
+  }
+  .undo-button.new-button,
+  .undo-button.save-button {
+    flex-basis: auto;
+  }
+}
 .card-link.all {
   --accent: var(--tungsten);
 }
@@ -4847,10 +4870,6 @@ body.is-scrubbing * {
 .rail-collapsed .rail-num-icon {
   display: grid;
 }
-/* With the song list folded away, the song picker shows in the page instead. */
-.rail-collapsed .song-switch-narrow {
-  display: flex;
-}
 }
 /* The handle on the sidebar's edge, and the Collapse button at its foot. */
 .shell {
@@ -5054,6 +5073,17 @@ body.is-scrubbing * {
 .lcd-cell:last-child {
   border-right: 0;
 }
+/* The big counters keep their width; the section name gives way (it trims with an ellipsis). */
+.lcd-cell.lcd-pos,
+.lcd-cell.lcd-time,
+.lcd-cell.lcd-small {
+  flex-shrink: 0;
+}
+@media (max-width: 1180px) {
+  .lcd-cell {
+    padding: 0.35rem 0.6rem;
+  }
+}
 .lcd-cell strong,
 .lcd-digits {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -5130,7 +5160,8 @@ body.is-scrubbing * {
 /* The transport shares the song's title line. */
 .song-line .transport-slot {
   flex: 1 1 640px;
-  min-width: 0;
+  /* Wide enough for the counters; with less room it moves under the title instead of squashing them. */
+  min-width: min(100%, 780px);
 }
 .lcd-row {
   display: flex;
