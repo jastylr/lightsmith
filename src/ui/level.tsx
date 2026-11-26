@@ -13,7 +13,7 @@ const RANK: Record<Level, number> = { simple: 0, full: 1 };
 export const atLeast = (level: Level, min: Level) => RANK[level] >= RANK[min];
 
 const KEY = "lightsmith.level.v1";
-const LevelContext = createContext<{ level: Level; setLevel: (l: Level) => void }>({ level: "standard", setLevel: () => undefined });
+const LevelContext = createContext<{ level: Level; setLevel: (l: Level) => void }>({ level: "full", setLevel: () => undefined });
 
 /** New users start on Simple; anyone who already has songs starts on Full, so nothing disappears. */
 function initialLevel(): Level {
