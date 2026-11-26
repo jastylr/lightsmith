@@ -23,6 +23,7 @@ import {
   qlcInputChannel,
   triggerLabel,
   textOf,
+  INFINITE,
   type ShowControl,
   type Trigger,
   SET_FRAME,
@@ -1158,4 +1159,38 @@ test("section lengths snap to bars, beats, or not at all", () => {
   assert.equal(barsForLength(20, s, "off") * 2000, 100, "at least 100 ms");
   assert.equal(lengthLabel({ bars: 4.25, beatsPerBar: 4 }), "4 bars + 1 beat");
   assert.equal(lengthLabel({ bars: free, beatsPerBar: 4 }), "4 bars + 2.6 beats");
+});
+
+test("linked sections: one cue plays a section and goes straight into the ones linked after it", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const secs = sectionsFromTemplate("short", 120).slice(0, 4);
+  // Sections 2 and 3 are one chorus in two halves: the first half goes straight into the second.
+  secs[1] = { ...secs[1]!, name: "Chorus A", autoAdvance: true, bars: 4 };
+  secs[2] = { ...secs[2]!, name: "Chorus B", autoAdvance: false };
+  const song = { ...newSong("Linked", 120), sections: secs };
+  const r = generateSong({ ws, profiles, rig, song, buttons: false });
+  assert.equal(r.startIds[0], r.sectionIds[0], "an unlinked section starts on its own");
+  assert.notEqual(r.startIds[1], r.sectionIds[1], "a linked section starts a chain");
+  assert.equal(r.startIds[2], r.sectionIds[2], "the chain's last section starts on its own when jumped to");
+  const xml = serializeWorkspace(ws);
+  const again = parseWorkspace(xml);
+  const chain = childElements(again.engine, "Function").find((f) => getAttr(f, "ID") === String(r.startIds[1]))!;
+  assert.equal(getAttr(chain, "Type"), "Chaser");
+  const steps = childElements(chain, "Step");
+  assert.deepEqual(steps.map((st) => textOf(st)), [String(r.sectionIds[1]), String(r.sectionIds[2])]);
+  assert.equal(getAttr(steps[0]!, "Hold"), String(8000), "4 bars of 4/4 at 120 BPM");
+  assert.equal(getAttr(steps[1]!, "Hold"), String(INFINITE), "the last part holds until the next cue");
+  assert.deepEqual(checkWorkspace(again, profiles, PATH_ROOT).filter((i) => i.level === "error"), []);
+  // The set's buttons start the chains too.
+  generateSet({ ws: again, profiles, rig, songs: [song] });
+  const frame = (function find(e: XmlElement): XmlElement | undefined {
+    for (const c of childElements(e)) if (getAttr(c, "Caption") === SET_FRAME) return c; else { const f = find(c); if (f) return f; }
+    return undefined;
+  })(again.virtualConsole!)!;
+  const chorusA = childElements(frame, "Button").find((x) => getAttr(x, "Caption") === "2. Chorus A")!;
+  const fid = getAttr(firstChild(chorusA, "Function")!, "ID");
+  const fn = childElements(again.engine, "Function").find((f) => getAttr(f, "ID") === fid)!;
+  assert.equal(getAttr(fn, "Type"), "Chaser");
 });

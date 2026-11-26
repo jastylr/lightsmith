@@ -243,7 +243,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
                       <td className={t ? "" : "missing"}>
                         {t ? triggerText(t, control) : "No trigger"}
                         {s.trigger && <small> (its own)</small>}
-                        {s.autoAdvance && <small> · moves on by itself</small>}
+                        {s.autoAdvance && i < song.sections.length - 1 && <small> · goes straight into {song.sections[i + 1]!.name}</small>}
                       </td>
                     </tr>
                   );

@@ -194,6 +194,21 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     set({ sections: [...song.sections.slice(0, i + 1), copy, ...song.sections.slice(i + 1)] });
     setSelected(copy.id);
   };
+  /**
+   * Split a section into two linked halves: the same look, the first going
+   * straight into the second, so the cue that started the whole section
+   * still plays both. Chasers and lightning stay with the first half, since
+   * they're timed from the start; the second half can then get its own look.
+   */
+  const split = (s: Section) => {
+    const i = song.sections.findIndex((x) => x.id === s.id);
+    const half = s.bars / 2;
+    const base = s.name.replace(/ \(1 of 2\)$/, "");
+    const first: Section = { ...s, bars: half, name: `${base} (1 of 2)`, autoAdvance: true };
+    const second: Section = { ...s, id: newId("sec"), bars: half, name: `${base} (2 of 2)`, trigger: undefined, sequences: [], effects: { ...s.effects, lightning: false }, colors: [...s.colors], transition: "snap", autoAdvance: s.autoAdvance };
+    set({ sections: [...song.sections.slice(0, i), first, second, ...song.sections.slice(i + 1)] });
+    setSelected(second.id);
+  };
   /** Copy a section's individual light settings to every section of its type, or the whole song. */
   const copyLights = (from: Section, scope: "type" | "song") => {
     const own = from.lights ?? {};
@@ -356,17 +371,17 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             onDropAudio={(f) => void attachAudio(f)}
             recording={(ctx) => <RecordingControls {...ctx} audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
             sequences={store.project.sequences ?? []}
-            song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
+            song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onLink={(id, on) => setSection(id, { autoAdvance: on })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
                 <h2>Sections</h2>
                 <span>Drag to reorder</span>
               </div>
-              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onDelete={remove} gesture={gesture} />
+              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} />
+              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -501,6 +516,7 @@ function Timeline({
   onSelect,
   onMove,
   onResize,
+  onLink,
   onDelete,
   addButton,
   gesture,
@@ -527,6 +543,8 @@ function Timeline({
   onSelect: (id: string) => void;
   onMove: (a: number, b: number) => void;
   onResize: (id: string, bars: number) => void;
+  /** Link a section to the next (it goes straight into it, so one cue plays both), or unlink it. */
+  onLink: (id: string, on: boolean) => void;
   onDelete: (s: Section) => void;
   addButton: ReactNode;
   gesture: Gesture;
@@ -930,6 +948,30 @@ function Timeline({
                 );
               })}
             </div>
+            {/* Links between sections: a linked section goes straight into the next, so one cue plays both. */}
+            <div className="links">
+              {song.sections.slice(0, -1).map((s, i) => {
+                let x = 0;
+                for (let k = 0; k <= i; k++) x += (sectionMs(song.sections[k]!) / 1000) * scale;
+                const next = song.sections[i + 1]!;
+                const on = !!s.autoAdvance;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={on ? "link-toggle on" : "link-toggle"}
+                    style={{ left: x - 1.5 }}
+                    aria-pressed={on}
+                    aria-label={on ? `${s.name} goes straight into ${next.name}. Unlink them` : `Link ${s.name} to ${next.name}, so one cue plays both`}
+                    title={on ? `Linked: ${next.name} starts straight after ${s.name}, so one cue plays both. Click to unlink.` : `Link ${s.name} to ${next.name}: one cue plays both, ${next.name} starting straight after.`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => onLink(s.id, !on)}
+                  >
+                    <Icon name="link" size={12} />
+                  </button>
+                );
+              })}
+            </div>
             {audio && <WaveLane audio={audio} track={audioTrack} scale={scale} sections={song.sections} onSeek={seek} onOffset={onOffset} onPick={onPickAudio} gesture={gesture} />}
             <div className={scrubbing ? "playhead scrubbing" : "playhead"} style={{ left: (pos / 1000) * scale }}>
               <span className="playhead-grip" onPointerDown={scrub} title="Drag to move the playhead" aria-hidden="true" />
@@ -992,7 +1034,7 @@ function Timeline({
   );
 }
 
-function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete, gesture }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDuplicate: (s: Section) => void; onDelete: (s: Section) => void; gesture: Gesture }) {
+function CueList({ song, selected, onSelect, onMove, onDuplicate, onSplit, onDelete, gesture }: { song: Song; selected: string | null; onSelect: (id: string) => void; onMove: (a: number, b: number) => void; onDuplicate: (s: Section) => void; onSplit: (s: Section) => void; onDelete: (s: Section) => void; gesture: Gesture }) {
   const keys = song.sections.map((s) => s.id);
   const { dragging, itemRef, handle } = useSortable(keys, onMove, "y", gesture);
   return (
@@ -1021,12 +1063,21 @@ function CueList({ song, selected, onSelect, onMove, onDuplicate, onDelete, gest
               <strong>{s.name}</strong>
               <small>
                 {isBlackout(s) ? "All lights off" : moodById(s.mood).label}, {fmt(sectionMs(s))}
+                {s.autoAdvance && i < song.sections.length - 1 && (
+                  <span className="cue-linked" title={`Goes straight into ${song.sections[i + 1]!.name}: one cue plays both`}>
+                    {" "}
+                    <Icon name="link" size={11} /> linked
+                  </span>
+                )}
               </small>
             </span>
             <Icon name="chevronRight" size={16} className="cue-chevron" />
           </button>
           {/* Shown on hover and on the selected section. */}
           <span className="cue-actions">
+            <button type="button" className="cue-action" onClick={() => onSplit(s)} aria-label={`Split ${s.name} into two linked parts`} title="Split into two linked halves: same look, one cue plays both">
+              <Icon name="split" size={15} />
+            </button>
             <button type="button" className="cue-action" onClick={() => onDuplicate(s)} aria-label={`Duplicate ${s.name}`} title="Duplicate this section">
               <Icon name="copy" size={15} />
             </button>
@@ -1342,7 +1393,12 @@ function LookEditor({
   onView,
   names,
   chaserUses,
+  prevSection,
+  nextSection,
 }: {
+  /** The sections either side, for linking (going straight into the next). */
+  prevSection?: Section;
+  nextSection?: Section;
   chaserUses: Map<string, { song: string; section: string; sectionId: string }[]>;
   view: PreviewView;
   onView: (v: PreviewView) => void;
@@ -1482,7 +1538,7 @@ function LookEditor({
       changed: usedSequences.length > 0,
     },
     timing: {
-      summary: `${transitionLabel} · ${s.autoAdvance ? "moves on by itself" : "waits for your cue"}${triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
+      summary: `${transitionLabel} · ${s.autoAdvance && nextSection ? `goes straight into ${nextSection.name}` : prevSection?.autoAdvance ? `linked after ${prevSection.name}` : "waits for the next cue"}${triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
       changed: s.transition !== typeDefault || s.autoAdvance || !!s.trigger,
     },
   };
@@ -1938,16 +1994,25 @@ function LookEditor({
               />
             )}
             <h4 className="subhead">When this section ends…</h4>
-            <ChoiceCards
-              label="What happens when this section ends"
-              value={s.autoAdvance ? "auto" : "cue"}
-              onChange={(v) => onChange({ autoAdvance: v === "auto" })}
-              options={[
-                { value: "cue", title: "Wait for my cue", text: blackout ? "The lights stay off until you press the next button or footswitch." : "The look holds until you press the next button or footswitch. Best when the band doesn't play to a click." },
-                { value: "auto", title: `Move on after ${lengthLabel(s)}`, text: `The next section starts by itself after about ${fmt(sectionMs(s))}. Only use this when the timing is fixed, like a backing track or sample.` },
-              ]}
-            />
+            {nextSection ? (
+              <ChoiceCards
+                label="What happens when this section ends"
+                value={s.autoAdvance ? "auto" : "cue"}
+                onChange={(v) => onChange({ autoAdvance: v === "auto" })}
+                options={[
+                  { value: "cue", title: "Wait for the next cue", text: blackout ? "The lights stay off until the next cue." : "The look holds until the next cue starts the next section. Best when the band doesn't play to a click." },
+                  { value: "auto", title: `Go straight into ${nextSection.name}`, text: `Linked: ${nextSection.name} starts by itself after ${lengthLabel(s)} (about ${fmt(sectionMs(s))}), so one cue plays both. Use it to split a section into parts, or after a sample of fixed length.` },
+                ]}
+              />
+            ) : (
+              <p className="hint">This is the last section, so its look holds until the song ends.</p>
+            )}
             <h4 className="subhead">What starts it on stage</h4>
+            {prevSection?.autoAdvance && (
+              <p className="hint linked-note">
+                <Icon name="link" size={14} /> Linked: it starts straight after {prevSection.name}, so it needs no cue of its own. A trigger here only lets you jump straight to it.
+              </p>
+            )}
             <Field
               label="MIDI trigger"
               hint={

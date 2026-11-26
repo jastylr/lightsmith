@@ -4919,3 +4919,56 @@ body.is-scrubbing * {
 .rail-num-icon {
   display: none;
 }
+
+/* ------------------------------------------------------------- linked sections */
+.links {
+  position: absolute;
+  top: 26px;
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 4;
+}
+.link-toggle {
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.timeline-track:hover .link-toggle,
+.link-toggle:focus-visible {
+  opacity: 0.85;
+}
+.link-toggle:hover {
+  color: var(--text);
+  border-color: var(--tungsten);
+}
+.link-toggle.on {
+  opacity: 1;
+  color: var(--tungsten-ink);
+  background: var(--tungsten);
+  border-color: var(--tungsten);
+}
+.cue-linked {
+  color: var(--tungsten);
+  white-space: nowrap;
+}
+.cue-linked svg {
+  vertical-align: -1px;
+}
+.linked-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--tungsten);
+}

@@ -194,6 +194,11 @@ export interface GenerateSummary {
   songChaserId: number;
   /** The Collection for each section, in order. */
   sectionIds: number[];
+  /**
+   * What each section's button starts: its Collection, or, when it's linked to
+   * the sections after it, a chaser that plays it and goes straight into them.
+   */
+  startIds: number[];
   /** Triggers that couldn't be written, or clash. */
   controlNotes: string[];
 }
@@ -653,6 +658,19 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     sectionIds.push(b.collection(label, path, parts));
   });
 
+  // Linked sections: a section set to go straight into the next one plays it,
+  // and so on down the chain, from a single cue. Each button starts a chaser
+  // from its own section to the end of its chain, so jumping in partway works
+  // too; the chain's last section holds until the next cue.
+  const startIds = song.sections.map((s, i) => {
+    let end = i;
+    while (song.sections[end]?.autoAdvance && end + 1 < song.sections.length) end++;
+    if (end === i) return sectionIds[i]!;
+    const chain = song.sections.slice(i, end + 1);
+    const steps = chain.map((c, k) => ({ id: sectionIds[i + k]!, hold: k < chain.length - 1 ? Math.max(1, Math.round(sectionMs(c))) : INFINITE }));
+    return b.chaser(`${i + 1}. ${safeName(s.name)} → ${end + 1}. ${safeName(chain.at(-1)!.name)}`, `${songPath}/Linked`, steps, "SingleShot");
+  });
+
   const songChaserId = b.chaser(
     `${title} — song cues`,
     songPath,
@@ -671,7 +689,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   );
   removed += removeWhere(engine, (e) => e.name === "FixtureGroup" && textOf(firstChild(e, "Name")).trim().startsWith("Lightsmith: ") && !usedGroups.has(Number(getAttr(e, "ID"))));
 
-  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds, controlNotes: [] };
+  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds, startIds, controlNotes: [] };
   const inputs = new ControlInputs(ws, control);
 
   // 4. Virtual Console: a solo frame with one button per section.
@@ -706,7 +724,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     frame.children.push(
       el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++ }, [
         el("WindowState", { Visible: "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
-        el("Function", { ID: sectionIds[i]! }),
+        el("Function", { ID: startIds[i]! }),
         textEl("Action", "Toggle"),
         ...inputs.button(triggerFor(control, s, i), `${song.title}: ${s.name}`, song.title),
       ]),
@@ -714,7 +732,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   });
   spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, controlNotes: inputs.finish() };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, startIds, controlNotes: inputs.finish() };
 }
 
 /**
@@ -885,7 +903,7 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
       frame.children.push(
         el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++, ...(p ? { Page: p } : {}) }, [
           el("WindowState", page(10 + (i % perRow) * stepPx, 40 + Math.floor(i / perRow) * stepPx)),
-          el("Function", { ID: r.sectionIds[i]! }),
+          el("Function", { ID: r.startIds[i]! }),
           textEl("Action", "Toggle"),
           ...inputs.button(triggerFor(control, s, i), `“${song.title}”: ${s.name}`, scope),
         ]),
