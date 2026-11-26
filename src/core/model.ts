@@ -164,6 +164,23 @@ export function moverShapeAt(
  * section's own choice, or the movement's length at energy 3, sped up or
  * slowed down by the section's energy.
  */
+/** How fast the section's pattern runs: its own choice, or the pace its energy sets. */
+export function patternSpeedOf(s: Pick<Section, "patternSpeed" | "energy">): number {
+  return s.patternSpeed && s.patternSpeed > 0 ? s.patternSpeed : energyOf(s.energy).speed;
+}
+
+/**
+ * A section with another's look: everything a preset would keep is copied
+ * (settings the source leaves at their defaults go back to the defaults); the
+ * name, type, length, tempo, links and cue stay.
+ */
+export function copyLook(from: Section, to: Section): Section {
+  const next = applyLook(to, { id: "", name: "", type: from.type, look: lookOf(from) });
+  if (from.preset) next.preset = from.preset;
+  else delete next.preset;
+  return next;
+}
+
 export function moverCycleBeats(s: Pick<Section, "moverBeats" | "beatsPerBar" | "energy">, movementBars: number): number {
   if (s.moverBeats && s.moverBeats > 0) return s.moverBeats;
   return (movementBars * s.beatsPerBar) / energyOf(s.energy).speed;
@@ -366,6 +383,11 @@ export interface Section {
   effectTargets?: Partial<Record<EffectId, number[]>>;
   transition: Transition;
   /**
+   * How fast the backdrop's pattern runs: 1 is its usual pace, 2 twice as fast.
+   * Missing: it follows the section's energy.
+   */
+  patternSpeed?: number;
+  /**
    * How long a fade takes, in beats of this section. Missing: one beat for "fade",
    * four bars for "build" (the two fades there were before you could pick a length).
    */
@@ -559,6 +581,7 @@ export const LOOK_KEYS = [
   "brightness",
   "pattern",
   "patternTargets",
+  "patternSpeed",
   "movement",
   "moverSpread",
   "moverBeats",

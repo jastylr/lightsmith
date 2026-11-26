@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, DEFAULT_PAN_RANGE, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, DEFAULT_PAN_RANGE, patternSpeedOf, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -114,7 +114,7 @@ export function StagePreview({
     return { mood, en, pal, ids, pattern, period, beat, movement, level };
   }, [section]);
 
-  const { pal, pattern, period, beat, movement, level, en } = view;
+  const { pal, pattern, period, beat, movement, level } = view;
   const beam = section.beam ?? {};
   // Each kind of light's brightness (the section's own, or automatic); vis()
   // keeps dim lights visible on screen while still showing the difference.
@@ -212,7 +212,9 @@ export function StagePreview({
   };
 
   const family = FAMILY[pattern.id] ?? "random";
-  const cycle = Math.max(0.6, (beat * 4) / en.speed);
+  // The pattern's pace: its own speed, or the one its energy sets (as in the export).
+  const pSpeed = patternSpeedOf(section);
+  const cycle = Math.max(0.6, (beat * 4) / pSpeed);
   const barW = 8;
   const topY = 52;
   const cellH = 10.5;
@@ -245,7 +247,7 @@ export function StagePreview({
   /** Rain and snow are lightened towards white, as in the export. */
   const whiten = (c: string) => (pattern.whiten ? `color-mix(in srgb, ${c} ${Math.round((1 - pattern.whiten) * 100)}%, white)` : c);
   // Rain: streaks run down each bar, each bar at its own moment.
-  const stepT = ((pattern.stepMs ?? 90) / 1000) / en.speed;
+  const stepT = ((pattern.stepMs ?? 90) / 1000) / pSpeed;
   const rainDur = Math.max(0.6, stepT * cells * 2.2);
   const patternOn = new Set(patternTargets(section, rig));
 
@@ -629,7 +631,7 @@ export function StagePreview({
                             attributeName="opacity"
                             values={family === "strobe" ? `0;${peak};0;0` : family === "rain" ? `${peak};${peak * 0.35};0;0` : `0;${peak};0`}
                             keyTimes={family === "strobe" ? "0;0.05;0.15;1" : family === "rain" ? "0;0.12;0.3;1" : "0;0.35;1"}
-                            dur={`${family === "strobe" ? beat / en.speed : family === "rain" ? rainDur : cycle}s`}
+                            dur={`${family === "strobe" ? beat / pSpeed : family === "rain" ? rainDur : cycle}s`}
                             begin={`${-begin}s`}
                             repeatCount="indefinite"
                           />

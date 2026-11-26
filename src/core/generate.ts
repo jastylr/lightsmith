@@ -17,8 +17,8 @@ import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, typ
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
-import { fadeInMs, isBlackout, sectionMs } from "./model";
-import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
+import { fadeInMs, isBlackout, patternSpeedOf, sectionMs } from "./model";
+import { colorById, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, qlcMajorVersion, removeWhere, setMidiListen, writePlaces, type Workspace } from "./workspace";
@@ -436,10 +436,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const next = song.sections[idx + 1];
     const toBlack = next && isBlackout(next) ? (next.transition === "snap" ? 0 : (60000 / next.bpm) * next.beatsPerBar) : undefined;
     const mood = moodById(s.mood);
-    const en = energyOf(s.energy);
     const paletteIds = s.colors.length ? s.colors : mood.colors;
     const levels = lightLevels(s);
-    const speed = en.speed;
     const beat = 60000 / s.bpm;
     const bar = beat * s.beatsPerBar;
     const fade = fadeInMs(s);
@@ -507,7 +505,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
       if (patternGroup !== undefined && pattern.algorithm && jobs.has("backdrop")) {
         const single = pattern.whiten ? mix(pattern.floor > 0 ? accent : main, WHITE, pattern.whiten) : pattern.floor > 0 ? accent : main;
         const colors = pattern.colors === 0 ? [] : pattern.colors === 1 ? [single] : pattern.colors === 2 ? [main, accent] : pal.slice(0, 5);
-        const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / speed;
+        const stepMs = (pattern.stepMs ?? (pattern.stepBeats ?? 0.25) * beat) / patternSpeedOf(s);
         out.push(b.matrix(named(`Pattern: ${pattern.label.toLowerCase()}`), path, { algorithm: pattern.algorithm, colors, stepMs, group: patternGroup, direction: pattern.direction, order: pattern.order, props: pattern.props, fadeOut: toBlack }));
       }
 

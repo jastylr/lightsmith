@@ -23,6 +23,7 @@ import {
   recordingMs,
   timelineMs,
   applyLook,
+  copyLook,
   moverTiming,
   COLOR_JOBS,
   jobPalette,
@@ -428,7 +429,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} stageTransportRef={setStageTransportSlot} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+              <LookEditor key={current.id} stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -1511,7 +1512,12 @@ function LookEditor({
   previewSection,
   previewPlaying,
   stageTransportRef,
+  others,
+  onCopyLookTo,
 }: {
+  /** The song's other sections (not blackouts), to copy this look to. */
+  others?: Section[];
+  onCopyLookTo?: (ids: string[]) => void;
   /** Whether `previewSection` is there because the song is playing (or only picked in full screen). */
   previewPlaying?: boolean;
   /** Where the song's transport floats while the preview fills the screen. */
@@ -1650,7 +1656,12 @@ function LookEditor({
       summary: [s.focus === "all" ? "" : `Spotlight on ${lower(sideName[s.focus])}`, ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : ""].filter(Boolean).join(" · ") || "No focus; every light follows the settings above",
       changed: ownLights > 0 || s.focus !== "all",
     },
-    pattern: { summary: pattern.algorithm ? `${pattern.label} on ${patternTargets(s, rig).length} lights` : pattern.label, changed: s.pattern !== "solid" },
+    pattern: {
+      summary: pattern.algorithm
+        ? [`${pattern.label} on ${patternTargets(s, rig).length} lights`, s.patternSpeed ? (PATTERN_SPEEDS.find((x) => x.speed === s.patternSpeed)?.label.toLowerCase() ?? "") : ""].filter(Boolean).join(" · ")
+        : pattern.label,
+      changed: s.pattern !== "solid",
+    },
     movers: {
       summary: hasMovers
         ? [aimed?.name ?? "Home position", MOVEMENTS.find((m) => m.id === moveId)?.label ?? "", moveId !== "static" && s.moverBeats ? `${MOVER_SPEEDS.find((m) => m.beats === s.moverBeats)?.label.toLowerCase() ?? `${s.moverBeats} beats`}` : "", ...beamBits].filter(Boolean).join(" · ")
@@ -1870,7 +1881,7 @@ function LookEditor({
             onPlay={previewGone || popped ? () => onReplay(false) : undefined}
           />
           {/* Presets are whole looks, so they sit with the overall feel: on the Mood tab (and All). */}
-          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
+          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} others={others} onCopyTo={onCopyLookTo} />}
           {tab === "all" && (
             <div className="cards-bar">
               <button
@@ -1943,6 +1954,23 @@ function LookEditor({
 
           <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
+            {pattern.algorithm && (
+              <Field
+                label="Speed"
+                hint={
+                  s.patternSpeed
+                    ? `${PATTERN_SPEEDS.find((x) => x.speed === s.patternSpeed)?.hint ?? `${s.patternSpeed} times its usual pace`}, whatever the section's energy.`
+                    : `Auto follows the section's energy: ${lower(energyOf(s.energy).label)} energy runs it at ${energyOf(s.energy).speed === 1 ? "its usual pace" : `${energyOf(s.energy).speed}× its usual pace`}.`
+                }
+              >
+                <Segmented
+                  label="Pattern speed"
+                  value={s.patternSpeed ? String(s.patternSpeed) : "auto"}
+                  onChange={(v) => onChange({ patternSpeed: v === "auto" ? undefined : Number(v) })}
+                  options={[{ value: "auto", label: "Auto" }, ...PATTERN_SPEEDS.map((x) => ({ value: String(x.speed), label: x.label, title: x.hint }))]}
+                />
+              </Field>
+            )}
             {pattern.algorithm && sees("pattern", "full") && (
               <div className="runs-on">
                 <span>Runs on</span>
@@ -2219,6 +2247,14 @@ function LookEditor({
     </article>
   );
 }
+
+/** Pattern speeds: how many times its usual pace (Auto follows the section's energy). */
+const PATTERN_SPEEDS = [
+  { speed: 0.5, label: "Half", hint: "Half its usual pace" },
+  { speed: 1, label: "Normal", hint: "Its usual pace" },
+  { speed: 2, label: "Double", hint: "Twice its usual pace" },
+  { speed: 4, label: "Very fast", hint: "Four times its usual pace" },
+];
 
 /** Moving-head speeds: beats for one full movement. */
 const MOVER_SPEEDS = [

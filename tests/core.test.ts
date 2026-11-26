@@ -6,6 +6,8 @@ import {
   fixtureKey,
   focusLights,
   fadeInMs,
+  patternSpeedOf,
+  copyLook,
   sectionJump,
   generateSong,
   generateSet,
@@ -1313,4 +1315,32 @@ test("a medium circle keeps time on budget heads at a fast tempo", () => {
   assert.equal(at(1).slowed, true, "every beat is too quick, so it runs every 2");
   assert.equal(at(1).beats, 2);
   assert.equal(at(4, 2).slowed, false, "a huge circle every bar");
+});
+
+test("pattern speed: its own choice, or the pace its energy sets; written as the matrix's step time", () => {
+  const s = { ...newSection("verse", 120), pattern: "waves", energy: 2 }; // Low energy: 0.75
+  assert.equal(patternSpeedOf(s), 0.75);
+  assert.equal(patternSpeedOf({ ...s, patternSpeed: 2 }), 2);
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "p", title: "Pace", bpm: 120, sections: [{ ...s, patternSpeed: 2 }] } });
+  // Waves step every quarter beat (125 ms at 120 BPM); twice as fast is 62.5 ms.
+  const m = serializeWorkspace(ws).match(/Type="RGBMatrix"[\s\S]*?<\/Function>/)![0];
+  assert.match(m, /Duration="6[23]"/);
+});
+
+test("copying a look: everything a preset keeps, not the name, length, tempo or links", () => {
+  const from = { ...newSection("chorus", 138), name: "Chorus", mood: "fiery", colors: ["red", "amber"], pattern: "waves", patternSpeed: 2, focus: "SL" as const, preset: "pre1" };
+  const to = { ...newSection("chorus", 120), name: "Chorus copy", bars: 4, autoAdvance: true, pattern: "marquee", movement: "circle" };
+  const c = copyLook(from, to);
+  assert.equal(c.name, "Chorus copy");
+  assert.equal(c.bars, 4);
+  assert.equal(c.bpm, 120);
+  assert.equal(c.autoAdvance, true);
+  assert.equal(c.id, to.id);
+  assert.deepEqual([c.mood, c.colors, c.pattern, c.patternSpeed, c.focus, c.preset], ["fiery", ["red", "amber"], "waves", 2, "SL", "pre1"]);
+  assert.equal(c.movement, newSection("chorus", 120).movement, "what the source leaves at the default goes back to the default");
+  c.colors.push("blue");
+  assert.deepEqual(from.colors, ["red", "amber"], "a copy, not shared");
 });

@@ -5329,3 +5329,49 @@ body.is-scrubbing * {
     opacity: 1;
   }
 }
+
+/* "Copy this look to…": a list of the song's other sections to tick. */
+.copy-look {
+  position: relative;
+}
+.copy-look-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  width: 17rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--raised);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.copy-look-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.copy-look-pop ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow: auto;
+}
+.copy-look-pop label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.2rem;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.copy-look-pop label:hover {
+  background: var(--house);
+}
+.copy-look-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.6rem;
+}
