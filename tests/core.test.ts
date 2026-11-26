@@ -74,6 +74,7 @@ import {
   matchProfiles,
   MOVEMENTS,
   MOODS,
+  moodById,
   lightLevels,
   sitsOut,
   FOCUS_DIM,
@@ -1343,4 +1344,11 @@ test("copying a look: everything a preset keeps, not the name, length, tempo or 
   assert.equal(c.movement, newSection("chorus", 120).movement, "what the source leaves at the default goes back to the default");
   c.colors.push("blue");
   assert.deepEqual(from.colors, ["red", "amber"], "a copy, not shared");
+});
+
+test("the Custom mood suggests nothing: one warm white, no pattern, still heads, steady colors", () => {
+  const m = moodById("custom");
+  assert.equal(m.label, "Custom");
+  assert.deepEqual([m.colors, m.pattern, m.movement, m.colorChange], [["warmWhite"], "solid", "static", "hold"]);
+  assert.equal(moodById("no-such-mood").id, "moody", "an unknown mood still falls back to Moody");
 });

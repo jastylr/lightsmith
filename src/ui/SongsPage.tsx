@@ -1909,10 +1909,10 @@ function LookEditor({
             {(() => {
               // The mood is a starting point: each of these follows it until you set it in its tab.
               const parts = [
-                { tab: "colors", label: "Colors", follows: s.colors.length === 0 },
-                { tab: "colors", label: "Color changes", follows: s.colorChange === "mood" },
-                { tab: "pattern", label: "Pattern", follows: s.pattern === "mood" },
-                { tab: "movers", label: "Movement", follows: s.movement === "mood", hide: !hasMovers },
+                { tab: "colors", label: "Colors", plain: "one warm white", follows: s.colors.length === 0 },
+                { tab: "colors", label: "Color changes", plain: "steady", follows: s.colorChange === "mood" },
+                { tab: "pattern", label: "Pattern", plain: "none", follows: s.pattern === "mood" },
+                { tab: "movers", label: "Movement", plain: "still heads", follows: s.movement === "mood", hide: !hasMovers },
               ].filter((x) => !x.hide);
               const link = (x: (typeof parts)[number]) => (
                 <button key={x.label} type="button" className="link small" onClick={() => pickTab(x.tab)}>
@@ -1922,6 +1922,20 @@ function LookEditor({
               const follow = parts.filter((x) => x.follows);
               const own = parts.filter((x) => !x.follows);
               const list = (xs: typeof parts) => xs.flatMap((x, i) => [i ? (i === xs.length - 1 ? " and " : ", ") : "", link(x)]);
+              if (s.mood === "custom")
+                return (
+                  <p className="hint mood-parts">
+                    {follow.length ? (
+                      <>
+                        Custom suggests nothing, so these stay plain until you set them: {follow.flatMap((x, i) => [i ? (i === follow.length - 1 ? " and " : ", ") : "", link(x), ` (${x.plain})`])}.{" "}
+                      </>
+                    ) : (
+                      <>Every part of this look is your own. </>
+                    )}
+                    {own.length ? <>Your own: {list(own)}. </> : null}
+                    Energy sets the brightness and pace.
+                  </p>
+                );
               return (
                 <p className="hint mood-parts">
                   {follow.length ? <>From the mood: {list(follow)}. </> : <>Nothing follows the mood any more; it still sets brightness with the energy. </>}

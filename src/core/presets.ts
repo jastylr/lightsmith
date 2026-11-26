@@ -219,6 +219,9 @@ export interface MoodPreset {
 const WASH_AND_ACCENT = { backdrop: 0, side: 0, mover: 1 } as const;
 
 export const MOODS: MoodPreset[] = [
+  // No suggestions: a plain warm-white wash, no pattern, still heads, steady
+  // colors. For building a look of your own from scratch.
+  { id: "custom", group: "Start from scratch", label: "Custom", description: "No suggestions: a plain warm-white wash and still heads, to build your own look", colors: ["warmWhite"], intensity: 0.7, pattern: "solid", side: "static", movement: "static", colorChange: "hold" },
   { id: "dark", label: "Dark", description: "Low light, deep blues, almost no motion", colors: ["indigo", "blue"], intensity: 0.35, pattern: "drift", side: "static", movement: "static", colorChange: "hold" },
   { id: "moody", label: "Moody", description: "Solemn violet and blue, slow movement", colors: ["violet", "blue"], intensity: 0.55, pattern: "slowWaves", side: "static", movement: "sweep", colorChange: "hold" },
   { id: "calm", label: "Calm", description: "Soft warm light, steady and gentle", colors: ["warmWhite", "amber"], intensity: 0.5, pattern: "solid", side: "static", movement: "static", colorChange: "hold" },
@@ -237,7 +240,7 @@ export const MOODS: MoodPreset[] = [
 ];
 
 export function moodById(id: string): MoodPreset {
-  return MOODS.find((m) => m.id === id) ?? MOODS[1]!;
+  return MOODS.find((m) => m.id === id) ?? MOODS.find((m) => m.id === "moody")!;
 }
 
 // ---------------------------------------------------------------- section types and energy
