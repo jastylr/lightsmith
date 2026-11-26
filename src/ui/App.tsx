@@ -11,6 +11,7 @@ import { StagePage } from "./StagePage";
 import { SongsPage } from "./SongsPage";
 import { ExportPage } from "./ExportPage";
 import { ShowControlPage } from "./ShowControlPage";
+import { hasWork, startNewProject } from "./newProject";
 
 type StepId = "import" | "stage" | "songs" | "control" | "export";
 
@@ -19,6 +20,10 @@ export function App() {
   const ready = store.fixtures.length > 0;
   const [step, setStep] = useState<StepId>(ready ? "songs" : "import");
   const [songId, setSongId] = useState<string>(store.project.songs[0]?.id ?? "");
+  // Without a show file only the first step is open (after starting a new project, say).
+  useEffect(() => {
+    if (!ready && step !== "import") setStep("import");
+  }, [ready, step]);
 
   // The sidebar folds down to a strip of icons, for more room on the page. Remembered.
   const [collapsed, setCollapsedNow] = useState(rememberedRail);
@@ -91,6 +96,16 @@ export function App() {
           </button>
           <button type="button" className="undo-button" onClick={redo} disabled={!store.canRedo} title={`Redo (${mac ? "⇧⌘Z" : "Ctrl+Y"})`} aria-label="Redo">
             <Icon name="redo" size={15} /> <span className="rail-hide">Redo</span>
+          </button>
+          <button
+            type="button"
+            className="undo-button new-button"
+            onClick={() => void startNewProject(store)}
+            disabled={!hasWork(store)}
+            title="Start a new, empty project (you can save this one first)"
+            aria-label="New project"
+          >
+            <Icon name="plus" size={15} /> <span className="rail-hide">New project</span>
           </button>
           <button
             type="button"

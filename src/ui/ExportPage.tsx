@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { checkWorkspace, generateSet, generateSong, moodById, parseWorkspace, PATH_ROOT, sectionMs, serializeWorkspace, setOrder, songPathFor, type GenerateSummary, type Issue, type SetSummary, type Song } from "../core";
 import { cssColor } from "./ColorPicker";
 import { Dropdown, Segmented } from "./controls";
-import { askConfirm } from "./ConfirmDialog";
+import { startNewProject } from "./newProject";
 import { Icon } from "./icons";
 import { download, type Store } from "./store";
 
@@ -213,17 +213,10 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
             <Icon name="download" size={16} /> Save project file
           </button>
           <button
-            className="ghost danger"
-            onClick={() => {
-              void askConfirm({
-                title: "Clear everything?",
-                message: "Your show file, fixture definitions, stage and songs will be removed from this browser. This can't be undone, so download a project file first if you want to keep it.",
-                confirmLabel: "Clear everything",
-                danger: true,
-              }).then((ok) => ok && store.resetAll());
-            }}
+            className="ghost"
+            onClick={() => void startNewProject(store)}
           >
-            <Icon name="reset" size={16} /> Start over
+            <Icon name="plus" size={16} /> New project
           </button>
         </div>
       </section>

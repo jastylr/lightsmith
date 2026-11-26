@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 
 export interface ConfirmRequest {
   title: string;
@@ -7,6 +7,8 @@ export interface ConfirmRequest {
   /** The confirm button's label, such as "Delete section". */
   confirmLabel: string;
   danger?: boolean;
+  /** A third button that does something without closing the dialog, such as saving a copy first. */
+  extra?: { label: string; doneLabel?: string; icon?: IconName; run: () => void };
 }
 
 type Open = (req: ConfirmRequest & { resolve: (ok: boolean) => void }) => void;
@@ -66,9 +68,11 @@ export function ConfirmHost() {
             e.preventDefault();
             close(false);
           } else if (e.key === "Tab") {
-            // Keep focus on the two buttons.
+            // Keep focus on the dialog's buttons.
             e.preventDefault();
-            (document.activeElement === confirmBtn.current ? cancelBtn : confirmBtn).current?.focus();
+            const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>(".dialog-actions button")];
+            const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+            buttons[(i + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus();
           }
         }}
       >
@@ -81,6 +85,7 @@ export function ConfirmHost() {
             {req.message}
           </div>
           <div className="dialog-actions">
+            {req.extra && <ExtraButton extra={req.extra} />}
             <button ref={cancelBtn} type="button" className="ghost" onClick={() => close(false)}>
               Cancel
             </button>
@@ -91,5 +96,22 @@ export function ConfirmHost() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The dialog's third button: runs, then says it's done, and the dialog stays open. */
+function ExtraButton({ extra }: { extra: NonNullable<ConfirmRequest["extra"]> }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="ghost dialog-extra"
+      onClick={() => {
+        extra.run();
+        setDone(true);
+      }}
+    >
+      <Icon name={done ? "check" : (extra.icon ?? "download")} size={15} /> {done ? (extra.doneLabel ?? "Done") : extra.label}
+    </button>
   );
 }

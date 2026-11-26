@@ -53,7 +53,7 @@ function save(key: string, value: unknown) {
   }
 }
 
-const emptyProject = (): Project => ({ version: 1, rig: { fixtures: [] }, songs: [newSong("My first song", 120)] });
+export const emptyProject = (): Project => ({ version: 1, rig: { fixtures: [] }, songs: [newSong("My first song", 120)] });
 
 // ---------------------------------------------------------------- fixture library
 
@@ -250,8 +250,13 @@ export function useLightsmith() {
     const added = [...defs.values()].filter((d) => d.source === "added").map((d) => ({ name: `${d.def.manufacturer}-${d.def.model}.qxf`.replace(/[\\/:*?"<>|]/g, "-"), xml: d.xml }));
     return { name: projectFileName(workspace?.name), text: bundleProject(project, workspace, added) };
   }, [defs, project, workspace]);
+  /** A new, empty project. Undo history goes too: undoing back into the old project without its show file would only confuse. */
   const resetAll = useCallback(() => {
-    setProject(emptyProject());
+    const fresh = emptyProject();
+    history.current = new UndoHistory<Project>(50);
+    current.current = fresh;
+    setProjectState(fresh);
+    setHistoryTick((t) => t + 1);
     setWorkspace(null);
     setDefs(new Map());
   }, []);

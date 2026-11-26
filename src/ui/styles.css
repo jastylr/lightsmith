@@ -2590,6 +2590,16 @@ body.is-resizing * {
   gap: 0.5rem;
   margin-top: 1.2rem;
 }
+.dialog-actions button {
+  white-space: nowrap;
+}
+/* A third choice (such as saving a copy first) sits apart, on the left. */
+.dialog-extra {
+  margin-right: auto;
+}
+.dialog:has(.dialog-extra) {
+  width: min(520px, 100%);
+}
 .danger-solid {
   border: 1px solid #c4473a;
   background: #c4473a;
@@ -4248,6 +4258,7 @@ body.is-resizing * {
 .undo-bar {
   flex-wrap: wrap;
 }
+.undo-button.new-button,
 .undo-button.save-button {
   flex-basis: 100%;
 }
