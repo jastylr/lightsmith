@@ -25,6 +25,8 @@ import {
   textOf,
   INFINITE,
   stepCuesFor,
+  musicalPosition,
+  msForBar,
   type ShowControl,
   type Trigger,
   SET_FRAME,
@@ -1240,4 +1242,28 @@ test("step cueing: each song is a cue list that any of its cues moves on one sec
   const old = parseWorkspace(WORKSPACE_QXW.replace(/<Version>[^<]*<\/Version>/, "<Version>4.14.4</Version>"));
   const sum = generateSet({ ws: old, profiles, rig, songs: [a], control });
   assert.ok(sum.controlNotes.some((n) => /QLC\+ 4/.test(n)), sum.controlNotes.join(" | "));
+});
+
+test("the transport counts bars, beats and sixteenths through sections of different tempos", () => {
+  const secs = [
+    { bars: 4, bpm: 120, beatsPerBar: 4 }, // 8 s
+    { bars: 2, bpm: 60, beatsPerBar: 3 }, // 6 s, in 3/4
+  ];
+  assert.deepEqual(musicalPosition(secs, 0), { bar: 1, beat: 1, sixteenth: 1, section: 0, bpm: 120, beatsPerBar: 4 });
+  assert.equal(musicalPosition(secs, 2000).bar, 2, "a bar is 2 s at 120");
+  const p = musicalPosition(secs, 2875); // bar 2, beat 2 (from 2.5 s), 0.375 s in: the 4th sixteenth
+  assert.deepEqual([p.bar, p.beat, p.sixteenth], [2, 2, 4]);
+  const q = musicalPosition(secs, 8000 + 4000); // 4 s into the 3/4 section: bar 6, beat 2
+  assert.deepEqual([q.bar, q.beat, q.section, q.beatsPerBar], [6, 2, 1, 3]);
+  assert.equal(musicalPosition(secs, 20000).section, 1, "past the end, the last section carries on");
+  assert.equal(musicalPosition([], 2000, 120).bar, 2);
+});
+
+test("go to bar finds when a bar starts", () => {
+  const secs = [{ bars: 4, bpm: 120, beatsPerBar: 4 }, { bars: 2, bpm: 60, beatsPerBar: 3 }];
+  assert.equal(msForBar(secs, 1), 0);
+  assert.equal(msForBar(secs, 3), 4000);
+  assert.equal(msForBar(secs, 5), 8000, "the first bar of the second section");
+  assert.equal(msForBar(secs, 6), 11000);
+  for (const b of [1, 2, 4, 5, 6]) assert.equal(musicalPosition(secs, msForBar(secs, b)).bar, b);
 });

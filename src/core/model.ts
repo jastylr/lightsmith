@@ -854,6 +854,63 @@ export function lengthLabel(s: Pick<Section, "bars" | "beatsPerBar">): string {
   return bars ? `${barText} + ${beatText}` : beatText;
 }
 
+/** Where a moment falls in a song, the way a DAW counts it: bar, beat and sixteenth (all from 1). */
+export interface MusicalPosition {
+  bar: number;
+  beat: number;
+  sixteenth: number;
+  /** The section playing then (the last one, past the end), or -1 with no sections. */
+  section: number;
+  bpm: number;
+  beatsPerBar: number;
+}
+
+/**
+ * The bar, beat and sixteenth at a time in the song. Bars are counted through
+ * the sections, each at its own tempo and time signature; past the last
+ * section (a recording that runs on) the count carries on at its tempo.
+ */
+export function musicalPosition(sections: Pick<Section, "bars" | "bpm" | "beatsPerBar">[], ms: number, fallbackBpm = 120): MusicalPosition {
+  if (!sections.length) {
+    const beats = Math.max(0, ms) / (60000 / fallbackBpm);
+    return { bar: Math.floor(beats / 4) + 1, beat: (Math.floor(beats) % 4) + 1, sixteenth: Math.floor((beats % 1) * 4) + 1, section: -1, bpm: fallbackBpm, beatsPerBar: 4 };
+  }
+  let t = Math.max(0, ms);
+  let bars = 0;
+  let i = 0;
+  for (; i < sections.length; i++) {
+    const s = sections[i]!;
+    const len = sectionMs(s);
+    if (t < len || i === sections.length - 1) break;
+    t -= len;
+    bars += s.bars;
+  }
+  const s = sections[i]!;
+  const beatMs = 60000 / s.bpm;
+  // Beats into this section; a tiny nudge so a time exactly on a beat isn't counted as the beat before.
+  const beatsIn = t / beatMs + 1e-9;
+  const barsIn = beatsIn / s.beatsPerBar;
+  // A section can end partway through a bar (free lengths): the next starts a new bar.
+  const bar = Math.floor(bars + 1e-9) + (bars % 1 > 1e-6 ? 1 : 0) + Math.floor(barsIn) + 1;
+  const beatInBar = beatsIn - Math.floor(barsIn) * s.beatsPerBar;
+  return { bar, beat: Math.floor(beatInBar) + 1, sixteenth: Math.floor((beatInBar % 1) * 4) + 1, section: i, bpm: s.bpm, beatsPerBar: s.beatsPerBar };
+}
+
+/** When a bar starts (bar 1 is the top of the song): the inverse of `musicalPosition`, for "go to bar". */
+export function msForBar(sections: Pick<Section, "bars" | "bpm" | "beatsPerBar">[], bar: number, fallbackBpm = 120): number {
+  let want = Math.max(0, Math.round(bar) - 1);
+  let t = 0;
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i]!;
+    // Whole bars this section counts (one more when it ends partway through a bar).
+    const whole = Math.ceil(s.bars - 1e-9);
+    if (want < whole || i === sections.length - 1) return t + want * (60000 / s.bpm) * s.beatsPerBar;
+    want -= whole;
+    t += sectionMs(s);
+  }
+  return want * (60000 / fallbackBpm) * 4;
+}
+
 /** How a section's length snaps when you drag or type it: to whole bars, to beats, or not at all. */
 export type Snap = "bar" | "beat" | "off";
 

@@ -4972,3 +4972,144 @@ body.is-scrubbing * {
   gap: 0.4rem;
   color: var(--tungsten);
 }
+
+/* ------------------------------------------------------------- transport bar */
+.transport-slot:empty {
+  display: none;
+}
+.transport-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.transport-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.transport-btn {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+}
+.transport-btn:hover:not(:disabled) {
+  border-color: var(--tungsten);
+}
+.transport-btn.play {
+  width: 3.4rem;
+  background: var(--tungsten);
+  border-color: var(--tungsten);
+  color: var(--tungsten-ink);
+}
+.transport-btn.play:hover:not(:disabled) {
+  background: var(--tungsten-hi);
+  border-color: var(--tungsten-hi);
+}
+.transport-btn.play.on {
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten-hi);
+}
+/* The display: dark glass, amber digits, like a DAW's LCD. */
+.lcd {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: #121014;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.lcd-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.35rem 1rem;
+  border-right: 1px solid #26222a;
+  min-width: 0;
+}
+.lcd-cell:last-child {
+  border-right: 0;
+}
+.lcd-cell strong,
+.lcd-digits {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--tungsten-hi);
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.lcd-label {
+  font-size: 0.68rem;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.lcd-pos .lcd-digits {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 1.9rem;
+  cursor: text;
+  text-align: left;
+}
+.lcd-pos .lcd-digits span:first-child {
+  min-width: 2.2ch;
+  text-align: right;
+}
+.lcd-pos .lcd-digits i {
+  font-style: normal;
+  color: rgba(255, 196, 107, 0.4);
+}
+.lcd-pos .lcd-digits:hover span:first-child {
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 196, 107, 0.4);
+  text-underline-offset: 4px;
+}
+.lcd-goto {
+  width: 7.5rem;
+  font: 600 1.6rem ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--tungsten-hi);
+  background: #1d1a20;
+  border: 1px solid var(--tungsten);
+  border-radius: var(--r-sm);
+  padding: 0 0.4rem;
+}
+.lcd-time strong {
+  font-size: 1.9rem;
+}
+.lcd-section {
+  flex: 1;
+  min-width: 6rem;
+}
+.lcd-section strong {
+  font-family: var(--font);
+  font-size: 1.15rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lcd-small strong {
+  font-size: 1.15rem;
+}
+@media (max-width: 900px) {
+  .lcd {
+    flex-wrap: wrap;
+  }
+  .lcd-pos .lcd-digits,
+  .lcd-time strong {
+    font-size: 1.4rem;
+  }
+}

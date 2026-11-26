@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLOR_CHANGES,
@@ -86,6 +87,7 @@ import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
+import { TransportBar } from "./Transport";
 import { loadAudioFile, useSongAudio, type AudioTrack } from "./songAudio";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
@@ -151,6 +153,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const filePick = useRef<HTMLInputElement>(null);
+  // Where the timeline puts its transport: above it, beside the song's tempo.
+  const [transportSlot, setTransportSlot] = useState<HTMLDivElement | null>(null);
   useEffect(() => setAudioError(null), [song?.id]);
 
   useEffect(() => {
@@ -239,7 +243,6 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     set({ sections: rest });
     setSelected(rest[Math.min(i, rest.length - 1)]?.id ?? null);
   };
-  const total = song.sections.reduce((t, s) => t + sectionMs(s), 0);
 
   /** Read a sound file into the song. Loading a different file than the one the project names asks first. */
   const attachAudio = async (file: File) => {
@@ -330,16 +333,9 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               />
             </label>
             <TapTempo label="Song tempo" onTempo={(bpm) => set({ bpm, sections: song.sections.map((s) => (s.bpm === song.bpm ? { ...s, bpm } : s)) })} />
-            <div className="stat">
-              <span>Length</span>
-              <strong>{fmt(total)}</strong>
-            </div>
-            <div className="stat">
-              <span>Sections</span>
-              <strong>{song.sections.length}</strong>
-            </div>
           </div>
         </div>
+        <div className="transport-slot" ref={setTransportSlot} />
       </header>
 
       {song.sections.length === 0 ? (
@@ -365,6 +361,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             }}
           />
           <Timeline
+            transportSlot={transportSlot}
             audioTrack={track}
             onOffset={setOffset}
             onPickAudio={() => filePick.current?.click()}
@@ -527,7 +524,10 @@ function Timeline({
   onPickAudio,
   onDropAudio,
   recording,
+  transportSlot,
 }: {
+  /** Where the transport bar goes (above the timeline, in the song's header). */
+  transportSlot: HTMLElement | null;
   /** The song's recording, if it has one: drawn under the blocks and played with the lights. */
   audioTrack: AudioTrack;
   onOffset: (ms: number) => void;
@@ -755,11 +755,15 @@ function Timeline({
   toggleRef.current = togglePlay;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat) return;
+      // Space plays and pauses; Return goes back to the start, as in most DAWs.
+      if ((e.code !== "Space" && e.key !== "Enter") || e.repeat) return;
       const t = e.target as HTMLElement;
       if (t.closest("input, textarea, select, button, [contenteditable], [role=radio], [role=checkbox], .lights-pop")) return;
+      // Return also opens a focused section, link or tab: leave those alone.
+      if (e.key === "Enter" && t.closest("a, [tabindex], [role=listitem], [role=tab]")) return;
       e.preventDefault();
-      toggleRef.current();
+      if (e.key === "Enter") seekRef.current(0);
+      else toggleRef.current();
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
@@ -1000,18 +1004,7 @@ function Timeline({
         {addButton}
       </div>
       <div className="timeline-foot">
-        <div className="transport" role="group" aria-label="Play the song">
-          <button type="button" className={playing ? "play-button on" : "play-button"} onClick={togglePlay} disabled={!song.sections.length} aria-label={playing ? "Pause" : "Play the song"} title={playing ? "Pause (Space)" : "Play the song (Space)"}>
-            <Icon name={playing ? "pause" : "play"} size={15} />
-            {playing ? "Pause" : "Play"}
-          </button>
-          <button type="button" className="ghost small" onClick={() => seek(0)} disabled={pos === 0} aria-label="Back to the start" title="Back to the start">
-            <Icon name="skipBack" size={14} />
-          </button>
-          <span className="transport-time">
-            {fmt(pos)} / {fmt(totalMs)}
-          </span>
-        </div>
+        {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} />, transportSlot)}
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">
