@@ -5073,6 +5073,13 @@ body.is-scrubbing * {
 .lcd-cell:last-child {
   border-right: 0;
 }
+/* Every cell's value sits in a band of the same height, centred, so the labels
+   under them line up across the display whatever size each value is. */
+.lcd-cell > :first-child {
+  height: 2.3rem;
+  display: flex;
+  align-items: center;
+}
 /* The big counters keep their width; the section name gives way (it trims with an ellipsis). */
 .lcd-cell.lcd-pos,
 .lcd-cell.lcd-time,
@@ -5138,9 +5145,14 @@ body.is-scrubbing * {
   flex: 1;
   min-width: 6rem;
 }
-.lcd-section strong {
+.lcd-cell.lcd-section > strong {
+  display: block;
+  line-height: 2.3rem;
+  white-space: nowrap;
   font-family: var(--font);
-  font-size: 1.15rem;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
