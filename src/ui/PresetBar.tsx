@@ -22,16 +22,11 @@ export function PresetBar({
   presets,
   onSection,
   onPresets,
-  others = [],
-  onCopyTo,
 }: {
   s: Section;
   presets: LookPreset[];
   onSection: (p: Partial<Section>) => void;
   onPresets: (next: LookPreset[]) => void;
-  /** The song's other sections this look can be copied to. */
-  others?: Section[];
-  onCopyTo?: (ids: string[]) => void;
 }) {
   const [naming, setNaming] = useState<string | null>(null);
   const from = s.preset ? presets.find((p) => p.id === s.preset) : undefined;
@@ -93,7 +88,6 @@ export function PresetBar({
           </button>
         </span>
       )}
-      {onCopyTo && others.length > 0 && naming === null && <CopyLook s={s} others={others} onCopy={onCopyTo} />}
       {from && naming === null && (
         <span className="preset-from">
           From <strong>{from.name}</strong>
@@ -113,7 +107,7 @@ export function PresetBar({
  * Copy this section's whole look onto other sections of the song, chosen from a
  * list. It asks first, since their own settings are replaced (undo brings them back).
  */
-function CopyLook({ s, others, onCopy }: { s: Section; others: Section[]; onCopy: (ids: string[]) => void }) {
+export function CopyLook({ s, others, onCopy }: { s: Section; others: Section[]; onCopy: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const root = useRef<HTMLDivElement>(null);

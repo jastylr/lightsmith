@@ -75,7 +75,7 @@ import { AddColor, cssColor, MAX_COLORS, PaletteEditor } from "./ColorPicker";
 import { makePosition, PositionEditor, unusedSuggestions } from "./PositionsCard";
 import { SequencesCard } from "./Sequences";
 import { atLeast, useLevel, type Level } from "./level";
-import { PresetBar } from "./PresetBar";
+import { CopyLook, PresetBar } from "./PresetBar";
 import { TriggerField, triggerText } from "./TriggerField";
 
 /**
@@ -1879,9 +1879,10 @@ function LookEditor({
               ) : null
             }
             onPlay={previewGone || popped ? () => onReplay(false) : undefined}
+            actions={!blackout && onCopyLookTo && others && others.length > 0 ? <CopyLook s={s} others={others} onCopy={onCopyLookTo} /> : null}
           />
           {/* Presets are whole looks, so they sit with the overall feel: on the Mood tab (and All). */}
-          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} others={others} onCopyTo={onCopyLookTo} />}
+          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
           {tab === "all" && (
             <div className="cards-bar">
               <button
@@ -2490,8 +2491,10 @@ const CardNav = forwardRef<
     mini: ReactNode;
     onPlay?: () => void;
     editing: ReactNode;
+    /** Actions on the whole section, beside its name (such as copying its look). */
+    actions?: ReactNode;
   }
->(function CardNav({ items, active, onJump, mini, onPlay, editing }, ref) {
+>(function CardNav({ items, active, onJump, mini, onPlay, editing, actions }, ref) {
   return (
     <div className={mini ? "card-nav with-mini" : "card-nav"} ref={ref}>
       {mini && (
@@ -2505,7 +2508,10 @@ const CardNav = forwardRef<
         </div>
       )}
       <div className="card-nav-main">
-      <div className="card-nav-editing" aria-live="polite">{editing}</div>
+      <div className="card-nav-head">
+        <div className="card-nav-editing" aria-live="polite">{editing}</div>
+        {actions}
+      </div>
       <div
         className="card-nav-links"
         role="tablist"

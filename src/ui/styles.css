@@ -5333,12 +5333,23 @@ body.is-scrubbing * {
 /* "Copy this look to…": a list of the song's other sections to tick. */
 .copy-look {
   position: relative;
+  flex: none;
+}
+/* The section's name, with section-wide actions at the far end. */
+.card-nav-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.card-nav-head > .card-nav-editing {
+  flex: 1;
 }
 .copy-look-pop {
   position: absolute;
   z-index: 30;
   top: calc(100% + 0.35rem);
-  left: 0;
+  right: 0;
   width: 17rem;
   padding: 0.8rem;
   border: 1px solid var(--line);
