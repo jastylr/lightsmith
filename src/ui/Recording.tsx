@@ -205,7 +205,7 @@ export function RecordingControls({
       <button type="button" className="ghost small icon-only" onClick={() => onTall(!tall)} aria-pressed={tall} aria-label={tall ? "Make the waveform shorter" : "Make the waveform taller"} title={tall ? "Make the waveform shorter" : "Make the waveform taller"}>
         <Icon name="expand" size={15} />
       </button>
-      <button type="button" className="ghost small icon-only" onClick={() => onMute(!muted)} disabled={track.status !== "ready"} aria-pressed={muted} aria-label={muted ? "Unmute the recording" : "Mute the recording"} title={muted ? "Unmute the recording" : "Mute the recording"}>
+      <button type="button" className={muted ? "ghost small icon-only mute-on" : "ghost small icon-only"} onClick={() => onMute(!muted)} disabled={track.status !== "ready"} aria-pressed={muted} aria-label={muted ? "Unmute the recording" : "Mute the recording"} title={muted ? "Unmute the recording" : "Mute the recording"}>
         <Icon name={muted ? "volumeOff" : "volume"} size={15} />
       </button>
       <button type="button" className="ghost small icon-only" onClick={onRemove} aria-label="Remove the recording from this song" title="Remove the recording from this song">

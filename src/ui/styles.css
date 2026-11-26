@@ -5086,11 +5086,17 @@ body.is-scrubbing * {
 }
 /* The display: dark glass, amber digits, like a DAW's LCD. */
 .lcd {
-  display: flex;
-  align-items: stretch;
+  /* A grid of two rows: every value on one shared baseline, every label on the
+     next row. Each cell spans both rows and passes them on to its children
+     (subgrid), so values of different sizes and fonts still line up. */
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  grid-template-columns: max-content max-content minmax(4rem, 1fr) repeat(3, max-content);
+  align-items: baseline;
   flex: 1;
   /* Room for every counter; with less, the display moves under the buttons. */
-  min-width: min(100%, 600px);
+  min-width: min(100%, 700px);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: #121014;
@@ -5098,10 +5104,10 @@ body.is-scrubbing * {
   overflow: hidden;
 }
 .lcd-cell {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
+  display: grid;
+  grid-row: 1 / span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0.1rem;
   padding: 0.35rem 1rem;
   border-right: 1px solid #26222a;
   min-width: 0;
@@ -5109,12 +5115,11 @@ body.is-scrubbing * {
 .lcd-cell:last-child {
   border-right: 0;
 }
-/* Every cell's value sits in a band of the same height, centred, so the labels
-   under them line up across the display whatever size each value is. */
 .lcd-cell > :first-child {
-  height: 2.3rem;
-  display: flex;
-  align-items: center;
+  align-self: baseline;
+}
+.lcd-cell > .lcd-label {
+  align-self: start;
 }
 /* The big counters keep their width; the section name gives way (it trims with an ellipsis). */
 .lcd-cell.lcd-pos,
@@ -5179,11 +5184,11 @@ body.is-scrubbing * {
 }
 .lcd-section {
   flex: 1;
-  min-width: 6rem;
+  min-width: 0;
 }
 .lcd-cell.lcd-section > strong {
   display: block;
-  line-height: 2.3rem;
+  line-height: 1.2;
   white-space: nowrap;
   font-family: var(--font);
   font-size: 1.5rem;
@@ -5197,8 +5202,14 @@ body.is-scrubbing * {
   font-size: 1.15rem;
 }
 @media (max-width: 900px) {
+  /* Three across, two rows of cells. */
   .lcd {
-    flex-wrap: wrap;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
+  .lcd-cell {
+    grid-row: span 2;
   }
   .lcd-pos .lcd-digits,
   .lcd-time strong {
@@ -5385,4 +5396,12 @@ body.is-scrubbing * {
   justify-content: space-between;
   align-items: center;
   margin-top: 0.6rem;
+}
+
+/* Muted recording: the mute button stays red until it's switched back on, so it's clear without playing. */
+button.mute-on,
+button.mute-on:hover:not(:disabled) {
+  color: #fff;
+  background: color-mix(in srgb, var(--bad) 78%, black);
+  border-color: var(--bad);
 }
