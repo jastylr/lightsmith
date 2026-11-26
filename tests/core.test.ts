@@ -24,6 +24,7 @@ import {
   triggerLabel,
   textOf,
   INFINITE,
+  stepCuesFor,
   type ShowControl,
   type Trigger,
   SET_FRAME,
@@ -1193,4 +1194,50 @@ test("linked sections: one cue plays a section and goes straight into the ones l
   const fid = getAttr(firstChild(chorusA, "Function")!, "ID");
   const fn = childElements(again.engine, "Function").find((f) => getAttr(f, "ID") === fid)!;
   assert.equal(getAttr(fn, "Type"), "Chaser");
+});
+
+test("step cueing: each song is a cue list that any of its cues moves on one section", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const dev = { id: "qc", name: "Quad Cortex", universe: 3, channel: 1 };
+  const pads = { id: "pads", name: "Strike", universe: 4, channel: 10 };
+  const secs = sectionsFromTemplate("short", 120).slice(0, 4);
+  secs[0] = { ...secs[0]!, trigger: { device: "pads", kind: "note", number: 40 }, autoAdvance: true };
+  const a = { ...newSong("Hands", 120), sections: secs };
+  const b = { ...newSong("Plain", 100), sections: sectionsFromTemplate("short", 100).slice(0, 2) };
+  const control = {
+    devices: [dev, pads],
+    listen: "any" as const,
+    slots: [{ device: "qc", kind: "cc" as const, number: 99 }],
+    cueing: "step" as const,
+    cues: [{ device: "qc", kind: "cc" as const, number: 20 }, { device: "qc", kind: "cc" as const, number: 21 }, { device: "qc", kind: "cc" as const, number: 20 }],
+    nextSection: { device: "qc", kind: "cc" as const, number: 30 },
+    previousSection: { device: "qc", kind: "cc" as const, number: 31 },
+  };
+  assert.equal(stepCuesFor(control, a).length, 4, "Next, two scene cues (one listed twice) and the rain pad");
+  assert.equal(stepCuesFor(control, b).length, 3);
+  generateSet({ ws, profiles, rig, songs: [a, b], control });
+  const again = parseWorkspace(serializeWorkspace(ws));
+  const frame = (function find(e: XmlElement): XmlElement | undefined {
+    for (const c of childElements(e)) if (getAttr(c, "Caption") === SET_FRAME) return c; else { const f = find(c); if (f) return f; }
+    return undefined;
+  })(again.virtualConsole!)!;
+  const lists = childElements(frame, "CueList");
+  assert.equal(lists.length, 2, "one cue list per song page");
+  assert.equal(childElements(frame, "Button").filter((x) => !["Safe look", "Blackout"].includes(getAttr(x, "Caption") ?? "")).length, 0, "no section buttons");
+  const first = lists[0]!;
+  assert.equal(textOf(firstChild(first, "NextPrevBehavior")), "1", "run next: after the safe look, the song carries on");
+  assert.equal(childElements(firstChild(first, "Next")!, "Input").length, 4);
+  assert.equal(childElements(firstChild(first, "Previous")!, "Input").length, 1);
+  assert.equal(getAttr(lists[1]!, "Page"), "1");
+  // The list's chaser: the linked first section moves on by itself, the others wait.
+  const ch = childElements(again.engine, "Function").find((f) => getAttr(f, "ID") === textOf(firstChild(first, "Chaser")))!;
+  const holds = childElements(ch, "Step").map((st) => getAttr(st, "Hold"));
+  assert.notEqual(holds[0], String(INFINITE));
+  assert.equal(holds[1], String(INFINITE));
+  // A QLC+ 4 show file answers one message per control: say so.
+  const old = parseWorkspace(WORKSPACE_QXW.replace(/<Version>[^<]*<\/Version>/, "<Version>4.14.4</Version>"));
+  const sum = generateSet({ ws: old, profiles, rig, songs: [a], control });
+  assert.ok(sum.controlNotes.some((n) => /QLC\+ 4/.test(n)), sum.controlNotes.join(" | "));
 });

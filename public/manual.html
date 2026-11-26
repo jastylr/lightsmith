@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to use Lightsmith to build QLC+ light shows for a band, song by song." />
+    <title>Lightsmith user manual</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <meta name="theme-color" content="#1a181d" />
+    <style>
+      :root {
+        --house: #1a181d;
+        --deck: #221f26;
+        --raised: #2b2730;
+        --line: #3d3843;
+        --text: #f1ece4;
+        --muted: #aba397;
+        --tungsten: #f2a73b;
+        --tungsten-hi: #ffc46b;
+        color-scheme: dark;
+        font-family: "Archivo", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--text);
+        background: var(--house);
+      }
+      body {
+        margin: 0;
+      }
+      a {
+        color: var(--tungsten-hi);
+      }
+      .wrap {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        gap: 48px;
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 40px 24px 96px;
+      }
+      nav {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        font-size: 0.9rem;
+      }
+      nav img {
+        width: 190px;
+        margin-bottom: 20px;
+      }
+      nav ol {
+        margin: 0;
+        padding-left: 1.2rem;
+        color: var(--muted);
+      }
+      nav li {
+        margin: 0.35rem 0;
+      }
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      nav .back {
+        display: inline-block;
+        margin-top: 24px;
+        color: var(--tungsten-hi);
+      }
+      main {
+        max-width: 72ch;
+      }
+      h1 {
+        font-size: 2.2rem;
+        line-height: 1.15;
+        margin: 0 0 0.5rem;
+      }
+      .lead {
+        color: var(--muted);
+        font-size: 1.1rem;
+        margin-top: 0;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 3rem 0 0.75rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--line);
+      }
+      h3 {
+        font-size: 1.1rem;
+        margin: 1.75rem 0 0.4rem;
+      }
+      p,
+      li {
+        color: #ddd6cb;
+      }
+      strong {
+        color: var(--text);
+      }
+      code,
+      kbd {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.88em;
+        background: var(--raised);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 0.05em 0.35em;
+      }
+      .tip {
+        background: var(--deck);
+        border-left: 3px solid var(--tungsten);
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+        margin: 1.25rem 0;
+      }
+      .tip p {
+        margin: 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.95rem;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: var(--text);
+        font-weight: 600;
+      }
+      @media (max-width: 860px) {
+        .wrap {
+          grid-template-columns: 1fr;
+        }
+        nav {
+          position: static;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav aria-label="Contents">
+        <a href="./"><img src="lightsmith-logo.png" alt="Lightsmith" /></a>
+        <ol>
+          <li><a href="#what">What Lightsmith does</a></li>
+          <li><a href="#steps">The five steps</a></li>
+          <li><a href="#songs">Songs and sections</a></li>
+          <li><a href="#recording">Working with a recording</a></li>
+          <li><a href="#looks">Designing a look</a></li>
+          <li><a href="#heads">Moving heads</a></li>
+          <li><a href="#chasers">Chasers and effects</a></li>
+          <li><a href="#preview">Previewing</a></li>
+          <li><a href="#cueing">Cueing the show on stage</a></li>
+          <li><a href="#qlc">What you get in QLC+</a></li>
+          <li><a href="#saving">Saving your work</a></li>
+          <li><a href="#trouble">When something's wrong</a></li>
+        </ol>
+        <a class="back" href="./">Open Lightsmith</a>
+      </nav>
+
+      <main>
+        <h1>Lightsmith user manual</h1>
+        <p class="lead">Lightsmith builds a light show for your band's songs and writes it into a QLC+ show file. You design each song in your browser; QLC+ runs the lights at the gig.</p>
+
+        <h2 id="what">What Lightsmith does</h2>
+        <p>QLC+ is free lighting software that drives your lights through a USB or Art-Net adapter. It can do almost anything, but building a show in it means making hundreds of scenes, chasers and buttons by hand. Lightsmith makes them for you from a few musical choices per song section: the mood, how much energy, which colors, what the moving heads do.</p>
+        <p>Lightsmith never controls the lights itself. It reads your QLC+ show file, adds the show to it, and gives you a new file to open in QLC+. Everything runs in your browser: your files and recordings stay on your computer.</p>
+        <div class="tip"><p>It works with any lights QLC+ knows and any number of them. The examples here mention one band's rig (wash bars, LED panels and two moving heads), but nothing in Lightsmith is tied to it.</p></div>
+
+        <h2 id="steps">The five steps</h2>
+        <p>The menu on the left walks you through them in order. You can go back to any step at any time.</p>
+        <table>
+          <tr><th>Step</th><th>What you do</th></tr>
+          <tr><td><strong>Show file</strong></td><td>Open your QLC+ show file (<code>.qxw</code>) with your lights already patched, or a saved Lightsmith project (<code>.lightsmith</code>).</td></tr>
+          <tr><td><strong>Stage</strong></td><td>Check what each light is for (backdrop, wash, moving head, front) and where it stands. Moving heads also get their home position, how fast they move and which way they face.</td></tr>
+          <tr><td><strong>Songs</strong></td><td>Lay out each song as sections on a timeline and design a look for each one.</td></tr>
+          <tr><td><strong>Show control</strong></td><td>Tell Lightsmith which pads, switches and footswitches will cue the lights on stage.</td></tr>
+          <tr><td><strong>Export</strong></td><td>Download the show file for one song or the whole set, then open it in QLC+.</td></tr>
+        </table>
+        <p>To give the work more room, collapse the menu to a strip of icons with the round handle on its edge, the Collapse sidebar button, or <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>\</kbd>.</p>
+
+        <h2 id="songs">Songs and sections</h2>
+        <p>A song is a row of sections on a timeline: intro, verse, chorus and so on. Each block's width is its length, and its color is its look. Click a block to edit it; drag it to move it; drag its right edge to change its length.</p>
+        <h3>Length, bars and snapping</h3>
+        <p>Lengths are kept in bars at the song's tempo, so changing the tempo stretches every section with it. The <strong>Snap</strong> setting under the timeline decides how a dragged edge snaps: to whole <strong>Bars</strong>, to <strong>Beats</strong>, or <strong>Off</strong> for songs not played to a click. While dragging, hold <kbd>Option</kbd>/<kbd>Alt</kbd> to snap one step finer, or <kbd>Option</kbd>+<kbd>Shift</kbd> to not snap at all. You can also type an exact time, like <code>28s400ms</code>, in the section's <strong>In time</strong> field.</p>
+        <p>Sections sit end to end, so a section's start is the end of the one before it: to move where a chorus starts, drag the right edge of the section before it.</p>
+        <h3>Linked sections</h3>
+        <p>A section can <strong>go straight into</strong> the next one. Then one cue plays both: the first runs for its length and the second starts by itself. Use it to give one part of a song two looks (the first half of a chorus calm, the second half big), or to move on when a sample of fixed length ends.</p>
+        <ul>
+          <li><strong>Split</strong> (the arrows icon on a section in the list) cuts a section into two linked halves with the same look. Change the second half's look to taste. Chasers and lightning stay with the first half, since they're timed from its start.</li>
+          <li>Hover the timeline and click the <strong>link badge</strong> where two blocks meet to link or unlink them. Linked pairs keep an orange badge.</li>
+          <li>The same setting is in the section's <strong>Start and end</strong> card: "Wait for the next cue" or "Go straight into …".</li>
+        </ul>
+        <p>You can chain more than two. The last section in a chain holds its look until the next cue.</p>
+
+        <h2 id="recording">Working with a recording</h2>
+        <p>Add the song's recording (<strong>Add a recording</strong> under the timeline, or drop an audio file on it) to lay the sections out against the music. The recording stays in your browser; your project only notes which file belongs to the song, so on another computer Lightsmith asks you to load it again.</p>
+        <ul>
+          <li>The <strong>waveform</strong> sits under the blocks, with lines for each bar, each section start and, zoomed in, each beat.</li>
+          <li><strong>Starts at</strong> places the start of the recording on the timeline. <code>13s</code> brings the music in 13 seconds into the song, after a sample you play live; a minus time such as <code>-4s</code> skips a count-in at the start of the file. You can also drag the waveform sideways, or move the playhead where the music should come in and click <strong>Use playhead</strong>.</li>
+          <li><strong>Play</strong> (or <kbd>Space</kbd>) plays the music with the lights. Drag the playhead, or along the ruler, to move through the song.</li>
+          <li>Zoom with the buttons, or pinch / <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + scroll over the timeline. The tall-waveform button makes the waveform easier to read.</li>
+        </ul>
+
+        <h2 id="looks">Designing a look</h2>
+        <p>Each section's settings are grouped in cards, shown one at a time as tabs (or all at once with <strong>All</strong>). Start with the mood; most sections need little else.</p>
+        <table>
+          <tr><th>Card</th><th>What it sets</th></tr>
+          <tr><td><strong>Mood</strong></td><td>A starting point (colors, pattern and movement that suit the feel) and the energy: how bright and busy, how fast things change, how far the heads move.</td></tr>
+          <tr><td><strong>Colors</strong></td><td>The palette, and which kind of light gets which color. Colors can change on a beat, a bar or not at all.</td></tr>
+          <tr><td><strong>Lights</strong></td><td>Brightness per kind of light, and settings for single lights (a color of its own, or off).</td></tr>
+          <tr><td><strong>Pattern</strong></td><td>A moving pattern across lights that can show one (chases, waves, sparkles).</td></tr>
+          <tr><td><strong>Moving heads</strong></td><td>Where they point and how they move (below).</td></tr>
+          <tr><td><strong>Focus</strong></td><td>A spotlight on one player: those lights go warm white at full, the rest dim.</td></tr>
+          <tr><td><strong>Effects</strong> and <strong>Chasers</strong></td><td>Hits and sequences on top of the look (below).</td></tr>
+          <tr><td><strong>Start and end</strong></td><td>How the look comes in (instantly, over a beat, building up), whether it goes straight into the next section, and its cue.</td></tr>
+        </table>
+        <p>Looks you like can be saved as presets and reused in other sections and songs.</p>
+
+        <h2 id="heads">Moving heads</h2>
+        <h3>Position and movement</h3>
+        <p><strong>Position</strong> is where the heads point when they're still: their <em>home</em>. <strong>Movement</strong> is a shape they trace around that point (a sweep, a circle, a figure eight). So a "sweep over the audience" needs both: a home aimed over the crowd and a sweep movement. A movement around a home pointing straight up looks like a small, pointless circle.</p>
+        <h3>Size and speed</h3>
+        <p><strong>Size</strong> is how far the movement reaches from home, each way. <strong>Speed</strong> is how many beats one round of the movement takes. A head can only turn so fast: in the Stage step, set <strong>How fast it moves</strong> for each head, and Lightsmith slows a movement down rather than ask for one the head can't follow (it tells you when it does).</p>
+        <h3>Heads that face the back</h3>
+        <p>A head mounted the other way round needs its home tilted the other way to point at the audience. In the Stage step, mark it as facing back and set <strong>Where it faces</strong>; the preview's view from above shows where each head really points.</p>
+
+        <h2 id="chasers">Chasers and effects</h2>
+        <p><strong>Chasers</strong> are your own sequences of steps: some lights in some colors for a moment, then the next. Build them as a table of steps, or import them from your QLC+ show file. Each chaser starts a set time into its section, runs once, loops or bounces. A chaser belongs to the sections that use it; one used in two sections can be shared or copied.</p>
+        <p><strong>Effects</strong> sit on top of the look: lightning, a blinder hit, a pulse on every beat, sparkle, strobe hits. Each can be aimed at chosen lights.</p>
+
+        <h2 id="preview">Previewing</h2>
+        <p>The stage preview shows the selected section as QLC+ will play it, and loops it so a chaser that starts late comes round again (switch <strong>Loop</strong> off to play it once). Switch between the audience view and the view from above, open it full screen, or pop it out into its own window. Pressing Play on the timeline plays the whole song in order, with the recording if there is one.</p>
+
+        <h2 id="cueing">Cueing the show on stage</h2>
+        <p>On stage, MIDI messages from your gear move the lights on: a drum pad, a footswitch, a scene switch on a guitar modeler. The Show control step sets this up. First choose <strong>how sections are cued</strong>:</p>
+        <table>
+          <tr><th>Step through each song</th><th>A trigger per section</th></tr>
+          <tr>
+            <td>Each song is a cue list. Any cue moves it on to its next section, in order. Best when the cues come from what the band already does, such as a guitarist's scene switches, which repeat through a song (Clean for every verse).</td>
+            <td>Each section has its own trigger that starts it directly, from anywhere in the song. Best with a pad or button per section, or someone at the laptop.</td>
+          </tr>
+        </table>
+        <h3>Step through each song</h3>
+        <ul>
+          <li><strong>Cues</strong>: list every message that marks a section change, using <strong>Learn</strong> and pressing the switch. Leave out switches that don't mark a change (a boost you stomp mid-verse would move the lights on too).</li>
+          <li><strong>A section's own cue</strong>: something particular can start a section, such as the drum pad that fires its sample. Set it in the section's Start and end card. That message joins the song's cues, so choose one nobody presses at other times.</li>
+          <li><strong>Linked sections</strong> move on by themselves and need no cue.</li>
+          <li><strong>Next section</strong> and <strong>Previous section</strong> fix a missed or doubled cue.</li>
+        </ul>
+        <div class="tip"><p>Every cue moves the song on by one. If two players cue the same change at the same moment, the lights move on twice: give each change to one player, and keep Previous section within reach.</p></div>
+        <h3>QLC+ 5 and QLC+ 4</h3>
+        <p>QLC+ 5 answers every message in a cue list's list of cues. QLC+ 4 answers only one message per control, so with QLC+ 4 every cue must arrive as the same message. Two ways to get there:</p>
+        <ul>
+          <li>Have each device send one shared message as well as its own: many modelers can send several messages per switch.</li>
+          <li>Let a MIDI interface translate them: interfaces with a mapper (for example CME's H4MIDI WC) can turn several messages into one.</li>
+        </ul>
+        <p>Then make that shared message your only cue. Lightsmith warns you on export when a QLC+ 4 file has more than one.</p>
+        <h3>Between songs, and when something goes wrong</h3>
+        <p><strong>Next song</strong> and <strong>Previous song</strong> move through the set in order, and a song can have its own message that jumps straight to it. <strong>Safe look</strong> stops everything and brings up a plain warm wash with the heads at home; after it, the next cue carries on from where the song was. <strong>Blackout</strong> switches QLC+'s blackout on and off.</p>
+        <p>The <strong>cheat sheet</strong> at the bottom of the Show control step lists what every switch does, song by song. Print it and tape it to the floor.</p>
+        <h3>Devices and QLC+ inputs</h3>
+        <p>Each device needs its own input in QLC+ (Inputs/Outputs): a USB MIDI device appears by name, and a MIDI interface usually shows each of its ports separately. In Show control, set which QLC+ universe each device is patched to. Learn adds a device by itself the first time it hears one.</p>
+
+        <h2 id="qlc">What you get in QLC+</h2>
+        <ul>
+          <li><strong>Functions</strong> for every section, in a folder per song under <em>Lightsmith</em>. Exporting again replaces them; your own functions are left alone.</li>
+          <li>A <strong>Set</strong> frame on the Virtual Console with a page per song. Each page holds the song's cue list (step cueing) or a button per section (a trigger per section), plus Safe look and Blackout.</li>
+          <li>Only the page that's showing listens to your gear, so the same switch can mean different things in different songs.</li>
+        </ul>
+        <p>Open the file in QLC+, check its inputs and outputs, and switch to Operate mode. Before the first gig, walk through every cue once with the band at their gear.</p>
+
+        <h2 id="saving">Saving your work</h2>
+        <p>Lightsmith keeps your work in the browser as you go, with undo and redo. <strong>Save project</strong> downloads everything (songs, stage, show control and chasers) as one <code>.lightsmith</code> file: keep it as a backup, or open it on another computer. Recordings aren't inside it; load them again there.</p>
+
+        <h2 id="trouble">When something's wrong</h2>
+        <table>
+          <tr><th>What you see</th><th>Try this</th></tr>
+          <tr><td>A cue does nothing in QLC+</td><td>Check the device's input is patched in QLC+ and matches its universe in Show control; with QLC+ 4, only one cue message works (see above).</td></tr>
+          <tr><td>The lights jump two sections</td><td>Two cues arrived for one change; give that change to one player.</td></tr>
+          <tr><td>Moving heads point at the ceiling</td><td>Give them a home position aimed at the stage or audience (Stage step, or the section's moving-head card).</td></tr>
+          <tr><td>A movement looks jerky or tiny</td><td>The heads can't keep up: set How fast it moves in the Stage step, or slow the movement.</td></tr>
+          <tr><td>The recording doesn't line up</td><td>Set where it starts (Starts at), then check the song's tempo; with Snap set to Off, line the edges up by ear.</td></tr>
+        </table>
+        <p>Questions and bug reports: see the project's source code page, linked from the bottom of Lightsmith's menu.</p>
+      </main>
+    </div>
+  </body>
+</html>

@@ -162,8 +162,11 @@ export function App() {
         </button>
         <div className="rail-foot">
           <p>Free and open source. Your files stay in this browser.</p>
+          <a href="manual.html" target="_blank" rel="noreferrer">
+            User manual
+          </a>
           <a href={REPO_URL} target="_blank" rel="noreferrer">
-            Source code and help
+            Source code
           </a>
         </div>
       </aside>

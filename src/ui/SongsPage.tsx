@@ -79,7 +79,7 @@ import { TriggerField, triggerText } from "./TriggerField";
 const reduceMotionPref = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 type Replay = { n: number; skip: boolean; at?: number; section?: string };
-import { Dropdown, DurationInput, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
+import { ChoiceCards, Dropdown, DurationInput, EnergyMeter, Field, NumberInput, Segmented, TapTempo, Toggle, useDismiss, type Option } from "./controls";
 import { Icon, type IconName } from "./icons";
 import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
@@ -1176,23 +1176,6 @@ function Group({
   );
 }
 
-/** Large radio choices with a title and a sentence each. */
-function ChoiceCards<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; title: string; text: string }[]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div className="choices" role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} className={value === o.value ? "choice on" : "choice"} onClick={() => onChange(o.value)}>
-          <span className="choice-dot" aria-hidden="true" />
-          <span>
-            <strong>{o.title}</strong>
-            <small>{o.text}</small>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const JOB_LABEL: Record<ColorJob, string> = { backdrop: "Backdrop", side: "Wash lights", mover: "Moving heads", front: "Front" };
 
 /** For each kind of light on the stage: mix the palette across them, or pick one color. */
@@ -1538,7 +1521,7 @@ function LookEditor({
       changed: usedSequences.length > 0,
     },
     timing: {
-      summary: `${transitionLabel} · ${s.autoAdvance && nextSection ? `goes straight into ${nextSection.name}` : prevSection?.autoAdvance ? `linked after ${prevSection.name}` : "waits for the next cue"}${triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
+      summary: `${transitionLabel} · ${s.autoAdvance && nextSection ? `goes straight into ${nextSection.name}` : prevSection?.autoAdvance ? `linked after ${prevSection.name}` : "waits for the next cue"}${control?.cueing === "step" ? (s.trigger ? ` · ${triggerText(s.trigger, control)}` : "") : triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
       changed: s.transition !== typeDefault || s.autoAdvance || !!s.trigger,
     },
   };
@@ -2013,28 +1996,47 @@ function LookEditor({
                 <Icon name="link" size={14} /> Linked: it starts straight after {prevSection.name}, so it needs no cue of its own. A trigger here only lets you jump straight to it.
               </p>
             )}
+            {control?.cueing === "step" ? (
+              <Field
+                label="Its own cue (optional)"
+                hint="This set steps through each song: the next cue (any of the cues on the Show control step) starts this section. Give it a cue of its own when something particular starts it, such as the sample pad that plays with it. That message then also moves the song on, so pick one nobody presses at other times."
+              >
+                <TriggerField
+                  label={`${s.name}`}
+                  value={s.trigger}
+                  inherited={prevSection?.autoAdvance ? `Straight after ${prevSection.name}` : "The next cue"}
+                  control={control ?? emptyShowControl()}
+                  inputs={showFile?.inputs ?? []}
+                  onChange={(t, withDevices) => {
+                    if (withDevices) onControl(withDevices);
+                    onChange({ trigger: t });
+                  }}
+                />
+              </Field>
+            ) : (
             <Field
-              label="MIDI trigger"
-              hint={
-                s.trigger
-                  ? "This section's own trigger, instead of the one for its place in the song."
-                  : control?.slots[index]
-                    ? `The trigger for section ${index + 1} of every song, set on the Show control step. Learn one here to give this section its own.`
-                    : "Set up pads and footswitches on the Show control step, or learn one just for this section."
-              }
-            >
-              <TriggerField
-                label={`${s.name}`}
-                value={s.trigger}
-                inherited={control?.slots[index] ? `${triggerText(control.slots[index]!, control)} (section ${index + 1})` : "None yet"}
-                control={control ?? emptyShowControl()}
-                inputs={showFile?.inputs ?? []}
-                onChange={(t, withDevices) => {
-                  if (withDevices) onControl(withDevices);
-                  onChange({ trigger: t });
-                }}
-              />
-            </Field>
+                label="MIDI trigger"
+                hint={
+                  s.trigger
+                    ? "This section's own trigger, instead of the one for its place in the song."
+                    : control?.slots[index]
+                      ? `The trigger for section ${index + 1} of every song, set on the Show control step. Learn one here to give this section its own.`
+                      : "Set up pads and footswitches on the Show control step, or learn one just for this section."
+                }
+              >
+                <TriggerField
+                  label={`${s.name}`}
+                  value={s.trigger}
+                  inherited={control?.slots[index] ? `${triggerText(control.slots[index]!, control)} (section ${index + 1})` : "None yet"}
+                  control={control ?? emptyShowControl()}
+                  inputs={showFile?.inputs ?? []}
+                  onChange={(t, withDevices) => {
+                    if (withDevices) onControl(withDevices);
+                    onChange({ trigger: t });
+                  }}
+                />
+              </Field>
+            )}
           </Group>
         </div>
       </div>

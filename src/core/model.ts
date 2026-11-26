@@ -405,6 +405,31 @@ export interface ShowControl {
   safeLook?: Trigger;
   /** QLC+'s blackout, on and off. */
   blackout?: Trigger;
+  /**
+   * How sections are cued. "jump": each section has a trigger that starts it
+   * directly (a pad per section, or a lighting operator). "step": each song
+   * is a cue list, and any cue moves it on to its next section, which suits
+   * a guitarist's scene switches that repeat through a song.
+   */
+  cueing?: "jump" | "step";
+  /** Step cueing: messages that move whichever song is showing on to its next section. */
+  cues?: Trigger[];
+  /** Step cueing: one section on or back, to fix a missed or doubled cue. */
+  nextSection?: Trigger;
+  previousSection?: Trigger;
+}
+
+const sameTrigger = (a: Trigger, b: Trigger) => a.device === b.device && a.kind === b.kind && a.number === b.number;
+
+/**
+ * Step cueing: every message that moves a song on to its next section. The
+ * set-wide cues and Next section, plus the song's own section triggers (a
+ * sample pad that starts its section), each listed once.
+ */
+export function stepCuesFor(control: ShowControl | undefined, song: Song): Trigger[] {
+  const out: Trigger[] = [];
+  for (const t of [control?.nextSection, ...(control?.cues ?? []), ...song.sections.map((s) => s.trigger)]) if (t && !out.some((x) => sameTrigger(x, t))) out.push(t);
+  return out;
 }
 
 export function emptyShowControl(): ShowControl {
@@ -650,7 +675,7 @@ export function normalizeProject(p: Project): Project {
     // Chasers belong to the sections that use them: one no section uses is dropped.
     ...(p.sequences ? { sequences: p.sequences.filter((q) => p.songs.some((song) => song.sections.some((s) => (s.sequences ?? []).some((u) => u.id === q.id)))).map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
-    ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])] } } : {}),
+    ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])], ...(p.control.cues ? { cues: [...p.control.cues] } : {}) } } : {}),
     ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
   };
 }

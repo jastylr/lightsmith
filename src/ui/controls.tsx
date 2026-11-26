@@ -385,3 +385,21 @@ export function TapTempo({ onTempo, label = "Tap tempo" }: { onTempo: (bpm: numb
     </button>
   );
 }
+
+/** Large radio choices with a title and a sentence each. */
+export function ChoiceCards<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; title: string; text: string }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="choices" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} className={value === o.value ? "choice on" : "choice"} onClick={() => onChange(o.value)}>
+          <span className="choice-dot" aria-hidden="true" />
+          <span>
+            <strong>{o.title}</strong>
+            <small>{o.text}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+

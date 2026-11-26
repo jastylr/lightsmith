@@ -1,5 +1,5 @@
-import { emptyShowControl, setOrder, triggerFor, newId, type ControlDevice, type ShowControl, type Trigger } from "../core";
-import { Dropdown, Field, NumberInput, Segmented } from "./controls";
+import { emptyShowControl, setOrder, stepCuesFor, triggerFor, newId, type ControlDevice, type ShowControl, type Trigger } from "../core";
+import { ChoiceCards, Dropdown, Field, NumberInput, Segmented } from "./controls";
 import { Icon } from "./icons";
 import { useLastHeard, useMidi } from "./midi";
 import type { Store } from "./store";
@@ -19,12 +19,22 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
   const heard = useLastHeard();
   const set = (patch: Partial<ShowControl>) => store.setControl({ ...control, ...patch });
   // A learned trigger may bring a new device with it (`withDevices`).
-  const setTrigger = (key: "nextSong" | "previousSong" | "safeLook" | "blackout") => (t: Trigger | undefined, withDevices?: ShowControl) => {
+  const setTrigger = (key: "nextSong" | "previousSong" | "safeLook" | "blackout" | "nextSection" | "previousSection") => (t: Trigger | undefined, withDevices?: ShowControl) => {
     const base = { ...(withDevices ?? control) };
     if (t) base[key] = t;
     else delete base[key];
     store.setControl(base);
   };
+  // Step cueing: the list of messages that move a song on. Learning into the
+  // empty field at the end adds one; clearing one removes it.
+  const setCue = (i: number) => (t: Trigger | undefined, withDevices?: ShowControl) => {
+    const base = withDevices ?? control;
+    const cues = [...(base.cues ?? [])];
+    if (t) cues[i] = t;
+    else cues.splice(i, 1);
+    store.setControl({ ...base, cues });
+  };
+  const step = control.cueing === "step";
   const setSlot = (i: number) => (t: Trigger | undefined, withDevices?: ShowControl) => {
     const base = withDevices ?? control;
     const slots = [...base.slots];
@@ -50,6 +60,9 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
       slots: control.slots.map((t) => keep(t) ?? null),
       nextSong: keep(control.nextSong) ?? undefined,
       previousSong: keep(control.previousSong) ?? undefined,
+      nextSection: keep(control.nextSection) ?? undefined,
+      previousSection: keep(control.previousSection) ?? undefined,
+      cues: (control.cues ?? []).filter((t) => t.device !== d.id),
       safeLook: keep(control.safeLook) ?? undefined,
       blackout: keep(control.blackout) ?? undefined,
     });
@@ -59,7 +72,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
     <section className="page show-control">
       <header className="page-head no-print">
         <h1>Show control</h1>
-        <p className="lead">Run the lights from the stage: a drum pad, a footswitch or an amp preset starts each section, with nobody at the laptop. Lightsmith writes these into the buttons it makes in QLC+, so export again after changing them.</p>
+        <p className="lead">Run the lights from the stage: a drum pad, a footswitch or an amp preset moves the lights on, with nobody at the laptop. Lightsmith writes these into the show file it makes for QLC+, so export again after changing them.</p>
       </header>
 
       {midi.status === "unsupported" ? (
@@ -135,24 +148,72 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
       </section>
 
       <section className="control-card no-print">
-        <h2>Sections</h2>
-        <p className="hint">One trigger per place in the song: the first starts section 1 of whichever song is showing, the second section 2, and so on. Set it up once for the whole set. A section can have its own trigger instead, in its Start and end card on the Songs page.</p>
-        <ol className="slot-list">
-          {Array.from({ length: slotCount }, (_, i) => {
-            const names = songs.flatMap((s) => (s.sections[i] ? [s.sections[i]!.name] : []));
-            const unique = [...new Set(names)];
-            return (
-              <li key={i} className="slot-row">
-                <span className="slot-num">{i + 1}</span>
-                <span className="slot-names" title={names.join(", ")}>
-                  {unique.length ? unique.slice(0, 4).join(", ") + (unique.length > 4 ? " …" : "") : <em>No song has this many sections yet</em>}
-                </span>
-                <TriggerField label={`section ${i + 1}`} value={control.slots[i] ?? undefined} control={control} inputs={inputs} onChange={setSlot(i)} />
-              </li>
-            );
-          })}
-        </ol>
+        <h2>How sections are cued</h2>
+        <ChoiceCards
+          label="How sections are cued"
+          value={control.cueing ?? "jump"}
+          onChange={(cueing: "jump" | "step") => set({ cueing })}
+          options={[
+            { value: "step", title: "Step through each song", text: "Each cue moves the song on to its next section, in order. Best when the cues come from what the band already does, like a guitarist's scene switches, which repeat through a song." },
+            { value: "jump", title: "A trigger per section", text: "Each section has its own trigger that starts it straight away. Best with a pad or button per section, or someone at the laptop." },
+          ]}
+        />
       </section>
+
+      {step ? (
+        <section className="control-card no-print">
+          <h2>Cues</h2>
+          <p className="hint">Any of these messages moves whichever song is showing on to its next section. Add every switch that marks a section change, such as each scene switch on a guitar modeler; leave out switches that don't. A section can also have a cue of its own, like the sample pad that starts it, in its Start and end card on the Songs page. Linked sections move on by themselves.</p>
+          <ol className="slot-list">
+            {(control.cues ?? []).map((t, i) => (
+              <li key={`${t.device}/${t.kind}/${t.number}/${i}`} className="slot-row">
+                <span className="slot-num">{i + 1}</span>
+                <span className="slot-names">Moves the song on</span>
+                <TriggerField label={`cue ${i + 1}`} value={t} control={control} inputs={inputs} onChange={setCue(i)} />
+              </li>
+            ))}
+            <li className="slot-row">
+              <span className="slot-num">
+                <Icon name="plus" size={14} />
+              </span>
+              <span className="slot-names">
+                <em>Add a cue: Learn, then press the switch</em>
+              </span>
+              <TriggerField key={`add-${(control.cues ?? []).length}`} label="a new cue" value={undefined} inherited="Not set" control={control} inputs={inputs} onChange={setCue((control.cues ?? []).length)} />
+            </li>
+          </ol>
+          <p className="hint">QLC+ 5 answers every message in this list. QLC+ 4 answers only one message per control, so with QLC+ 4 have each device also send one shared message (many modelers can send two messages per switch, and MIDI interfaces such as CME's can add one) and make that your only cue.</p>
+          <h3 className="subhead">When a cue is missed or doubled</h3>
+          <div className="control-pairs">
+            <Field label="Next section">
+              <TriggerField label="Next section" value={control.nextSection} control={control} inputs={inputs} onChange={setTrigger("nextSection")} />
+            </Field>
+            <Field label="Previous section">
+              <TriggerField label="Previous section" value={control.previousSection} control={control} inputs={inputs} onChange={setTrigger("previousSection")} />
+            </Field>
+          </div>
+        </section>
+      ) : (
+        <section className="control-card no-print">
+          <h2>Sections</h2>
+          <p className="hint">One trigger per place in the song: the first starts section 1 of whichever song is showing, the second section 2, and so on. Set it up once for the whole set. A section can have its own trigger instead, in its Start and end card on the Songs page.</p>
+          <ol className="slot-list">
+            {Array.from({ length: slotCount }, (_, i) => {
+              const names = songs.flatMap((s) => (s.sections[i] ? [s.sections[i]!.name] : []));
+              const unique = [...new Set(names)];
+              return (
+                <li key={i} className="slot-row">
+                  <span className="slot-num">{i + 1}</span>
+                  <span className="slot-names" title={names.join(", ")}>
+                    {unique.length ? unique.slice(0, 4).join(", ") + (unique.length > 4 ? " …" : "") : <em>No song has this many sections yet</em>}
+                  </span>
+                  <TriggerField label={`section ${i + 1}`} value={control.slots[i] ?? undefined} control={control} inputs={inputs} onChange={setSlot(i)} />
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
 
       <section className="control-card no-print">
         <h2>Between songs</h2>
@@ -216,6 +277,13 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
                 ["Previous song", control.previousSong],
                 ["Safe look", control.safeLook],
                 ["Blackout", control.blackout],
+                ...(step
+                  ? ([
+                      ["Next section", control.nextSection],
+                      ["Previous section", control.previousSection],
+                      ...(control.cues ?? []).map((t, i) => [`Cue ${i + 1}: next section`, t] as const),
+                    ] as const)
+                  : []),
               ] as const
             ).map(([what, t]) => (
               <tr key={what}>
@@ -234,6 +302,19 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
             <table className="cheat-table">
               <tbody>
                 {song.sections.map((s, i) => {
+                  if (step) {
+                    const prev = song.sections[i - 1];
+                    return (
+                      <tr key={s.id}>
+                        <th scope="row">
+                          {i + 1}. {s.name}
+                        </th>
+                        <td>
+                          {prev?.autoAdvance ? `Straight after ${prev.name}` : s.trigger ? triggerText(s.trigger, control) : stepCuesFor(control, song).length ? "Next cue" : <span className="missing">No cues set up</span>}
+                        </td>
+                      </tr>
+                    );
+                  }
                   const t = triggerFor(control, s, i);
                   return (
                     <tr key={s.id}>

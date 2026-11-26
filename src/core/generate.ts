@@ -14,14 +14,14 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { newSection, stepLightColor, qlcInputChannel, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
+import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { isBlackout, sectionMs } from "./model";
 import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
-import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, removeWhere, setMidiListen, writePlaces, type Workspace } from "./workspace";
+import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, qlcMajorVersion, removeWhere, setMidiListen, writePlaces, type Workspace } from "./workspace";
 
 export const INFINITE = 4294967294; // QLC+ "hold forever"
 export const PATH_ROOT = APP_NAME;
@@ -708,8 +708,9 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   const perRow = 10;
   const size = 80;
   const stepPx = 90;
-  const rows = Math.ceil(song.sections.length / perRow);
-  const width = Math.min(song.sections.length, perRow) * stepPx + 20;
+  const step = control?.cueing === "step";
+  const rows = step ? 3 : Math.ceil(song.sections.length / perRow);
+  const width = step ? 580 : Math.min(song.sections.length, perRow) * stepPx + 20;
   const height = rows * stepPx + 46;
   const spot = placeFrame(page, width, height, previousSpot);
   const frame = el("SoloFrame", { Caption: frameCaption, ID: wid++ }, [
@@ -720,19 +721,53 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     textEl("Collapsed", "False"),
     textEl("Disabled", "False"),
   ]);
-  song.sections.forEach((s, i) => {
+  const extraNotes: string[] = [];
+  if (step) {
+    const cues = stepCuesFor(control, song);
     frame.children.push(
-      el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++ }, [
-        el("WindowState", { Visible: "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
-        el("Function", { ID: startIds[i]! }),
-        textEl("Action", "Toggle"),
-        ...inputs.button(triggerFor(control, s, i), `${song.title}: ${s.name}`, song.title),
-      ]),
+      cueListWidget(wid++, `${title}: cues`, songChaserId, { Visible: "True", X: 10, Y: 40, Width: width - 20, Height: rows * stepPx - 10 }, undefined, inputs.many(cues, `${song.title}: next section`, song.title), inputs.many(control?.previousSection ? [control.previousSection] : [], `${song.title}: previous section`, song.title)),
     );
-  });
+    extraNotes.push(...oneInputNote(ws, cues, control, `“${song.title}”`));
+  } else
+    song.sections.forEach((s, i) => {
+      frame.children.push(
+        el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++ }, [
+          el("WindowState", { Visible: "True", X: 10 + (i % perRow) * stepPx, Y: 40 + Math.floor(i / perRow) * stepPx, Width: size, Height: size }),
+          el("Function", { ID: startIds[i]! }),
+          textEl("Action", "Toggle"),
+          ...inputs.button(triggerFor(control, s, i), `${song.title}: ${s.name}`, song.title),
+        ]),
+      );
+    });
   spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, startIds, controlNotes: inputs.finish() };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, startIds, controlNotes: [...inputs.finish(), ...extraNotes] };
+}
+
+/**
+ * Step cueing: a song as a QLC+ Cue List on its chaser of sections. Any of
+ * the song's cues moves it on one section (a linked section moves on by
+ * itself, after its length); Previous steps back. "Run next" means that
+ * after the Safe look (which stops the list), the next cue carries on from
+ * where the song was rather than starting it again.
+ */
+function cueListWidget(id: number, caption: string, chaserId: number, box: { X: number; Y: number; Width: number; Height: number; Visible: string }, page: number | undefined, next: XmlElement[], previous: XmlElement[]): XmlElement {
+  return el("CueList", { Caption: caption, ID: id, ...(page ? { Page: page } : {}) }, [
+    el("WindowState", box),
+    textEl("Chaser", chaserId),
+    textEl("NextPrevBehavior", 1),
+    ...(next.length ? [el("Next", {}, next)] : []),
+    ...(previous.length ? [el("Previous", {}, previous)] : []),
+  ]);
+}
+
+/** A note for step cueing on a QLC+ 4 show file, which answers only one message per control. */
+function oneInputNote(ws: Workspace, cues: Trigger[], control: ShowControl | undefined, where: string): string[] {
+  const v = qlcMajorVersion(ws);
+  if (v === undefined || v >= 5 || cues.length < 2 || !control) return [];
+  const last = cues.at(-1)!;
+  const dev = control.devices.find((d) => d.id === last.device)?.name ?? "a device";
+  return [`${where} has ${cues.length} cue messages, but this show file was saved by QLC+ ${v}, which answers only one message per control: it will hear only ${dev} ${triggerLabel(last)}. Use QLC+ 5, or have every device also send one shared message and make that your only cue.`];
 }
 
 /**
@@ -768,6 +803,10 @@ class ControlInputs {
   button(t: Trigger | undefined, what: string, scope: string): XmlElement[] {
     const src = this.source(t, what, scope);
     return src ? [el("Input", { ID: 0, ...src })] : [];
+  }
+  /** Several <Input>s for one control (QLC+ 5 answers each of them; QLC+ 4 only the last). */
+  many(ts: Trigger[], what: string, scope: string): XmlElement[] {
+    return ts.flatMap((t) => this.inner(t, what, scope));
   }
   /** An <Input> wrapped in a frame's own tag (Next, Previous, Shortcut). */
   inner(t: Trigger | undefined, what: string, scope: string): XmlElement[] {
@@ -874,10 +913,13 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
   const perRow = 10;
   const size = 80;
   const stepPx = 90;
+  const step = control?.cueing === "step";
   const most = Math.max(1, ...songs.map((s) => s.sections.length));
-  const rows = Math.max(2, Math.ceil(most / perRow));
-  // Section buttons on the left; Safe look and Blackout in a column on the right of every page.
-  const sideX = Math.min(most, perRow) * stepPx + 30;
+  const rows = step ? 3 : Math.max(2, Math.ceil(most / perRow));
+  // Section buttons (or, with step cueing, the song's cue list) on the left;
+  // Safe look and Blackout in a column on the right of every page.
+  const listW = 560;
+  const sideX = step ? listW + 20 : Math.min(most, perRow) * stepPx + 30;
   const width = Math.max(sideX + stepPx + 10, 340);
   const height = rows * stepPx + 46;
   const spot = placeFrame(page, width, height, previousSpot);
@@ -895,20 +937,36 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
     ...songs.map((song, i) => el("Shortcut", { Page: i, Name: pageName(i, song) }, inputs.inner(song.trigger, `The song “${song.title}”`, "frame"))),
     textEl("PagesLoop", "False"),
   ]);
+  const stepNotes: string[] = [];
   results.forEach(({ song, r }, p) => {
     const page = (x: number, y: number) => ({ Visible: p ? "False" : "True", X: x, Y: y, Width: size, Height: size });
     const scope = `page ${p}`;
     // Next, previous and song jumps share the frame with every page's buttons.
-    song.sections.forEach((s, i) => {
+    if (step) {
+      const cues = stepCuesFor(control, song);
       frame.children.push(
-        el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++, ...(p ? { Page: p } : {}) }, [
-          el("WindowState", page(10 + (i % perRow) * stepPx, 40 + Math.floor(i / perRow) * stepPx)),
-          el("Function", { ID: r.startIds[i]! }),
-          textEl("Action", "Toggle"),
-          ...inputs.button(triggerFor(control, s, i), `“${song.title}”: ${s.name}`, scope),
-        ]),
+        cueListWidget(
+          wid++,
+          `${safeName(song.title)}: cues`,
+          r.songChaserId,
+          { Visible: p ? "False" : "True", X: 10, Y: 40, Width: listW, Height: rows * stepPx - 10 },
+          p,
+          inputs.many(cues, `“${song.title}”: next section`, scope),
+          inputs.many(control?.previousSection ? [control.previousSection] : [], `“${song.title}”: previous section`, scope),
+        ),
       );
-    });
+      stepNotes.push(...oneInputNote(ws, cues, control, `“${song.title}”`));
+    } else
+      song.sections.forEach((s, i) => {
+        frame.children.push(
+          el("Button", { Caption: `${i + 1}. ${s.name}`, ID: wid++, ...(p ? { Page: p } : {}) }, [
+            el("WindowState", page(10 + (i % perRow) * stepPx, 40 + Math.floor(i / perRow) * stepPx)),
+            el("Function", { ID: r.startIds[i]! }),
+            textEl("Action", "Toggle"),
+            ...inputs.button(triggerFor(control, s, i), `“${song.title}”: ${s.name}`, scope),
+          ]),
+        );
+      });
     frame.children.push(
       el("Button", { Caption: "Safe look", ID: wid++, ...(p ? { Page: p } : {}) }, [
         el("WindowState", page(sideX, 40)),
@@ -930,12 +988,15 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
   const clash = new Set<string>();
   for (const t of frameKeys) {
     const k = `${t.device}/${t.kind}/${t.number}`;
-    songs.forEach((song) =>
-      song.sections.forEach((s, i) => {
-        const st = triggerFor(control, s, i);
-        if (st && `${st.device}/${st.kind}/${st.number}` === k) clash.add(`“${song.title}”: ${s.name} uses the same message as a song change, so one hit would do both.`);
-      }),
-    );
+    songs.forEach((song) => {
+      if (step) {
+        for (const st of stepCuesFor(control, song)) if (`${st.device}/${st.kind}/${st.number}` === k) clash.add(`A cue in “${song.title}” uses the same message as a song change, so one hit would do both.`);
+      } else
+        song.sections.forEach((s, i) => {
+          const st = triggerFor(control, s, i);
+          if (st && `${st.device}/${st.kind}/${st.number}` === k) clash.add(`“${song.title}”: ${s.name} uses the same message as a song change, so one hit would do both.`);
+        });
+    });
   }
 
   return {
@@ -944,7 +1005,7 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
     removedPrevious: removed,
     buttonsFrame: SET_FRAME,
     buttonsWhere: spot.where,
-    controlNotes: [...inputs.finish(), ...clash],
+    controlNotes: [...inputs.finish(), ...clash, ...new Set(stepNotes)],
   };
 }
 

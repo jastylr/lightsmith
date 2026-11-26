@@ -281,3 +281,11 @@ export function writePlaces(ws: Workspace, places: Map<number, Omit<Placement, "
   }
   return n;
 }
+
+/** The QLC+ major version that last saved the show file (from its Creator block), if it says. */
+export function qlcMajorVersion(ws: Workspace): number | undefined {
+  const creator = firstChild(ws.doc.root, "Creator");
+  const text = (creator ? childText(creator, "Version") : undefined) ?? "";
+  const m = /^(\d+)\./.exec(text.trim());
+  return m ? Number(m[1]) : undefined;
+}
