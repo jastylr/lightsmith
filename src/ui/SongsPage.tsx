@@ -132,6 +132,17 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const songs = store.project.songs;
   const song = songs.find((s) => s.id === songId) ?? songs[0];
   const [selected, setSelected] = useState<string | null>(song?.sections[0]?.id ?? null);
+  // While the song plays, the section under the playhead. Only the timeline's
+  // highlight and the preview follow it: switching the whole settings panel at
+  // every section change rebuilds hundreds of elements and stalls the
+  // playback for a moment. When playback stops, that section is selected.
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const playingRef = useRef<string | null>(null);
+  const onPlaying = (id: string | null) => {
+    if (id === null && playingRef.current) setSelected(playingRef.current);
+    playingRef.current = id;
+    setPlayingId(id);
+  };
   const [popped, setPopped] = useState(false);
   const [pview, setPviewState] = useState<PreviewView>(rememberedView);
   const setPview = (v: PreviewView) => {
@@ -366,7 +377,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             onDropAudio={(f) => void attachAudio(f)}
             recording={(ctx) => <RecordingControls {...ctx} audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
             sequences={store.project.sequences ?? []}
-            song={song} selected={selected} onSelect={setSelected} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onLink={(id, on) => setSection(id, { autoAdvance: on })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
+            song={song} selected={playingId ?? selected} onSelect={setSelected} onPlaying={onPlaying} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onLink={(id, on) => setSection(id, { autoAdvance: on })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
           <div className="songs-body">
             <div className="cue-panel">
               <div className="cue-panel-head">
@@ -376,11 +387,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
             </div>
             {current && (
-              <LookEditor key={current.id} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+              <LookEditor key={current.id} previewSection={playingId ? song.sections.find((x) => x.id === playingId) : undefined} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
-                <SectionPreview s={current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop()} />
+                <SectionPreview s={(playingId && song.sections.find((x) => x.id === playingId)) || current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop() && !playingId} />
               </PreviewWindow>
             )}
           </div>
@@ -509,6 +520,7 @@ function Timeline({
   song,
   selected,
   onSelect,
+  onPlaying,
   onMove,
   onResize,
   onLink,
@@ -543,6 +555,8 @@ function Timeline({
   song: Song;
   selected: string | null;
   onSelect: (id: string) => void;
+  /** During playback, the section under the playhead; null when playback stops. */
+  onPlaying: (id: string | null) => void;
   onMove: (a: number, b: number) => void;
   onResize: (id: string, bars: number) => void;
   /** Link a section to the next (it goes straight into it, so one cue plays both), or unlink it. */
@@ -666,8 +680,14 @@ function Timeline({
     const s = sectionAt(t);
     if (s && s.id !== selected) onSelect(s.id);
   };
-  const latestPlay = useRef({ song, selected, onSelect, totalMs, scale, el });
-  latestPlay.current = { song, selected, onSelect, totalMs, scale, el };
+  const latestPlay = useRef({ song, selected, onSelect: onPlaying, totalMs, scale, el });
+  latestPlay.current = { song, selected, onSelect: onPlaying, totalMs, scale, el };
+  // When playback stops, hand the section under the playhead to the page to select.
+  const onPlayingRef = useRef(onPlaying);
+  onPlayingRef.current = onPlaying;
+  useEffect(() => {
+    if (!playing) onPlayingRef.current(null);
+  }, [playing]);
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
@@ -720,7 +740,10 @@ function Timeline({
       // Start the preview's clock at the playhead, so sequences and patterns line up with the song.
       let start = 0;
       const s = song.sections.find((x) => (start += sectionMs(x)) > from) ?? song.sections[0];
-      if (s) onPlayFrom(s.id, Math.max(0, (from - (start - sectionMs(s))) / 1000));
+      if (s) {
+        onPlayFrom(s.id, Math.max(0, (from - (start - sectionMs(s))) / 1000));
+        onPlaying(s.id);
+      }
     }
     setPlaying((p) => !p);
   };
@@ -1331,7 +1354,7 @@ function ColorLayoutEditor({
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
 function SectionPreview({ s, rig, sequences, replay, compact, view, names, loop }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string>; loop?: boolean }) {
-  if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} loop={loop} />;
+  if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}-${s.id}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} loop={loop} />;
   if (compact) return <div className="blackout-preview compact"><Icon name="moon" size={18} /></div>;
   return (
     <div className="blackout-preview">
@@ -1373,7 +1396,10 @@ function LookEditor({
   chaserUses,
   prevSection,
   nextSection,
+  previewSection,
 }: {
+  /** While the song plays, the section to show in the preview (the one under the playhead). */
+  previewSection?: Section;
   /** The sections either side, for linking (going straight into the next). */
   prevSection?: Section;
   nextSection?: Section;
@@ -1619,7 +1645,10 @@ function LookEditor({
           ) : (
             <figure className="preview-figure" ref={previewRef}>
               <div className="preview-frame">
-                <SectionPreview s={s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop} />
+                {/* While the song plays it moves from section to section itself: looping a
+                    section would start it over at its end, a moment before the next one takes over. */}
+                <SectionPreview s={previewSection ?? s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop && !previewSection} />
+                {previewSection && previewSection.id !== s.id && <span className="preview-playing">Playing: {previewSection.name}</span>}
                 <div className="preview-views" role="radiogroup" aria-label="View the stage from">
                   {(
                     [

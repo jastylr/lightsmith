@@ -5158,3 +5158,17 @@ body.is-scrubbing * {
   font-size: 0.72rem;
   border-radius: var(--r-sm);
 }
+/* While the song plays, the preview follows the playhead; say which section it's showing. */
+.preview-playing {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.6rem;
+  z-index: 2;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(18, 16, 20, 0.8);
+  border: 1px solid var(--tungsten);
+  color: var(--tungsten-hi);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
