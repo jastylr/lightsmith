@@ -160,7 +160,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [replay, setReplay] = useState<Replay>({ n: 0, skip: false });
   // The song's recording: kept in the browser, played with the lights.
   const [muted, setMuted] = useState(false);
-  const track = useSongAudio(song?.audio, muted);
+  const [audioVersion, setAudioVersion] = useState(0);
+  const track = useSongAudio(song?.audio, muted, audioVersion);
   const [audioBusy, setAudioBusy] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const filePick = useRef<HTMLInputElement>(null);
@@ -282,6 +283,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         if (!ok) return;
       }
       set({ audio: { key: a.key, name: a.name, durationMs: a.durationMs, offsetMs: clampOffset(was?.offsetMs ?? 0, a) } });
+      setAudioVersion((v) => v + 1);
     } catch (err) {
       setAudioError(err instanceof Error ? err.message : "That file couldn't be read.");
     } finally {

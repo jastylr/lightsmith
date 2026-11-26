@@ -3,8 +3,8 @@
  * blocks, with bar lines to line them up against, and the controls to add,
  * slide, mute or remove it.
  */
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { clampOffset, formatDuration, peaksPath, recordingStartMs, sectionMs, type Section, type SongAudio } from "../core";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { clampOffset, formatDuration, recordingStartMs, sectionMs, type Section, type SongAudio } from "../core";
 import { DurationInput } from "./controls";
 import { Icon } from "./icons";
 import type { AudioTrack } from "./songAudio";
@@ -41,7 +41,31 @@ export function WaveLane({
   gesture: Gesture;
 }) {
   const peaks = track.status === "ready" ? track.peaks : null;
-  const path = useMemo(() => (peaks ? peaksPath(peaks) : ""), [peaks]);
+  // The waveform is drawn once into a canvas, a picture the browser can redraw almost
+  // for free. As an SVG path (two points for every 10 ms of the song) it had to be
+  // traced again whenever something near it changed, such as the highlight moving to
+  // the next section during playback, which froze the playhead for a moment.
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c || !peaks || !peaks.length) return;
+    const n = peaks.length;
+    const w = Math.min(n, 16384); // one column per peak, as wide as a canvas safely goes
+    const h = 128;
+    c.width = w;
+    c.height = h;
+    const g = c.getContext("2d");
+    if (!g) return;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = "#8fb7c9";
+    for (let x = 0; x < w; x++) {
+      // The loudest moment in this column, when several peaks share it.
+      let v = 0;
+      for (let i = Math.floor((x * n) / w), end = Math.max(i + 1, Math.floor(((x + 1) * n) / w)); i < end; i++) v = Math.max(v, peaks[i]!);
+      const half = (v / 255) * 0.96 * (h / 2);
+      g.fillRect(x, h / 2 - half, 1, Math.max(1, half * 2));
+    }
+  }, [peaks]);
   const [sliding, setSliding] = useState(false);
   const latest = useRef({ audio, scale, onOffset });
   latest.current = { audio, scale, onOffset };
@@ -106,9 +130,7 @@ export function WaveLane({
         <span key={i} className={`bar-line ${b.kind}`} style={{ left: b.x }} />
       ))}
       {track.status === "ready" && (
-        <svg className="wave" viewBox={`0 0 ${Math.max(1, track.peaks.length)} 2`} preserveAspectRatio="none" style={{ left: (-audio.offsetMs / 1000) * scale, width: (audio.durationMs / 1000) * scale }} aria-hidden="true">
-          <path d={path} />
-        </svg>
+        <canvas ref={canvas} className="wave" style={{ left: (-audio.offsetMs / 1000) * scale, width: (audio.durationMs / 1000) * scale }} aria-hidden="true" />
       )}
       {track.status === "loading" && <span className="wave-note">Loading the recording…</span>}
       {track.status === "missing" && (

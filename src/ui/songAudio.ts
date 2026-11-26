@@ -92,7 +92,11 @@ export type AudioTrack =
   | { status: "ready"; peaks: Uint8Array; el: HTMLAudioElement };
 
 /** A song's recording from the browser's store: its waveform, and an audio element to play it. */
-export function useSongAudio(audio: SongAudio | undefined, muted: boolean): AudioTrack {
+/**
+ * `version` reloads the same recording: loading the file a project names on a new
+ * computer keeps the same key (it's the same file), so the key alone wouldn't notice.
+ */
+export function useSongAudio(audio: SongAudio | undefined, muted: boolean, version = 0): AudioTrack {
   const key = audio?.key;
   const [track, setTrack] = useState<AudioTrack>({ status: key ? "loading" : "none" });
   useEffect(() => {
@@ -119,7 +123,7 @@ export function useSongAudio(audio: SongAudio | undefined, muted: boolean): Audi
       el?.pause();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [key]);
+  }, [key, version]);
   useEffect(() => {
     if (track.status === "ready") track.el.muted = muted;
   }, [track, muted]);

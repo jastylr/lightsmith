@@ -4612,12 +4612,9 @@ body.is-resizing * {
   top: 3px;
   height: calc(100% - 6px);
   pointer-events: none;
-}
-.wave path {
-  fill: #8fb7c9;
   opacity: 0.62;
 }
-.wave-lane.sliding .wave path {
+.wave-lane.sliding .wave {
   opacity: 0.85;
 }
 .bar-line {
