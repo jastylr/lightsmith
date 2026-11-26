@@ -6,6 +6,7 @@ import {
   fixtureKey,
   focusLights,
   fadeInMs,
+  sectionJump,
   generateSong,
   generateSet,
   normalizeProject,
@@ -1283,4 +1284,17 @@ test("fade length: instant, one beat, four bars, or a length of your own, never 
   const rig = guessRig(ws.fixtures, profiles);
   generateSong({ ws, profiles, rig, song: { id: "f", title: "Fades", bpm: 120, sections: [{ ...s, transition: "fade", fadeBeats: 8 }] } });
   assert.match(serializeWorkspace(ws), /Name="Backdrop base"[^]*?<Speed FadeIn="4000"/);
+});
+
+test("section markers: next goes to the next start; back goes to this start, or the one before within its first second", () => {
+  const secs = [{ bpm: 120, beatsPerBar: 4, bars: 2 }, { bpm: 120, beatsPerBar: 4, bars: 4 }, { bpm: 120, beatsPerBar: 4, bars: 1 }]; // starts 0, 4000, 12000
+  assert.equal(sectionJump(secs, 0, 1), 4000);
+  assert.equal(sectionJump(secs, 4000, 1), 12000);
+  assert.equal(sectionJump(secs, 12500, 1), null);
+  assert.equal(sectionJump(secs, 6500, -1), 4000);
+  assert.equal(sectionJump(secs, 4500, -1), 0);
+  assert.equal(sectionJump(secs, 4000, -1), 0);
+  assert.equal(sectionJump(secs, 500, -1), 0);
+  assert.equal(sectionJump(secs, 0, -1), null);
+  assert.equal(sectionJump([], 0, 1), null);
 });

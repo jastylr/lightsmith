@@ -954,6 +954,26 @@ export function fadeInMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars" | "tran
   return Math.min(sectionMs(s), beats * (60000 / s.bpm));
 }
 
+/**
+ * Where the previous or next section marker is, from `posMs`, like a DAW's markers:
+ * back goes to the start of this section, or to the one before when you're within its
+ * first second (so pressing it twice steps back two). Null when there's nowhere to go.
+ */
+export function sectionJump(sections: Pick<Section, "bpm" | "beatsPerBar" | "bars">[], posMs: number, dir: -1 | 1): number | null {
+  const starts: number[] = [];
+  let t = 0;
+  for (const s of sections) {
+    starts.push(t);
+    t += sectionMs(s);
+  }
+  if (!starts.length) return null;
+  let i = 0;
+  while (i + 1 < starts.length && starts[i + 1]! <= posMs + 1) i++;
+  if (dir === 1) return starts[i + 1] ?? null;
+  if (posMs - starts[i]! > 1000) return starts[i]!;
+  return i > 0 ? starts[i - 1]! : posMs > 0 ? 0 : null;
+}
+
 /** Side of the stage from a stage-plan position seen from the audience (stage left is on the audience's right). */
 export function sideFromX(x: number): Side {
   return x > 0.62 ? "SL" : x < 0.38 ? "SR" : "C";

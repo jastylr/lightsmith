@@ -5089,7 +5089,8 @@ body.is-scrubbing * {
   display: flex;
   align-items: stretch;
   flex: 1;
-  min-width: 0;
+  /* Room for every counter; with less, the display moves under the buttons. */
+  min-width: min(100%, 600px);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: #121014;
@@ -5208,7 +5209,7 @@ body.is-scrubbing * {
 .song-line .transport-slot {
   flex: 1 1 640px;
   /* Wide enough for the counters; with less room it moves under the title instead of squashing them. */
-  min-width: min(100%, 780px);
+  min-width: min(100%, 880px);
 }
 .lcd-row {
   display: flex;

@@ -16,6 +16,7 @@ import {
   patternById,
   sectionMs,
   fadeInMs,
+  sectionJump,
   barsForLength,
   type Snap,
   clampOffset,
@@ -780,6 +781,8 @@ function Timeline({
   const [scrubbing, setScrubbing] = useState(false);
   const seekRef = useRef(seek);
   seekRef.current = seek;
+  const sectionsRef = useRef(song.sections);
+  sectionsRef.current = song.sections;
   const scrub = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -809,10 +812,24 @@ function Timeline({
   toggleRef.current = togglePlay;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      // Space plays and pauses; Return goes back to the start, as in most DAWs.
-      if ((e.code !== "Space" && e.key !== "Enter") || e.repeat) return;
+      // Space plays and pauses; Return goes back to the start, as in most DAWs;
+      // the left and right arrows step between sections, like markers.
+      const arrow = e.key === "ArrowLeft" || e.key === "ArrowRight";
+      if ((e.code !== "Space" && e.key !== "Enter" && !arrow) || (e.repeat && !arrow) || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
       const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, select, button, [contenteditable], [role=radio], [role=checkbox], .lights-pop")) return;
+      // The transport's and the preview's own buttons keep the arrows working after a click.
+      const playerButton = arrow && t.closest(".transport-bar button, .preview-tools button, .preview-views button");
+      if (!playerButton && t.closest("input, textarea, select, button, [contenteditable], [role=radio], [role=checkbox], .lights-pop")) return;
+      // Arrows also move between tabs, blocks and other focused things: leave those alone.
+      if (arrow) {
+        if (!playerButton && t.closest("[tabindex], [role=listitem], [role=tab], [role=slider], [role=listbox], [role=option]")) return;
+        const ms = sectionJump(sectionsRef.current, posRef.current, e.key === "ArrowLeft" ? -1 : 1);
+        if (ms !== null) {
+          e.preventDefault();
+          seekRef.current(ms);
+        }
+        return;
+      }
       // Return also opens a focused section, link or tab: leave those alone.
       if (e.key === "Enter" && t.closest("a, [tabindex], [role=listitem], [role=tab]")) return;
       e.preventDefault();

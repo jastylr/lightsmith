@@ -5,7 +5,7 @@
  * signature, and the song's length. Click the bar number to go to a bar.
  */
 import { useState } from "react";
-import { msForBar, musicalPosition, type Section } from "../core";
+import { msForBar, musicalPosition, sectionJump, type Section } from "../core";
 import { TapTempo } from "./controls";
 import { Icon } from "./icons";
 
@@ -100,6 +100,10 @@ export function TransportBar({
   const p = musicalPosition(sections, posMs, songBpm);
   const section = sections[p.section];
   const [goTo, setGoTo] = useState<string | null>(null);
+  const toMarker = (dir: -1 | 1) => {
+    const ms = sectionJump(sections, posMs, dir);
+    if (ms !== null) onSeek(ms);
+  };
   const jump = () => {
     const n = Number(goTo);
     if (Number.isFinite(n) && n >= 1) onSeek(Math.min(totalMs, msForBar(sections, n, songBpm)));
@@ -111,8 +115,14 @@ export function TransportBar({
         <button type="button" className="transport-btn" onClick={() => onSeek(0)} disabled={posMs === 0} aria-label="Back to the start" title="Back to the start (Return)">
           <Icon name="skipBack" size={16} />
         </button>
+        <button type="button" className="transport-btn" onClick={() => toMarker(-1)} disabled={sectionJump(sections, posMs, -1) === null} aria-label="Previous section" title="Previous section: the start of this one, or the one before (Left arrow)">
+          <Icon name="chevronLeft" size={18} />
+        </button>
         <button type="button" className={playing ? "transport-btn play on" : "transport-btn play"} onClick={onPlay} disabled={!sections.length} aria-label={playing ? "Pause" : "Play the song"} title={playing ? "Pause (Space)" : "Play the song (Space)"}>
           <Icon name={playing ? "pause" : "play"} size={18} />
+        </button>
+        <button type="button" className="transport-btn" onClick={() => toMarker(1)} disabled={sectionJump(sections, posMs, 1) === null} aria-label="Next section" title="Next section (Right arrow)">
+          <Icon name="chevronRight" size={18} />
         </button>
       </div>
       <div className="lcd">
