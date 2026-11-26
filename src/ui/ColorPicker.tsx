@@ -182,14 +182,18 @@ export function AddColor({
 }
 
 export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]; fallback: string[]; onChange: (c: string[]) => void }) {
-  const using = colors.length ? colors : fallback;
+  const own = colors.length > 0;
+  const using = own ? colors : fallback;
   const add = (id: string) => {
     // Adding to the mood's colors starts from them, so nothing disappears.
-    const base = colors.length ? colors : fallback;
-    if (base.includes(id) || base.length >= MAX_COLORS) return;
-    onChange([...base, id]);
+    if (using.includes(id) || using.length >= MAX_COLORS) return;
+    onChange([...using, id]);
   };
-  const remove = (i: number) => onChange(colors.filter((_, k) => k !== i));
+  // Removing one of the mood's colors makes the rest your own. A section always
+  // keeps one color: with none of your own it would go back to the mood's.
+  const remove = (i: number) => {
+    if (using.length > 1) onChange(using.filter((_, k) => k !== i));
+  };
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= colors.length) return;
@@ -200,32 +204,39 @@ export function PaletteEditor({ colors, fallback, onChange }: { colors: string[]
 
   return (
     <div className="palette">
-      <div className={colors.length ? "palette-chips" : "palette-chips from-mood"}>
+      <div className={own ? "palette-chips" : "palette-chips from-mood"}>
         {using.map((c, i) => (
           <span key={`${c}-${i}`} className="palette-chip" style={{ "--c": cssColor(c) } as CSSProperties}>
             <i />
             <span>{colorById(c).label}</span>
-            {colors.length > 0 && (
-              <span className="palette-chip-actions">
-                {colors.length > 1 && (
-                  <button type="button" aria-label={`Move ${colorById(c).label} earlier`} onClick={() => move(i, -1)} disabled={i === 0}>
-                    ‹
-                  </button>
-                )}
-                <button type="button" aria-label={`Remove ${colorById(c).label}`} onClick={() => remove(i)}>
+            <span className="palette-chip-actions">
+              {own && colors.length > 1 && (
+                <button type="button" aria-label={`Move ${colorById(c).label} earlier`} onClick={() => move(i, -1)} disabled={i === 0}>
+                  ‹
+                </button>
+              )}
+              {using.length > 1 && (
+                <button type="button" aria-label={`Remove ${colorById(c).label}`} title={own ? undefined : "Remove it; the others become your own colors"} onClick={() => remove(i)}>
                   <Icon name="x" size={12} />
                 </button>
-              </span>
-            )}
+              )}
+            </span>
           </span>
         ))}
-        <AddColor chosen={colors} full={using.length >= MAX_COLORS} onAdd={add} onRemove={colors.length ? (id) => onChange(colors.filter((x) => x !== id)) : undefined} />
-        {colors.length > 0 && (
+        <AddColor chosen={using} full={using.length >= MAX_COLORS} onAdd={add} onRemove={own ? (id) => colors.length > 1 && onChange(colors.filter((x) => x !== id)) : undefined} />
+        {/* Your own colors from scratch: the first one you pick replaces the whole list. */}
+        <AddColor chosen={[]} full={false} onAdd={(id) => onChange([id])} label={own ? "Start over" : "Pick my own instead"} title="Replace these colors with ones you pick, starting with this one" />
+        {own && (
           <button type="button" className="link small" onClick={() => onChange([])}>
             Use the mood's colors
           </button>
         )}
       </div>
+      <p className="hint">
+        {own
+          ? "Your own colors: changing the mood no longer changes them."
+          : "The mood's colors (dashed). Add to them, remove any, or pick your own instead; either way they become this section's own."}
+      </p>
     </div>
   );
 }

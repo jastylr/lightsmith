@@ -1906,6 +1906,30 @@ function LookEditor({
             <>
           <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
+            {(() => {
+              // The mood is a starting point: each of these follows it until you set it in its tab.
+              const parts = [
+                { tab: "colors", label: "Colors", follows: s.colors.length === 0 },
+                { tab: "colors", label: "Color changes", follows: s.colorChange === "mood" },
+                { tab: "pattern", label: "Pattern", follows: s.pattern === "mood" },
+                { tab: "movers", label: "Movement", follows: s.movement === "mood", hide: !hasMovers },
+              ].filter((x) => !x.hide);
+              const link = (x: (typeof parts)[number]) => (
+                <button key={x.label} type="button" className="link small" onClick={() => pickTab(x.tab)}>
+                  {x.label}
+                </button>
+              );
+              const follow = parts.filter((x) => x.follows);
+              const own = parts.filter((x) => !x.follows);
+              const list = (xs: typeof parts) => xs.flatMap((x, i) => [i ? (i === xs.length - 1 ? " and " : ", ") : "", link(x)]);
+              return (
+                <p className="hint mood-parts">
+                  {follow.length ? <>From the mood: {list(follow)}. </> : <>Nothing follows the mood any more; it still sets brightness with the energy. </>}
+                  {own.length ? <>Your own: {list(own)}. </> : null}
+                  Set any of them in its tab to make it your own.
+                </p>
+              );
+            })()}
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
             {sees("mood", "full") && <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />}
             {more("mood", [["full", Object.keys(s.brightness ?? {}).length > 0]])}
