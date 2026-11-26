@@ -1590,7 +1590,7 @@ function LookEditor({
   });
   const allClosed = visibleCards.every((id) => closed.has(id));
 
-  // ---- Simple / Standard / Pro: what shows. Hidden settings keep working;
+  // ---- Simple / Full: what shows. Hidden settings keep working;
   // a card says when it has some in use, and "More options" shows them here.
   const { level } = useLevel();
   const [peek, setPeek] = useState<Set<string>>(new Set());
@@ -1611,8 +1611,8 @@ function LookEditor({
     for (const k of Object.keys(next) as (keyof MoverShape)[]) if (next[k] === undefined) delete next[k];
     onChange({ moverShape: Object.keys(next).length ? next : undefined });
   };
-  const showOwnLights = sees("lights", "standard") || ownLights > 0;
-  const showChasers = sees("sequences", "standard") || (s.sequences ?? []).length > 0;
+  const showOwnLights = sees("lights", "full") || ownLights > 0;
+  const showChasers = sees("sequences", "full") || (s.sequences ?? []).length > 0;
 
   // ---- the bar that stays at the top: jump to a card, see which one you're in,
   // and a small copy of the preview once the big one has scrolled away.
@@ -1788,8 +1788,8 @@ function LookEditor({
           <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
             <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
             <EnergyMeter value={s.energy} onChange={(energy) => onChange({ energy })} labels={ENERGY} />
-            {sees("mood", "standard") && <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />}
-            {more("mood", [["standard", Object.keys(s.brightness ?? {}).length > 0]])}
+            {sees("mood", "full") && <BrightnessEditor s={s} rig={rig} onChange={onChange} gesture={gesture} />}
+            {more("mood", [["full", Object.keys(s.brightness ?? {}).length > 0]])}
           </Group>
 
           <Group card={card("colors")} icon="palette" title="Colors" description={`The section's colors (up to ${MAX_COLORS}), then which ones each kind of light uses and whether they change over time. A + on a row adds a color for those lights only; the other rows show it faded, in case you want it there too.`}>
@@ -1798,10 +1798,10 @@ function LookEditor({
               <Field label="Switch between colors" hint="For lights that change with the section. Each row below can also stay steady or have its own rate.">
                 <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
               </Field>
-              {changeId !== "hold" && sees("colors", "standard") && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
+              {changeId !== "hold" && sees("colors", "full") && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
-            {sees("colors", "standard") && <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} onAddToJob={addToJob} />}
-            {more("colors", [["standard", s.colorFade || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || Object.keys(s.colorRates ?? {}).length > 0]])}
+            {sees("colors", "full") && <ColorLayoutEditor s={s} rig={rig} palette={palette} changing={changeId !== "hold"} onChange={onChange} onAddToJob={addToJob} />}
+            {more("colors", [["full", s.colorFade || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || Object.keys(s.colorRates ?? {}).length > 0]])}
           </Group>
 
           <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above.">
@@ -1830,20 +1830,20 @@ function LookEditor({
                 <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
               </>
             ) : (
-              more("lights", [["standard", ownLights > 0]])
+              more("lights", [["full", ownLights > 0]])
             )}
           </Group>
 
           <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
-            {pattern.algorithm && sees("pattern", "standard") && (
+            {pattern.algorithm && sees("pattern", "full") && (
               <div className="runs-on">
                 <span>Runs on</span>
                 <LightPicker title="Pattern runs on" chosen={patternTargets(s, rig)} custom={!!s.patternTargets} lights={lights} needsRgb onChange={(ids) => onChange({ patternTargets: ids })} />
               </div>
             )}
             {pattern.algorithm && patternTargets(s, rig).length === 0 && <p className="hint warn-text">Choose some lights for the pattern to run on; you have no backdrop lights.</p>}
-            {pattern.algorithm && more("pattern", [["standard", !!s.patternTargets]])}
+            {pattern.algorithm && more("pattern", [["full", !!s.patternTargets]])}
           </Group>
 
           <Group card={card("movers")} icon="mover" title="Moving heads" description="Where the moving heads point in this section, and how they move. Any movement runs around the place they point.">
@@ -1909,12 +1909,12 @@ function LookEditor({
                     />
                   </Field>
                 )}
-                {moveId !== "static" && sees("movers", "standard") && (
+                {moveId !== "static" && sees("movers", "full") && (
                   <Field label="How they move together">
                     <Segmented label="How heads move together" value={s.moverSpread} onChange={(v: MoverSpread) => onChange({ moverSpread: v })} options={SPREADS.map((x) => ({ value: x.id, label: x.label, title: x.description }))} />
                   </Field>
                 )}
-                {moveId !== "static" && sees("movers", "standard") && (
+                {moveId !== "static" && sees("movers", "full") && (
                   <Field label="Speed" hint={`One full movement every ${fmtBeats(cycleBeats)} ${cycleBeats === 1 ? "beat" : "beats"} (${(cycleBeats * 60 / s.bpm).toFixed(1)} s at ${s.bpm} BPM)${timing.slowed ? ", slowed so the heads can keep up" : ""}.${s.moverBeats ? "" : " Auto follows the movement and the section's energy."}`}>
                     <Segmented
                       label="Movement speed"
@@ -1924,11 +1924,19 @@ function LookEditor({
                     />
                   </Field>
                 )}
-                {moveId !== "static" && sees("movers", "pro") && <ShapeControls shape={shape} movement={MOVEMENTS.find((m) => m.id === moveId)!} spreadOffset={s.moverSpread === "offset"} onChange={setShape} />}
-                {sees("movers", "standard") && <BeamControls beam={s.beam ?? {}} heads={moverProfiles} onChange={(beam) => onChange({ beam })} />}
+                {moveId !== "static" && sees("movers", "full") && (
+                  // The exact shape is for fine-tuning, so it starts folded away (open when something in it is set).
+                  <details className="fine-tune" open={proShapeSet || undefined}>
+                    <summary>
+                      <Icon name="chevronRight" size={14} /> Fine-tune the shape{proShapeSet ? " (in use)" : ""}
+                    </summary>
+                    <ShapeControls shape={shape} movement={MOVEMENTS.find((m) => m.id === moveId)!} spreadOffset={s.moverSpread === "offset"} onChange={setShape} />
+                  </details>
+                )}
+                {sees("movers", "full") && <BeamControls beam={s.beam ?? {}} heads={moverProfiles} onChange={(beam) => onChange({ beam })} />}
                 {more("movers", [
-                  ["standard", s.moverSpread !== "together" || !!s.moverBeats || !!s.beam],
-                  ...(moveId !== "static" ? ([["pro", proShapeSet]] as [Level, boolean][]) : []),
+                  ["full", s.moverSpread !== "together" || !!s.moverBeats || !!s.beam],
+                  ...(moveId !== "static" ? ([["full", proShapeSet]] as [Level, boolean][]) : []),
                 ])}
               </>
             ) : (
@@ -1952,7 +1960,7 @@ function LookEditor({
                       </span>
                       <span className="effect-state">{on ? "On" : "Off"}</span>
                     </button>
-                    {on && sees("effects", "standard") && (
+                    {on && sees("effects", "full") && (
                       <div className="effect-extra">
                         <LightPicker
                           title={`${e.label} runs on`}
@@ -1984,7 +1992,7 @@ function LookEditor({
                 );
               })}
             </div>
-            {effectsOn.length > 0 && more("effects", [["standard", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec]])}
+            {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec]])}
             {showChasers ? (
               <>
                 <h4 className="subhead">Chasers</h4>
@@ -1992,7 +2000,7 @@ function LookEditor({
                 <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
               </>
             ) : (
-              more("sequences", [["standard", usedSequences.length > 0]])
+              more("sequences", [["full", usedSequences.length > 0]])
             )}
           </Group>
 
@@ -2173,7 +2181,7 @@ function MoreOptions({ used, onShow }: { used: number; onShow: () => void }) {
   );
 }
 
-/** Pro: the movement's exact shape, with QLC+'s own names for each setting. */
+/** Fine-tuning: the movement's exact shape, with QLC+'s own names for each setting. */
 function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: MoverShape; movement: { width: number; height: number }; spreadOffset: boolean; onChange: (p: Partial<MoverShape>) => void }) {
   const size = shape.size ?? 1;
   const row = (label: string, qlc: string, value: number | undefined, auto: number, min: number, max: number, set: (v: number | undefined) => void, unit = "") => (

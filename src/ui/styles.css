@@ -5229,3 +5229,38 @@ body.is-scrubbing * {
   color: var(--tungsten-hi);
   font-size: 0.75rem;
 }
+
+/* "Fine-tune the shape" in the Moving heads tab: folded away until wanted. */
+.fine-tune {
+  margin-top: 0.6rem;
+}
+.fine-tune > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.2rem 0;
+}
+.fine-tune > summary::-webkit-details-marker {
+  display: none;
+}
+.fine-tune > summary:hover {
+  color: var(--text);
+}
+.fine-tune > summary svg {
+  transition: transform 120ms ease;
+}
+.fine-tune[open] > summary svg {
+  transform: rotate(90deg);
+}
+.fine-tune[open] > summary {
+  margin-bottom: 0.5rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fine-tune > summary svg {
+    transition: none;
+  }
+}

@@ -227,7 +227,7 @@ function rememberRail(c: boolean) {
   }
 }
 
-/** How much of the app shows: Simple, Standard or Pro. Only hides controls; the show never changes. */
+/** How much of the app shows: Simple or Full. Only hides controls; the show never changes. */
 function LevelSwitch() {
   const { level, setLevel } = useLevel();
   return (
