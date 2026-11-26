@@ -108,6 +108,9 @@ export function IndividualLights({
         <div className="select-all individual-quick">
           <span>Select</span>
           <div>
+            <button type="button" className="group-toggle" onClick={() => setSelected(new Set(lights.map((l) => l.id)))}>
+              All lights
+            </button>
             {(["backdrop", "mover", "side", "front"] as const)
               .filter((r) => lights.some((l) => l.role === r))
               .map((r) => (
