@@ -5016,6 +5016,12 @@ body.is-scrubbing * {
   background: rgba(242, 167, 59, 0.14);
   color: var(--tungsten-hi);
 }
+/* Playing: hovering brightens the tint, and the pause icon stays visible. */
+.transport-btn.play.on:hover:not(:disabled) {
+  background: rgba(242, 167, 59, 0.26);
+  border-color: var(--tungsten-hi);
+  color: var(--tungsten-hi);
+}
 /* The display: dark glass, amber digits, like a DAW's LCD. */
 .lcd {
   display: flex;
@@ -5161,8 +5167,9 @@ body.is-scrubbing * {
 /* While the song plays, the preview follows the playhead; say which section it's showing. */
 .preview-playing {
   position: absolute;
-  top: 0.5rem;
+  bottom: 0.7rem;
   left: 0.6rem;
+  pointer-events: none;
   z-index: 2;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
@@ -5170,5 +5177,4 @@ body.is-scrubbing * {
   border: 1px solid var(--tungsten);
   color: var(--tungsten-hi);
   font-size: 0.75rem;
-  pointer-events: none;
 }
