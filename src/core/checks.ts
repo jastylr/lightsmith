@@ -3,7 +3,7 @@
  * Errors mean QLC+ would likely reject or misplay the file; warnings mean a
  * look may not show light the way the user expects.
  */
-import { shutterValueMeaning, type FixtureProfile } from "./fixture";
+import { shutterValueMeaning, strobeOffValue, type FixtureProfile } from "./fixture";
 import { childElements, firstChild, getAttr, textOf, walk } from "./xml";
 import type { Workspace } from "./workspace";
 
@@ -74,7 +74,12 @@ export function checkWorkspace(ws: Workspace, profiles: Map<number, FixtureProfi
         // Channels defined only by a preset carry no capability list; QLC+ fills
         // those in itself, so only explicit capability lists are judged here.
         if (!seen.has(sh.channel) || sh.capabilities.length === 0) continue;
-        const meaning = shutterValueMeaning(sh, seen.get(sh.channel)!);
+        const value = seen.get(sh.channel)!;
+        const meaning = shutterValueMeaning(sh, value);
+        // The value that stops a strobe ("No function" on many heads' strobe
+        // channels, where the light then shines normally) is written on purpose
+        // in sections without a strobe, so a strobe from earlier doesn't carry on.
+        if (meaning === "unknown" && value === strobeOffValue(p, sh.channel)) continue;
         if (meaning === "closed" || meaning === "unknown") {
           issues.push({
             level: "warning",

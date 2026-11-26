@@ -1376,3 +1376,16 @@ test("extra channels: only the ones Lightsmith leaves alone, and they export", (
   const xml = serializeWorkspace(ws);
   assert.match(xml, /Name="Extra channels"[\s\S]*?<FixtureVal ID="5">7,140,8,255<\/FixtureVal>/);
 });
+
+test("stopping a strobe with the definition's 'No function' value isn't reported as a dark light", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  for (const f of rig.fixtures) if (f.fixtureId === 2 || f.fixtureId === 3) f.role = "mover";
+  const strobing = { ...newSection("chorus", 120), beam: { strobe: "fast" as const } };
+  const calm = newSection("verse", 120);
+  generateSong({ ws, profiles, rig, song: { id: "s", title: "Strobe", bpm: 120, sections: [strobing, calm] } });
+  const reread = parseWorkspace(serializeWorkspace(ws));
+  const issues = checkWorkspace(reread, profiles).filter((i) => /shutter/.test(i.message));
+  assert.deepEqual(issues, []);
+});
