@@ -600,14 +600,15 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
       const byHome = new Map<string, RigFixture[]>();
       for (const r of movers) {
         const h = aimOf(s, rig, r);
-        const k = `${h.pan},${h.tilt}`;
+        // Heads with different ranges need different sizes for the same sweep.
+        const k = `${h.pan},${h.tilt},${r.panRange ?? ""},${r.tiltRange ?? ""}`;
         byHome.set(k, [...(byHome.get(k) ?? []), r]);
       }
       // A fan in degrees (Pro) replaces QLC+'s own even spread.
       const fan = s.moverSpread === "offset" && s.moverShape?.fan ? s.moverShape.fan : 0;
       for (const [k, rs] of byHome) {
         const [pan, tilt] = k.split(",").map(Number) as [number, number];
-        const at = moverShapeAt(s.moverShape, mv, { pan, tilt });
+        const at = moverShapeAt(s.moverShape, mv, { pan, tilt }, rs[0]);
         parts.push(
           b.efx(`Movers ${mv.label.toLowerCase()}`, path, {
             algorithm: mv.algorithm,

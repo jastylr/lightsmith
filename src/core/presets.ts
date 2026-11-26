@@ -149,15 +149,19 @@ export interface MovementPreset {
   icon: string;
 }
 
+// Sizes are DMX steps EACH WAY from the middle (QLC+'s EFX width and height) on a
+// head that pans 540° and tilts 270° (other heads are scaled to sweep the same
+// angles): a circle is about ±20° of pan and ±12° of tilt, the sweep ±50° of pan.
+// On stage those are big, clear shapes; much bigger and no motor can keep time.
 export const MOVEMENTS: MovementPreset[] = [
   { id: "static", label: "Still", description: "Hold the home position", bars: 0, width: 0, height: 0, icon: "M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" },
-  { id: "sweep", label: "Slow sweep", description: "Side to side across the stage", algorithm: "Line", bars: 8, width: 110, height: 10, icon: "M3 12h18M6 9l-3 3l3 3M18 9l3 3l-3 3" },
-  { id: "circle", label: "Circle", description: "Smooth circles", algorithm: "Circle", bars: 4, width: 70, height: 50, icon: "M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0" },
-  { id: "figure8", label: "Figure 8", description: "Busier, crossing figure 8", algorithm: "Eight", bars: 2, width: 90, height: 70, icon: "M12 12c-3-4-8-4-8 0s5 4 8 0s8-4 8 0s-5 4-8 0" },
-  { id: "diamond", label: "Diamond", description: "Sharp corners, punchy", algorithm: "Diamond", bars: 2, width: 80, height: 60, icon: "M12 4l8 8l-8 8l-8-8z" },
-  { id: "square", label: "Square", description: "Box pattern", algorithm: "Square", bars: 2, width: 70, height: 60, icon: "M5 5h14v14h-14z" },
-  { id: "leaf", label: "Leaf", description: "Flowing petal shape", algorithm: "Leaf", bars: 4, width: 80, height: 60, icon: "M4 20c0-9 7-16 16-16c0 9-7 16-16 16zM4 20L20 4" },
-  { id: "ballyhoo", label: "Ballyhoo", description: "Wild crowd-sweeping figure", algorithm: "Lissajous", bars: 2, width: 110, height: 80, icon: "M4 12c2-8 4-8 8 0s6 8 8 0M4 12c2 8 4 8 8 0s6-8 8 0" },
+  { id: "sweep", label: "Slow sweep", description: "Side to side across the stage", algorithm: "Line", bars: 8, width: 24, height: 3, icon: "M3 12h18M6 9l-3 3l3 3M18 9l3 3l-3 3" },
+  { id: "circle", label: "Circle", description: "Smooth circles", algorithm: "Circle", bars: 4, width: 9, height: 11, icon: "M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0" },
+  { id: "figure8", label: "Figure 8", description: "Busier, crossing figure 8", algorithm: "Eight", bars: 2, width: 12, height: 14, icon: "M12 12c-3-4-8-4-8 0s5 4 8 0s8-4 8 0s-5 4-8 0" },
+  { id: "diamond", label: "Diamond", description: "Sharp corners, punchy", algorithm: "Diamond", bars: 2, width: 10, height: 14, icon: "M12 4l8 8l-8 8l-8-8z" },
+  { id: "square", label: "Square", description: "Box pattern", algorithm: "Square", bars: 2, width: 9, height: 12, icon: "M5 5h14v14h-14z" },
+  { id: "leaf", label: "Leaf", description: "Flowing petal shape", algorithm: "Leaf", bars: 4, width: 10, height: 14, icon: "M4 20c0-9 7-16 16-16c0 9-7 16-16 16zM4 20L20 4" },
+  { id: "ballyhoo", label: "Ballyhoo", description: "Wild crowd-sweeping figure", algorithm: "Lissajous", bars: 2, width: 14, height: 18, icon: "M4 12c2-8 4-8 8 0s6 8 8 0M4 12c2 8 4 8 8 0s6-8 8 0" },
 ];
 
 export type MoverSpread = "together" | "chase" | "offset";

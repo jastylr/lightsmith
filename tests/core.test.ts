@@ -850,13 +850,17 @@ test("movement shape: size, exact width and height, rotation, nudges and fan", (
   assert.equal(near.x, 20);
   assert.equal(near.width, 20, "only 20 steps of room either side");
   assert.equal(near.rotation, 90);
+  // A head that pans only 360° needs bigger values to sweep the same angle; exact values stay exact.
+  assert.equal(moverShapeAt(undefined, circle, { pan: 128, tilt: 128 }, { panRange: 270, tiltRange: 135 }).width, 127);
+  assert.deepEqual(moverShapeAt(undefined, { width: 9, height: 11 }, { pan: 128, tilt: 128 }, { panRange: 270, tiltRange: 135 }), { x: 128, y: 128, width: 18, height: 22, rotation: 0 });
+  assert.equal(moverShapeAt({ width: 40 }, { width: 9, height: 11 }, { pan: 128, tilt: 128 }, { panRange: 270 }).width, 40);
   const ws = parseWorkspace(WORKSPACE_QXW);
   const { profiles } = matchProfiles(ws.fixtures, defs());
   const rig = guessRig(ws.fixtures, profiles);
   const s = { ...newSection("verse", 120), movement: "circle", moverSpread: "offset" as const, moverShape: { size: 1.5, rotation: 30, fan: 90 } };
   generateSong({ ws, profiles, rig, song: { id: "e", title: "Shape", bpm: 120, sections: [s] } });
   const efx = serializeWorkspace(ws).match(/Type="EFX"[\s\S]*?<\/Function>/)![0];
-  assert.match(efx, /<Width>105<\/Width>/);
+  assert.match(efx, /<Width>14<\/Width>/, "a circle is 9 steps each way (about ±20° of pan); Large is half as big again");
   assert.match(efx, /<Rotation>30<\/Rotation>/);
   assert.match(efx, /<PropagationMode>Parallel<\/PropagationMode>/, "an exact fan replaces QLC+'s own spread");
   const offsets = [...efx.matchAll(/<Fixture>[\s\S]*?<StartOffset>(\d+)<\/StartOffset>/g)].map((m) => Number(m[1]));
@@ -994,14 +998,14 @@ test("movement speed: a shape the heads can't get round in time is slowed, on th
   assert.ok(efxTravel("Line", 110, 10) > 4 * 110 - 2 && efxTravel("Line", 110, 10) < 4 * 110 + 2);
   const rig = { fixtures: [{ fixtureId: 1, role: "mover" as const, side: "C" as const, order: 0, home: { pan: 128, tilt: 78 } }], positions: [] };
   const circle = MOVEMENTS.find((m) => m.id === "circle")!;
-  // The Solo at 138 BPM, a circle every 2 beats (0.87 s): far too quick for a 2.5 s head.
-  const s = { moverBeats: 2, beatsPerBar: 4, energy: 5, bpm: 138, moverShape: undefined, aim: undefined };
+  // The Solo at 138 BPM, a circle on every beat (0.43 s): too quick for a 2.5 s head.
+  const s = { moverBeats: 1, beatsPerBar: 4, energy: 5, bpm: 138, moverShape: undefined, aim: undefined };
   const t = moverTiming(s, circle, rig);
-  assert.equal(t.asked, 2);
+  assert.equal(t.asked, 1);
   assert.ok(t.slowed);
   assert.ok(t.beats * (60000 / 138) >= t.minMs, "slow enough to get round");
   assert.ok((t.beats / 2) * (60000 / 138) < t.minMs, "and no slower than needed");
-  assert.ok([4, 8, 16, 32].includes(t.beats), "still on the beat");
+  assert.ok([2, 4, 8, 16, 32].includes(t.beats), "still on the beat");
   // Smaller shapes, or quicker heads, can go faster.
   const small = moverTiming({ ...s, moverShape: { size: 0.5 } }, circle, rig);
   assert.ok(small.beats < t.beats);
@@ -1297,4 +1301,16 @@ test("section markers: next goes to the next start; back goes to this start, or 
   assert.equal(sectionJump(secs, 500, -1), 0);
   assert.equal(sectionJump(secs, 0, -1), null);
   assert.equal(sectionJump([], 0, 1), null);
+});
+
+test("a medium circle keeps time on budget heads at a fast tempo", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const circle = MOVEMENTS.find((m) => m.id === "circle")!;
+  const at = (moverBeats: number, size = 1) => moverTiming({ ...newSection("chorus", 138), moverBeats, moverShape: { size } }, circle, rig);
+  assert.equal(at(2).slowed, false, "a circle every 2 beats at 138 BPM (0.87 s)");
+  assert.equal(at(1).slowed, true, "every beat is too quick, so it runs every 2");
+  assert.equal(at(1).beats, 2);
+  assert.equal(at(4, 2).slowed, false, "a huge circle every bar");
 });

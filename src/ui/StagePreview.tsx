@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, DEFAULT_PAN_RANGE, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -262,7 +262,7 @@ export function StagePreview({
     const c = moverFocused ? { fill: WARM, anim: null } : o.color ? { fill: o.color, anim: null } : fillJob("mover", stageIndex(movers, i), 1);
     const moverLevel = o.off ? 0 : moverFocused ? 1 : (o.level ?? lv.mover.level) * (focusing ? FOCUS_DIM : 1);
     const dur = movement.bars ? moverTiming(section, movement, rig).beats * beat : 0;
-    const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f));
+    const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f), f);
     const fan = section.moverSpread === "offset" && section.moverShape?.fan ? section.moverShape.fan : 0;
     const phase = section.moverSpread === "together" ? 0 : fan ? -((stageIndex(movers, i) * fan) % 360) / 360 * dur : -(stageIndex(movers, i) * dur) / Math.max(2, movers.length);
     const cal = calibrationOf(f);
@@ -666,8 +666,8 @@ export function StagePreview({
         // same pan and tilt, so its sweep (and its lean) runs the other way.
         const mirror = (f.reverse ? -1 : 1) * (f.facesBack ? -1 : 1);
         // The shape's size scales the swing, as width does in the export.
-        const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f));
-        const sizeScale = movement.width ? Math.min(2.4, shaped.width / movement.width) : 1;
+        const shaped = moverShapeAt(section.moverShape, movement, aimOf(section, rig, f), f);
+        const sizeScale = movement.width ? Math.min(2.4, shaped.width / (movement.width * (DEFAULT_PAN_RANGE / (f.panRange ?? DEFAULT_PAN_RANGE)))) : 1;
         // A head pointing straight up (tilt near 128) only turns its beam round
         // its own axis when it pans, so the movement shrinks to a small wobble,
         // as it does on the real rig. The further it tilts, the wider it reads.

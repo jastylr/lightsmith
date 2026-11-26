@@ -35,6 +35,8 @@ import {
   type LookPreset,
   type MoverShape,
   EFX_MAX,
+  DEFAULT_PAN_RANGE,
+  DEFAULT_TILT_RANGE,
   emptyShowControl,
   triggerFor,
   type ShowControl,
@@ -1992,7 +1994,10 @@ function LookEditor({
                   <div className="notice warn">
                     <Icon name="info" />
                     <span>
-                      Too fast for your heads: a {lower(moveDef?.label ?? "movement")} this size every {fmtBeats(timing.asked)} {timing.asked === 1 ? "beat" : "beats"} ({((timing.asked * 60) / s.bpm).toFixed(1)} s) needs about {(timing.minMs / 1000).toFixed(1)} s, so the motors would fall behind and the beams just twitch. It runs every {fmtBeats(timing.beats)} beats ({((timing.beats * 60) / s.bpm).toFixed(1)} s) instead, here and in QLC+. To move faster, make it smaller. If your heads are quicker than Lightsmith thinks, set how fast they pan on the Stage page.
+                      Too fast for your heads: a {lower(moveDef?.label ?? "movement")} this size every {fmtBeats(timing.asked)} {timing.asked === 1 ? "beat" : "beats"} ({((timing.asked * 60) / s.bpm).toFixed(1)} s) needs about {(timing.minMs / 1000).toFixed(1)} s, so the motors would fall behind and the beams just twitch. It runs every {fmtBeats(timing.beats)} beats ({((timing.beats * 60) / s.bpm).toFixed(1)} s) instead, here and in QLC+.{" "}
+                      {s.moverShape?.width !== undefined || s.moverShape?.height !== undefined
+                        ? "This section's shape has its own width or height under Fine-tune the shape: set them back to Auto, or lower them, to move faster."
+                        : "To move faster, make it smaller."} If your heads are quicker than Lightsmith thinks, set how fast they pan on the Stage page.
                     </span>
                   </div>
                 )}
@@ -2321,7 +2326,9 @@ function ShapeControls({ shape, movement, spreadOffset, onChange }: { shape: Mov
       {row("Pan nudge", "X offset", shape.panNudge, 0, -64, 64, (panNudge) => onChange({ panNudge: panNudge || undefined }))}
       {row("Tilt nudge", "Y offset", shape.tiltNudge, 0, -64, 64, (tiltNudge) => onChange({ tiltNudge: tiltNudge || undefined }))}
       {spreadOffset && row("Fan", "start offset per head", shape.fan, 0, 0, 180, (fan) => onChange({ fan: fan || undefined }), "°")}
-      <p className="hint">Width and height are QLC+'s numbers: how far the heads travel each way from where they point, up to 127, and never past the end of their range. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}</p>
+      <p className="hint">
+        Width {shape.width ?? Math.round(movement.width * size)} is about ±{Math.round(((shape.width ?? movement.width * size) * DEFAULT_PAN_RANGE) / 255)}° of pan and height {shape.height ?? Math.round(movement.height * size)} about ±{Math.round(((shape.height ?? movement.height * size) * DEFAULT_TILT_RANGE) / 255)}° of tilt, on heads that pan 540° and tilt 270°. Width and height are QLC+'s numbers: how far the heads travel each way from where they point, up to 127, and never past the end of their range. {spreadOffset ? "Fan sets the degrees between one head and the next round the shape." : "Pick Offset under How they move together to set a fan."}
+      </p>
     </div>
   );
 }

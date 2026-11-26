@@ -5,10 +5,9 @@
  * once on the real rig, because none of that is in the DMX values.
  */
 import { mountOf, type RigFixture } from "./model";
+export { DEFAULT_PAN_RANGE, DEFAULT_TILT_RANGE } from "./model";
 
-/** Typical budget moving heads: 540° pan, 270° tilt. */
-export const DEFAULT_PAN_RANGE = 540;
-export const DEFAULT_TILT_RANGE = 270;
+import { DEFAULT_PAN_RANGE, DEFAULT_TILT_RANGE } from "./model";
 
 export interface HeadCalibration {
   panRange: number;

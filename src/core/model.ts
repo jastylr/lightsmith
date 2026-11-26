@@ -129,16 +129,33 @@ export const UPRIGHT_TILT = 24;
 /** The largest EFX width or height QLC+ accepts. */
 export const EFX_MAX = 127;
 
-export function moverShapeAt(shape: MoverShape | undefined, movement: { width: number; height: number }, aim: { pan: number; tilt: number }) {
+/** Typical budget moving heads: 540° pan, 270° tilt. */
+export const DEFAULT_PAN_RANGE = 540;
+export const DEFAULT_TILT_RANGE = 270;
+
+/**
+ * A movement's size on a particular head. Movements are sized for a head that
+ * pans 540° and tilts 270°; a head with a smaller range needs bigger DMX values
+ * to sweep the same angle, so it gets them. Width and height you set yourself
+ * (fine-tuning) are DMX values and stay as they are.
+ */
+export function moverShapeAt(
+  shape: MoverShape | undefined,
+  movement: { width: number; height: number },
+  aim: { pan: number; tilt: number },
+  head?: { panRange?: number; tiltRange?: number },
+) {
   const sh = shape ?? {};
   const size = sh.size ?? 1;
+  const panScale = DEFAULT_PAN_RANGE / (head?.panRange ?? DEFAULT_PAN_RANGE);
+  const tiltScale = DEFAULT_TILT_RANGE / (head?.tiltRange ?? DEFAULT_TILT_RANGE);
   const x = Math.max(0, Math.min(255, Math.round(aim.pan + (sh.panNudge ?? 0))));
   const y = Math.max(0, Math.min(255, Math.round(aim.tilt + (sh.tiltNudge ?? 0))));
   // QLC+ treats width and height as how far the head travels EACH WAY from
   // the middle (x = offset ± width), and caps both at 127 when it loads a
   // show. So the shape is kept to 127 and to the room on each side.
-  const w = Math.min(Math.round(sh.width ?? movement.width * size), EFX_MAX, x, 255 - x);
-  const h = Math.min(Math.round(sh.height ?? movement.height * size), EFX_MAX, y, 255 - y);
+  const w = Math.min(Math.round(sh.width ?? movement.width * size * panScale), EFX_MAX, x, 255 - x);
+  const h = Math.min(Math.round(sh.height ?? movement.height * size * tiltScale), EFX_MAX, y, 255 - y);
   return { x, y, width: Math.max(0, w), height: Math.max(0, h), rotation: Math.round(((sh.rotation ?? 0) % 360 + 360) % 360) };
 }
 
@@ -233,7 +250,7 @@ export function moverTiming(
   const heads = rig.fixtures.filter((f) => f.role === "mover");
   let minMs = 0;
   for (const f of heads) {
-    const at = moverShapeAt(s.moverShape, movement, aimOf(s, rig, f));
+    const at = moverShapeAt(s.moverShape, movement, aimOf(s, rig, f), f);
     const stepsPerSec = 255 / Math.max(0.3, f.panSeconds ?? DEFAULT_PAN_SECONDS);
     minMs = Math.max(minMs, (efxTravel(movement.algorithm, at.width, at.height) / stepsPerSec) * 1000 * MOVE_MARGIN);
   }
