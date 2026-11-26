@@ -15,6 +15,7 @@ import {
   newSection,
   patternById,
   sectionMs,
+  fadeInMs,
   barsForLength,
   type Snap,
   clampOffset,
@@ -403,7 +404,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
-                <SectionPreview s={(playingId && song.sections.find((x) => x.id === playingId)) || current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop() && !playingId} />
+                <SectionPreview s={(playingId && song.sections.find((x) => x.id === playingId)) || current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop() && !playingId} follow={!!playingId} />
               </PreviewWindow>
             )}
           </div>
@@ -1365,7 +1366,49 @@ function ColorLayoutEditor({
 }
 
 /** The stage preview for a section, or the "All lights off" panel for a blackout. */
-function SectionPreview({ s, rig, sequences, replay, compact, view, names, loop }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string>; loop?: boolean }) {
+function SectionPreview(props: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string>; loop?: boolean; follow?: boolean }) {
+  const { s, follow } = props;
+  // While the song plays (`follow`), a section that fades in fades over the one before,
+  // as it will in QLC+. Two slots take turns: the outgoing picture stays where it is
+  // (so it carries on moving rather than starting over) and the new one comes up over it.
+  const [fade, setFade] = useState<{ front: "a" | "b"; back: Section | null; ms: number }>({ front: "a", back: null, ms: 0 });
+  const last = useRef<{ s: Section; follow: boolean }>({ s, follow: !!follow });
+  useLayoutEffect(() => {
+    const was = last.current;
+    last.current = { s, follow: !!follow };
+    if (!follow) {
+      setFade((f) => (f.back ? { ...f, back: null } : f));
+      return;
+    }
+    if (!was.follow || was.s.id === s.id) return;
+    const ms = isBlackout(s) || isBlackout(was.s) ? 0 : fadeInMs(s);
+    if (!ms) {
+      setFade((f) => (f.back ? { ...f, back: null } : f));
+      return;
+    }
+    setFade((f) => ({ front: f.front === "a" ? "b" : "a", back: was.s, ms }));
+    const t = window.setTimeout(() => setFade((f) => ({ ...f, back: null })), ms);
+    return () => window.clearTimeout(t);
+  }, [s, follow]);
+  const slot = (k: "a" | "b") =>
+    k === fade.front ? (
+      <div key={k} className={fade.back ? "preview-over fading" : "preview-over"} style={fade.back ? { animationDuration: `${fade.ms}ms` } : undefined}>
+        <SectionPicture {...props} />
+      </div>
+    ) : fade.back ? (
+      <div key={k} className="preview-under" aria-hidden="true">
+        <SectionPicture {...props} s={fade.back} />
+      </div>
+    ) : null;
+  return (
+    <div className="preview-crossfade">
+      {slot("a")}
+      {slot("b")}
+    </div>
+  );
+}
+
+function SectionPicture({ s, rig, sequences, replay, compact, view, names, loop }: { s: Section; rig: Store["project"]["rig"]; sequences?: Sequence[]; replay?: Replay; compact?: boolean; view?: PreviewView; names?: Map<number, string>; loop?: boolean }) {
   if (!isBlackout(s)) return <StagePreview key={`${replay?.n ?? 0}-${view ?? "front"}-${s.id}`} section={s} rig={rig} sequences={sequences} skipDelay={replay?.skip} startAt={replay?.section === s.id ? replay.at : 0} compact={compact} view={view} names={names} loop={loop} />;
   if (compact) return <div className="blackout-preview compact"><Icon name="moon" size={18} /></div>;
   return (
@@ -1532,7 +1575,7 @@ function LookEditor({
     s.beam?.prism ? "prism" : "",
   ].filter(Boolean);
   const typeDefault = sectionTypeById(s.type).transition;
-  const transitionLabel = blackout ? (s.transition === "snap" ? "Cut to black" : "Fade to black") : s.transition === "snap" ? "Changes instantly" : s.transition === "fade" ? "Fades over one beat" : "Builds up gradually";
+  const transitionLabel = blackout ? (s.transition === "snap" ? "Cut to black" : "Fade to black") : s.transition === "snap" ? "Changes instantly" : `Fades in over ${fadeChoices(s).find((c) => c.beats === fadeBeatsOf(s))?.label.toLowerCase() ?? `${fadeBeatsOf(s)} beats`}`;
   const cards: Record<string, { summary: string; changed: boolean }> = {
     mood: { summary: `${mood.label}, ${lower(energyOf(s.energy).label)} energy${Object.keys(s.brightness ?? {}).length ? ", own brightness" : ""}`, changed: Object.keys(s.brightness ?? {}).length > 0 },
     colors: {
@@ -1662,7 +1705,7 @@ function LookEditor({
               <div className="preview-frame">
                 {/* While the song plays it moves from section to section itself: looping a
                     section would start it over at its end, a moment before the next one takes over. */}
-                <SectionPreview s={previewSection ?? s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop && !previewSection} />
+                <SectionPreview s={previewSection ?? s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop && !previewSection} follow={!!previewSection} />
                 {previewSection && previewSection.id !== s.id && <span className="preview-playing">Playing: {previewSection.name}</span>}
                 <div className="preview-views" role="radiogroup" aria-label="View the stage from">
                   {(
@@ -2020,16 +2063,27 @@ function LookEditor({
                 ]}
               />
             ) : (
-              <ChoiceCards
-                label="How the lights change when this section starts"
-                value={s.transition}
-                onChange={(transition: Transition) => onChange({ transition })}
-                options={[
-                  { value: "snap", title: "Change instantly", text: "Best for hard hits, like a chorus that kicks in." },
-                  { value: "fade", title: "Fade over one beat", text: "A quick, smooth change." },
-                  { value: "build", title: "Build up gradually", text: "Ramps in over up to 4 bars, for a slow rise into the section." },
-                ]}
-              />
+              <>
+                <ChoiceCards
+                  label="How the lights change when this section starts"
+                  value={s.transition === "snap" ? "snap" : "fade"}
+                  onChange={(v) => onChange(v === "snap" ? { transition: "snap" } : { transition: "fade", fadeBeats: fadeBeatsOf(s) })}
+                  options={[
+                    { value: "snap", title: "Change instantly", text: "Best for hard hits, like a chorus that kicks in." },
+                    { value: "fade", title: "Fade in", text: "Every light glides from the previous look to this one; what stays the same doesn't move. Slow fades suit a spotlight coming up, or a rise into the section." },
+                  ]}
+                />
+                {s.transition !== "snap" && (
+                  <Field label="Fade length" hint={fadeHint(s)}>
+                    <Segmented
+                      label="Fade length"
+                      value={String(fadeBeatsOf(s))}
+                      onChange={(v) => onChange({ transition: "fade", fadeBeats: +v })}
+                      options={fadeChoices(s).map((c) => ({ value: String(c.beats), label: c.label }))}
+                    />
+                  </Field>
+                )}
+              </>
             )}
             <h4 className="subhead">When this section ends…</h4>
             {nextSection ? (
@@ -2389,4 +2443,33 @@ const CardNav = forwardRef<
 function songLength(song: Song): string {
   const sec = Math.round(song.sections.reduce((t, x) => t + sectionMs(x), 0) / 1000);
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+/** The fade length in beats: the one chosen, or what "fade" (a beat) and "build" (four bars) always meant. */
+function fadeBeatsOf(s: Section): number {
+  return s.fadeBeats ?? (s.transition === "build" ? 4 * s.beatsPerBar : 1);
+}
+
+/** Fade lengths to pick from, in this section's beats and bars. */
+function fadeChoices(s: Section): { beats: number; label: string }[] {
+  const bar = s.beatsPerBar;
+  const out = [
+    { beats: 1, label: "1 beat" },
+    { beats: 2, label: "2 beats" },
+    { beats: bar, label: "1 bar" },
+    { beats: 2 * bar, label: "2 bars" },
+    { beats: 4 * bar, label: "4 bars" },
+    { beats: 8 * bar, label: "8 bars" },
+  ].filter((c, i, all) => all.findIndex((d) => d.beats === c.beats) === i);
+  // A length saved earlier that isn't one of these still shows.
+  const own = fadeBeatsOf(s);
+  if (!out.some((c) => c.beats === own)) out.push({ beats: own, label: `${own} beats` });
+  return out.sort((a, b) => a.beats - b.beats);
+}
+
+function fadeHint(s: Section): string {
+  const ms = fadeInMs(s);
+  const whole = fadeBeatsOf(s) * (60000 / s.bpm) >= sectionMs(s);
+  const sec = Math.round(ms / 100) / 10;
+  return whole ? `Longer than the section, so the look keeps rising through all of it (${sec} s).` : `About ${sec} s at ${Math.round(s.bpm * 10) / 10} BPM.`;
 }

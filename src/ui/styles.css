@@ -5264,3 +5264,32 @@ body.is-scrubbing * {
     transition: none;
   }
 }
+
+/* While a song plays, a section that fades in comes up over the one before. */
+.preview-crossfade {
+  position: relative;
+  /* Its own stacking context: the two pictures order among themselves, and the
+     buttons and labels over the preview stay on top. */
+  isolation: isolate;
+}
+.preview-under {
+  position: absolute;
+  inset: 0;
+}
+.preview-over {
+  position: relative;
+  z-index: 1;
+}
+.preview-over.fading {
+  animation-name: preview-fade-in;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes preview-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

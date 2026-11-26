@@ -17,7 +17,7 @@ import { capabilityNamed, openGobo, prismRange, strobeOffValue, strobeRange, typ
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
-import { isBlackout, sectionMs } from "./model";
+import { fadeInMs, isBlackout, sectionMs } from "./model";
 import { colorById, energyOf, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
@@ -442,7 +442,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const speed = en.speed;
     const beat = 60000 / s.bpm;
     const bar = beat * s.beatsPerBar;
-    const fade = s.transition === "snap" ? 0 : s.transition === "fade" ? beat : Math.min(sectionMs(s), bar * 4);
+    const fade = fadeInMs(s);
     const pattern = patternById(s.pattern === "mood" ? mood.pattern : s.pattern);
     const moveId = s.movement === "mood" ? mood.movement : s.movement;
     const mv = MOVEMENTS.find((m) => m.id === moveId) ?? MOVEMENTS[0]!;

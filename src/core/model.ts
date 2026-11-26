@@ -348,6 +348,11 @@ export interface Section {
   /** Which lights each effect uses (fixture IDs). Missing = the effect's default lights. */
   effectTargets?: Partial<Record<EffectId, number[]>>;
   transition: Transition;
+  /**
+   * How long a fade takes, in beats of this section. Missing: one beat for "fade",
+   * four bars for "build" (the two fades there were before you could pick a length).
+   */
+  fadeBeats?: number;
   /** Move to the next section by itself after its length (otherwise wait for a trigger). */
   autoAdvance: boolean;
   /** Its own MIDI trigger, instead of the one for its place in the song. */
@@ -549,6 +554,7 @@ export const LOOK_KEYS = [
   "lights",
   "sequences",
   "transition",
+  "fadeBeats",
 ] as const satisfies readonly (keyof Section)[];
 export type SectionLook = Partial<Pick<Section, (typeof LOOK_KEYS)[number]>>;
 
@@ -935,6 +941,17 @@ export function barsForSeconds(seconds: number, bpm: number, beatsPerBar: number
 
 export function sectionMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars">): number {
   return (60000 / s.bpm) * s.beatsPerBar * s.bars;
+}
+
+/**
+ * How long the section's look takes to come in, in ms: 0 for an instant change,
+ * never longer than the section. QLC+ fades every channel from what's on stage
+ * to the new look, so whatever doesn't change stays put while the rest fades.
+ */
+export function fadeInMs(s: Pick<Section, "bpm" | "beatsPerBar" | "bars" | "transition" | "fadeBeats">): number {
+  if (s.transition === "snap") return 0;
+  const beats = s.fadeBeats ?? (s.transition === "build" ? 4 * s.beatsPerBar : 1);
+  return Math.min(sectionMs(s), beats * (60000 / s.bpm));
 }
 
 /** Side of the stage from a stage-plan position seen from the audience (stage left is on the audience's right). */

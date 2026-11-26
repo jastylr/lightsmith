@@ -5,6 +5,7 @@ import {
   checkWorkspace,
   fixtureKey,
   focusLights,
+  fadeInMs,
   generateSong,
   generateSet,
   normalizeProject,
@@ -1266,4 +1267,20 @@ test("go to bar finds when a bar starts", () => {
   assert.equal(msForBar(secs, 5), 8000, "the first bar of the second section");
   assert.equal(msForBar(secs, 6), 11000);
   for (const b of [1, 2, 4, 5, 6]) assert.equal(musicalPosition(secs, msForBar(secs, b)).bar, b);
+});
+
+test("fade length: instant, one beat, four bars, or a length of your own, never past the section", () => {
+  const s = newSection("verse", 120); // 16 bars of 4/4 at 120: a beat is 500 ms
+  assert.equal(fadeInMs({ ...s, transition: "snap", fadeBeats: 8 }), 0);
+  assert.equal(fadeInMs({ ...s, transition: "fade" }), 500);
+  assert.equal(fadeInMs({ ...s, transition: "build" }), 8000);
+  assert.equal(fadeInMs({ ...s, transition: "fade", fadeBeats: 8 }), 4000);
+  assert.equal(fadeInMs({ ...s, transition: "fade", fadeBeats: 200, bars: 2 }), 4000);
+
+  // The section's scenes fade in over that length in QLC+.
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  generateSong({ ws, profiles, rig, song: { id: "f", title: "Fades", bpm: 120, sections: [{ ...s, transition: "fade", fadeBeats: 8 }] } });
+  assert.match(serializeWorkspace(ws), /Name="Backdrop base"[^]*?<Speed FadeIn="4000"/);
 });
