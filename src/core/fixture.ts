@@ -388,6 +388,16 @@ export function extraChannels(p: FixtureProfile): ExtraChannel[] {
   return out;
 }
 
+/**
+ * What an extra channel goes back to when a section doesn't set it: the range
+ * the definition calls "No function", "Off" or the like, else 0, which is
+ * where QLC+ starts every channel.
+ */
+export function restingValue(c: ExtraChannel): number {
+  const off = c.capabilities.find((x) => /^(no function|no effect|off|none|no strobe|stop|shutter open|open)\b/i.test(x.name.trim()));
+  return off ? off.min : 0;
+}
+
 export function capabilityNamed(caps: Capability[], name: string): Capability | undefined {
   return caps.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
 }

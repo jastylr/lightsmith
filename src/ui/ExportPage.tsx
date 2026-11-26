@@ -43,7 +43,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, PATH_ROOT);
         setResult({ mode, xml, summary, issues, title: "Set" });
       } else if (song) {
-        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control });
+        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control, neighbours: store.project.songs });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
         setResult({ mode, xml, summary, issues, title: song.title });

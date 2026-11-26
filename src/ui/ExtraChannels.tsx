@@ -266,7 +266,7 @@ function ChannelRow({ c, value, mixed, onSet, gesture }: { c: ExtraChannel; valu
       ) : (
         <span className="extra-caps-none">{caps[0]?.name ?? ""}</span>
       )}
-      <button type="button" className="icon-btn extra-unset" disabled={value === undefined} title="Don't set this channel" aria-label={`Don't set ${c.name}`} onClick={() => onSet(undefined)}>
+      <button type="button" className="icon-btn extra-unset" disabled={value === undefined} title="Leave unset: back to rest in this section" aria-label={`Leave ${c.name} unset`} onClick={() => onSet(undefined)}>
         <Icon name="x" size={14} />
       </button>
     </div>
@@ -313,7 +313,7 @@ function ColorBlock({ block, read, write, gesture, twins }: { block: Block; read
           </button>
         )}
         {anySet && (
-          <button type="button" className="icon-btn extra-unset" title="Don't set these channels" aria-label={`Don't set ${block.label}`} onClick={() => write(Object.fromEntries(block.channels.map((c) => [c.channel, undefined])))}>
+          <button type="button" className="icon-btn extra-unset" title="Leave unset: back to rest in this section" aria-label={`Leave ${block.label} unset`} onClick={() => write(Object.fromEntries(block.channels.map((c) => [c.channel, undefined])))}>
             <Icon name="x" size={14} />
           </button>
         )}

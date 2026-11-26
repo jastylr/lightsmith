@@ -1372,9 +1372,13 @@ test("extra channels: only the ones Lightsmith leaves alone, and they export", (
   const rig = guessRig(ws.fixtures, profiles);
   // Ring effect and speed are kept; pan (driven), reset and unused channels are not.
   const s = { ...newSection("chorus", 120), extras: { "5": { "7": 140, "8": 300, "0": 10, "9": 200, "10": 5 } } };
-  generateSong({ ws, profiles, rig, song: { id: "x", title: "Extras", bpm: 120, sections: [s] } });
+  const plain = newSection("verse", 120);
+  generateSong({ ws, profiles, rig, song: { id: "x", title: "Extras", bpm: 120, sections: [s, plain] } });
   const xml = serializeWorkspace(ws);
-  assert.match(xml, /Name="Extra channels"[\s\S]*?<FixtureVal ID="5">7,140,8,255<\/FixtureVal>/);
+  const scenes = [...xml.matchAll(/Name="Extra channels"[\s\S]*?<FixtureVal ID="5">([\d,]+)<\/FixtureVal>/g)].map((m) => m[1]);
+  // The section that sets them, then the one that doesn't puts them back to
+  // rest ("No effect", and 0 for the speed), so the ring doesn't carry on.
+  assert.deepEqual(scenes, ["7,140,8,255", "7,0,8,0"]);
 });
 
 test("stopping a strobe with the definition's 'No function' value isn't reported as a dark light", () => {

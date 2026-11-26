@@ -13,7 +13,7 @@
  *  - RGB matrices only drive color, so a scene must hold the dimmer.
  */
 import { APP_NAME } from "../config";
-import { capabilityNamed, extraChannels, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
+import { capabilityNamed, extraChannels, restingValue, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
@@ -182,6 +182,12 @@ export interface GenerateInput {
   buttons?: boolean;
   /** MIDI devices and triggers, written into the buttons as QLC+ external inputs. */
   control?: ShowControl;
+  /**
+   * The songs played around this one (the whole set). An extra channel set in
+   * any of them is put back to rest in every section that doesn't set it, so
+   * it doesn't carry on into the next section or song. Defaults to this song.
+   */
+  neighbours?: Song[];
 }
 
 export interface GenerateSummary {
@@ -213,7 +219,7 @@ export function songPathFor(title: string): string {
 }
 
 /** Mutates `ws` (merging the song into it) and returns a summary. */
-export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true, control }: GenerateInput): GenerateSummary {
+export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true, control, neighbours }: GenerateInput): GenerateSummary {
   const title = safeName(song.title);
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
@@ -398,6 +404,23 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     gobo: song.sections.some((x) => !!x.beam?.gobo),
     prism: song.sections.some((x) => !!x.beam?.prism),
   };
+  // Extra channels set anywhere in the set, each with its resting value.
+  const extrasInUse = new Map<number, Map<number, number>>();
+  for (const x of neighbours ?? [song])
+    for (const sec of x.sections)
+      for (const [fid, chans] of Object.entries(sec.extras ?? {})) {
+        const id = Number(fid);
+        const p = rig.fixtures.some((f) => f.fixtureId === id) ? profiles.get(id) : undefined;
+        if (!p) continue;
+        const extras = extraChannels(p);
+        for (const ch of Object.keys(chans).map(Number)) {
+          const c = extras.find((e) => e.channel === ch);
+          if (!c) continue;
+          let m = extrasInUse.get(id);
+          if (!m) extrasInUse.set(id, (m = new Map()));
+          m.set(ch, restingValue(c));
+        }
+      }
   const STROBE_AT = { slow: 0.15, medium: 0.5, fast: 0.9 };
   const beamValues = (v: Vals, id: number, p: FixtureProfile, beam: BeamSettings) => {
     if (p.zoom && (beam.zoom !== undefined || uses.zoom)) {
@@ -657,13 +680,15 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     // Channels set by hand (a ring, extra LEDs, a built-in effect): their own
     // scene, with no fade, so an effect number jumps straight to the one asked
     // for instead of sweeping through the others on the way.
+    // Extra channels are held by QLC+ at their last value (like the strobe), so
+    // a section that doesn't set one that's used elsewhere puts it back to rest.
     const extraVals: Vals = new Map();
-    for (const [fid, chans] of Object.entries(s.extras ?? {})) {
-      const r = rig.fixtures.find((f) => f.fixtureId === Number(fid));
-      const p = r && profiles.get(r.fixtureId);
-      if (!p) continue;
-      const allowed = new Set(extraChannels(p).map((c) => c.channel));
-      for (const [ch, val] of Object.entries(chans)) if (allowed.has(Number(ch)) && Number.isFinite(val)) setVal(extraVals, r.fixtureId, Number(ch), val);
+    for (const [id, chans] of extrasInUse) {
+      const own = s.extras?.[id] ?? {};
+      for (const [ch, rest] of chans) {
+        const val = own[ch];
+        setVal(extraVals, id, ch, val !== undefined && Number.isFinite(val) ? val : rest);
+      }
     }
     if (extraVals.size) parts.push(b.scene("Extra channels", path, extraVals, 0, 0));
     sectionIds.push(b.collection(label, path, parts));
@@ -903,10 +928,10 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
     removed += removeWhere(ws.virtualConsole, (e) => e.name === "SoloFrame" && getAttr(e, "Caption") === SET_FRAME);
   }
 
-  const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false }) }));
+  const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false, neighbours: songs }) }));
   removed += results.reduce((n, { r }) => n + r.removedPrevious, 0);
   // The safe look: a plain warm wash with the heads at home, made the same way as any section.
-  const safe = generateSong({ ws, profiles, rig, song: safeLookSong(), buttons: false });
+  const safe = generateSong({ ws, profiles, rig, song: safeLookSong(), buttons: false, neighbours: songs });
   const inputs = new ControlInputs(ws, control);
 
   let vc = ws.virtualConsole;

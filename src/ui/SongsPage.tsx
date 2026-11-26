@@ -2184,7 +2184,7 @@ function LookEditor({
             {(sees("sequences", "full") || hasExtras) && (
               <>
                 <h4 className="subhead">Extra channels</h4>
-                <p className="hint">The channels of your lights that Lightsmith doesn't set itself, such as a ring of LEDs, a second color or a built-in effect and its speed. Set one here and it holds for this section; the channels you leave unset aren't written by it. These don't show in the preview, so check them on the real lights.</p>
+                <p className="hint">The channels of your lights that Lightsmith doesn't set itself, such as a ring of LEDs, a second color or a built-in effect and its speed. Set one here and it holds for this section. A channel you set in any section goes back to rest (its "no function" or "off" value, or 0) in the sections that leave it unset, so an effect doesn't carry on into the next section. These don't show in the preview, so check them on the real lights.</p>
                 <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
               </>
             )}
