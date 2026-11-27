@@ -1622,6 +1622,7 @@ function LookEditor({
   const [closed, setClosed] = useClosedCards();
   const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
   const ownLights = Object.keys(s.lights ?? {}).length;
+  const hasExtras = Object.keys(s.extras ?? {}).length > 0;
   const usedSequences = (s.sequences ?? []).flatMap((u) => sequences.filter((q) => q.id === u.id));
   // Playing from further down the page: bring the preview into view first, then play.
   const previewRef = useRef<HTMLElement>(null);
@@ -1654,8 +1655,8 @@ function LookEditor({
     },
     // Lights: the focus (a spotlight on one player) and any lights with settings of their own.
     lights: {
-      summary: [s.focus === "all" ? "" : `Spotlight on ${lower(sideName[s.focus])}`, ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : ""].filter(Boolean).join(" · ") || "No focus; every light follows the settings above",
-      changed: ownLights > 0 || s.focus !== "all",
+      summary: [s.focus === "all" ? "" : `Spotlight on ${lower(sideName[s.focus])}`, ownLights ? `${ownLights} ${ownLights === 1 ? "light has" : "lights have"} settings of their own` : "", hasExtras ? "extra channels set" : ""].filter(Boolean).join(" · ") || "No focus; every light follows the settings above",
+      changed: ownLights > 0 || hasExtras || s.focus !== "all",
     },
     pattern: {
       summary: pattern.algorithm
@@ -1731,7 +1732,6 @@ function LookEditor({
   };
   const showOwnLights = sees("lights", "full") || ownLights > 0;
   const showChasers = sees("sequences", "full") || (s.sequences ?? []).length > 0;
-  const hasExtras = Object.keys(s.extras ?? {}).length > 0;
 
   // ---- the bar that stays at the top: jump to a card, see which one you're in,
   // and a small copy of the preview once the big one has scrolled away.
@@ -1963,7 +1963,7 @@ function LookEditor({
             {more("colors", [["full", s.colorFade || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || Object.keys(s.colorRates ?? {}).length > 0]])}
           </Group>
 
-          <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above.">
+          <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above. In Full, you can also enter values for channels Lightsmith doesn't set itself.">
             <h4 className="subhead">Focus</h4>
             <p className="hint">For a solo or a quiet verse: the lights on that side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.</p>
             <Segmented
@@ -1989,7 +1989,14 @@ function LookEditor({
                 <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
               </>
             ) : (
-              more("lights", [["full", ownLights > 0]])
+              more("lights", [["full", ownLights > 0 || hasExtras]])
+            )}
+            {(sees("lights", "full") || hasExtras) && (
+              <>
+                <h4 className="subhead">Extra channels (values from QLC+)</h4>
+                <p className="hint">For the channels Lightsmith doesn't set itself, such as a moving head's bee-eye or LED ring, or a panel's built-in programs. The preview can't show these, so find the values you like in QLC+'s Simple Desk with the real lights on, then enter them here. Lightsmith sends them with this section on every export, and puts them back to rest in the sections that leave them unset.</p>
+                <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
+              </>
             )}
           </Group>
 
@@ -2179,14 +2186,7 @@ function LookEditor({
                 <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
               </>
             ) : (
-              more("sequences", [["full", usedSequences.length > 0 || hasExtras]])
-            )}
-            {(sees("sequences", "full") || hasExtras) && (
-              <>
-                <h4 className="subhead">Extra channels</h4>
-                <p className="hint">The channels of your lights that Lightsmith doesn't set itself, such as a ring of LEDs, a second color or a built-in effect and its speed. Set one here and it holds for this section. A channel you set in any section goes back to rest (its "no function" or "off" value, or 0) in the sections that leave it unset, so an effect doesn't carry on into the next section. These don't show in the preview, so check them on the real lights.</p>
-                <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
-              </>
+              more("sequences", [["full", usedSequences.length > 0]])
             )}
           </Group>
 
