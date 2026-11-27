@@ -1,4 +1,6 @@
-import { emptyShowControl, setOrder, stepCuesFor, triggerFor, newId, type ControlDevice, type ShowControl, type Trigger } from "../core";
+import { COLORS, SAFE_LOOK_DEFAULT_LEVEL, emptyShowControl, safeLookSong, setOrder, stepCuesFor, triggerFor, newId, type ControlDevice, type Rig, type SafeLookStyle, type ShowControl, type Trigger } from "../core";
+import { cssColor } from "./ColorPicker";
+import { StagePreview } from "./StagePreview";
 import { ChoiceCards, Dropdown, Field, NumberInput, Segmented } from "./controls";
 import { Icon } from "./icons";
 import { useLastHeard, useMidi } from "./midi";
@@ -249,8 +251,8 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
       </section>
 
       <section className="control-card no-print">
-        <h2>When something goes wrong</h2>
-        <p className="hint">On every song's page. Safe look stops whatever is running and brings up a plain warm wash with the moving heads at home. Blackout switches QLC+'s blackout on, and off again.</p>
+        <h2>Safe look and blackout</h2>
+        <p className="hint">On every song's page. Safe look stops whatever is running and brings up a steady wash with the moving heads at home: use it while you talk between songs, or to get out of trouble. After it, the next cue carries on from where the song was. Blackout switches QLC+'s blackout on, and off again.</p>
         <div className="control-pairs">
           <Field label="Safe look">
             <TriggerField label="Safe look" value={control.safeLook} control={control} inputs={inputs} onChange={setTrigger("safeLook")} />
@@ -259,6 +261,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
             <TriggerField label="Blackout" value={control.blackout} control={control} inputs={inputs} onChange={setTrigger("blackout")} />
           </Field>
         </div>
+        <SafeLookEditor style={control.safeLookStyle ?? {}} rig={store.project.rig} onChange={(safeLookStyle) => set({ safeLookStyle: Object.keys(safeLookStyle).length ? safeLookStyle : undefined })} />
       </section>
 
       <section className="control-card cheat-sheet">
@@ -341,5 +344,59 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
         </button>
       </div>
     </section>
+  );
+}
+
+const SAFE_LEVELS = [
+  { level: 0.15, label: "Very dim" },
+  { level: 0.3, label: "Dim" },
+  { level: SAFE_LOOK_DEFAULT_LEVEL, label: "Medium" },
+  { level: 0.8, label: "Bright" },
+];
+const SAFE_SWATCHES = ["warmWhite", "white", "amber", "lavender", "steelBlue", "midnight", "deepTeal", "plum"];
+
+/** The safe look's color, brightness and moving heads, with a preview. Left alone it's a medium warm-white wash. */
+function SafeLookEditor({ style, rig, onChange }: { style: SafeLookStyle; rig: Rig; onChange: (s: SafeLookStyle) => void }) {
+  const color = style.color ?? "warmWhite";
+  const level = style.level ?? SAFE_LOOK_DEFAULT_LEVEL;
+  const put = (patch: Partial<SafeLookStyle>) => {
+    const next: SafeLookStyle = { ...style, ...patch };
+    if (next.color === undefined || next.color === "warmWhite") delete next.color;
+    if (next.level === undefined || next.level === SAFE_LOOK_DEFAULT_LEVEL) delete next.level;
+    if (next.heads !== "off") delete next.heads;
+    onChange(next);
+  };
+  const section = safeLookSong(style).sections[0]!;
+  const named = (c: string) => (c.startsWith("#") ? c : (COLORS.find((x) => x.id === c)?.label ?? c));
+  return (
+    <div className="safe-look">
+      <h3>The safe look</h3>
+      <div className="safe-look-body">
+        <div className="safe-look-preview" aria-hidden="true">
+          {rig.fixtures.length ? <StagePreview section={section} rig={rig} compact /> : <p className="hint">Set up your stage to see a preview.</p>}
+        </div>
+        <div className="safe-look-fields">
+          <Field label="Color" hint={`${named(color)}. A color you choose goes on every light, the front lights too.`}>
+            <div className="safe-swatches" role="radiogroup" aria-label="Safe look color">
+              {[...SAFE_SWATCHES, ...(SAFE_SWATCHES.includes(color) || color.startsWith("#") ? [] : [color])].map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={color === c} className={color === c ? "lo on" : "lo"} onClick={() => put({ color: c })} title={named(c)} aria-label={named(c)}>
+                  <i style={{ background: cssColor(c) }} />
+                </button>
+              ))}
+              <label className={color.startsWith("#") ? "safe-custom on" : "safe-custom"} title="Any color">
+                <input type="color" value={color.startsWith("#") ? color : "#ffbe78"} onChange={(e) => put({ color: e.target.value })} aria-label="Custom safe look color" />
+                Other
+              </label>
+            </div>
+          </Field>
+          <Field label="Brightness">
+            <Segmented label="Safe look brightness" value={String(SAFE_LEVELS.find((x) => x.level === level)?.level ?? SAFE_LOOK_DEFAULT_LEVEL)} onChange={(v) => put({ level: Number(v) })} options={SAFE_LEVELS.map((x) => ({ value: String(x.level), label: x.label, title: `${Math.round(x.level * 100)}%` }))} />
+          </Field>
+          <Field label="Moving heads" hint="Either way they go to their home position, so they're ready for the next song.">
+            <Segmented label="Moving heads in the safe look" value={style.heads ?? "home"} onChange={(v) => put({ heads: v as SafeLookStyle["heads"] })} options={[{ value: "home", label: "Lit" }, { value: "off", label: "Dark" }]} />
+          </Field>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -12,6 +12,8 @@ import {
   extraChannels,
   generateSong,
   generateSet,
+  safeLookSong,
+  emptyShowControl,
   normalizeProject,
   chaserFit,
   beamDirection,
@@ -1392,4 +1394,23 @@ test("stopping a strobe with the definition's 'No function' value isn't reported
   const reread = parseWorkspace(serializeWorkspace(ws));
   const issues = checkWorkspace(reread, profiles).filter((i) => /shutter/.test(i.message));
   assert.deepEqual(issues, []);
+});
+
+test("the safe look takes its color, brightness and heads from show control", () => {
+  const plain = safeLookSong().sections[0]!;
+  assert.deepEqual(plain.colors, ["warmWhite"]);
+  assert.equal(plain.brightness, undefined, "left alone, it's the usual warm wash");
+  const dim = safeLookSong({ color: "midnight", level: 0.2, heads: "off" }).sections[0]!;
+  assert.deepEqual(dim.colors, ["midnight"]);
+  const lv = lightLevels(dim);
+  assert.equal(lv.backdrop.level, 0.2);
+  assert.equal(lv.mover.level, 0);
+  assert.deepEqual(dim.colorLayout, { backdrop: 0, side: 0, front: 0, mover: 0 });
+
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const song = { ...newSong("One", 120), sections: sectionsFromTemplate("short", 120).slice(0, 2) };
+  generateSet({ ws, profiles, rig, songs: [song], control: { ...emptyShowControl(), safeLookStyle: { level: 0.2 } } });
+  assert.match(serializeWorkspace(ws), /Safe look/);
 });

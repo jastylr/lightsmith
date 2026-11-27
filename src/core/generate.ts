@@ -14,7 +14,7 @@
  */
 import { APP_NAME } from "../config";
 import { capabilityNamed, extraChannels, restingValue, openGobo, prismRange, strobeOffValue, strobeRange, type FixtureProfile, type HeadProfile } from "./fixture";
-import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type ShowControl, type Trigger } from "./model";
+import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type SafeLookStyle, type Section, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
 import { fadeInMs, isBlackout, patternSpeedOf, sectionMs } from "./model";
@@ -931,7 +931,7 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
   const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false, neighbours: songs }) }));
   removed += results.reduce((n, { r }) => n + r.removedPrevious, 0);
   // The safe look: a plain warm wash with the heads at home, made the same way as any section.
-  const safe = generateSong({ ws, profiles, rig, song: safeLookSong(), buttons: false, neighbours: songs });
+  const safe = generateSong({ ws, profiles, rig, song: safeLookSong(control?.safeLookStyle), buttons: false, neighbours: songs });
   const inputs = new ControlInputs(ws, control);
 
   let vc = ws.virtualConsole;
@@ -1049,13 +1049,35 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
 export const SAFE_LOOK = "Safe look";
 
 /** A plain warm wash, heads at home and still: what's safe to fall back on mid-song. */
-export function safeLookSong(): Song {
+export function safeLookSong(style: SafeLookStyle = {}): Song {
   const s = newSection("verse", 120);
+  const level = style.level === undefined ? undefined : Math.max(0, Math.min(1, style.level));
+  const brightness: Section["brightness"] = {
+    ...(level !== undefined ? { backdrop: level, side: level, front: level * 0.8, mover: level } : {}),
+    ...(style.heads === "off" ? { mover: 0 } : {}),
+  };
   return {
     id: "lightsmith-safe-look",
     title: SAFE_LOOK,
     bpm: 120,
-    sections: [{ ...s, id: "lightsmith-safe-look-1", name: "Safe look", energy: 3, colors: ["warmWhite"], colorChange: "hold", pattern: "solid", movement: "static", effects: {}, transition: "fade", focus: "all" }],
+    sections: [
+      {
+        ...s,
+        id: "lightsmith-safe-look-1",
+        name: "Safe look",
+        energy: 3,
+        colors: [style.color ?? "warmWhite"],
+        // A chosen color goes on every light, the front ones too.
+        ...(style.color ? { colorLayout: { backdrop: 0, side: 0, front: 0, mover: 0 } } : {}),
+        colorChange: "hold",
+        pattern: "solid",
+        movement: "static",
+        effects: {},
+        transition: "fade",
+        focus: "all",
+        ...(Object.keys(brightness).length ? { brightness } : {}),
+      },
+    ],
   };
 }
 

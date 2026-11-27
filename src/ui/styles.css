@@ -5653,3 +5653,77 @@ input.extra-slider:focus-visible {
     transition: none;
   }
 }
+
+/* Show control: the safe look's color, brightness and heads */
+.safe-look {
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line-soft);
+}
+.safe-look h3 {
+  margin: 0 0 0.8rem;
+  font-size: 1rem;
+}
+.safe-look-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+.safe-look-preview {
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--deck);
+}
+.safe-look-preview > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.safe-look-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.safe-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.safe-swatches .lo i {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.safe-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem 0.2rem 0.25rem;
+  cursor: pointer;
+}
+.safe-custom.on {
+  color: var(--text);
+  border-color: var(--tungsten);
+  box-shadow: 0 0 0 1px var(--tungsten);
+}
+.safe-custom input[type="color"] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  .safe-look-body {
+    grid-template-columns: 1fr;
+  }
+}

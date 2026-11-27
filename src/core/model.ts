@@ -453,6 +453,8 @@ export interface ShowControl {
   previousSong?: Trigger;
   /** Stops everything and brings up a plain warm look, on every song page. */
   safeLook?: Trigger;
+  /** What the safe look looks like; it doubles as the look between songs. */
+  safeLookStyle?: SafeLookStyle;
   /** QLC+'s blackout, on and off. */
   blackout?: Trigger;
   /**
@@ -468,6 +470,18 @@ export interface ShowControl {
   nextSection?: Trigger;
   previousSection?: Trigger;
 }
+
+/** The safe look's color, brightness and moving heads. Anything left out is the default. */
+export interface SafeLookStyle {
+  /** A color ID or "#rrggbb". Default warm white. */
+  color?: string;
+  /** Brightness 0–1. Default about half (energy 3). */
+  level?: number;
+  /** "home": lit and pointing home (default). "off": at home but dark. */
+  heads?: "home" | "off";
+}
+
+export const SAFE_LOOK_DEFAULT_LEVEL = 0.55;
 
 const sameTrigger = (a: Trigger, b: Trigger) => a.device === b.device && a.kind === b.kind && a.number === b.number;
 
@@ -728,7 +742,7 @@ export function normalizeProject(p: Project): Project {
     // Chasers belong to the sections that use them: one no section uses is dropped.
     ...(p.sequences ? { sequences: p.sequences.filter((q) => p.songs.some((song) => song.sections.some((s) => (s.sequences ?? []).some((u) => u.id === q.id)))).map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
-    ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])], ...(p.control.cues ? { cues: [...p.control.cues] } : {}) } } : {}),
+    ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])], ...(p.control.cues ? { cues: [...p.control.cues] } : {}), ...(p.control.safeLookStyle ? { safeLookStyle: { ...p.control.safeLookStyle } } : {}) } } : {}),
     ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
   };
 }

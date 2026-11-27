@@ -648,7 +648,7 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 
 **Goals.** Let pads, footswitches and amp presets run the show with nobody at the laptop, and write it all into QLC+.
 
-**On screen.** The Show control step: listening for MIDI and the last message heard; Devices (name, QLC+ input universe, MIDI channel) and how QLC+ listens; Sections (one trigger per place in the song); Between songs (next, previous, a jump per song); When something goes wrong (Safe look, Blackout); the printable cheat sheet. On the Songs page, a section's own trigger in Start and end.
+**On screen.** The Show control step: listening for MIDI and the last message heard; Devices (name, QLC+ input universe, MIDI channel) and how QLC+ listens; Sections (one trigger per place in the song); Between songs (next, previous, a jump per song); Safe look and blackout, with the safe look's own color, brightness and heads (lit or dark) and a preview, since the band uses it as the look between songs (`SafeLookStyle`, `safeLookSong(style)`); the printable cheat sheet. On the Songs page, a section's own trigger in Start and end.
 
 **Concepts.**
 - How QLC+'s MIDI plugin numbers what it hears, read from its source: controllers 0-127, notes 128-255, program changes 384-511, and with "any channel" (Omni) the MIDI channel in the top bits (`qlcInputChannel`). Note off and a note on with velocity 0 are releases; an amp's program change arrives as a press with no release.
