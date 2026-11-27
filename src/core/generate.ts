@@ -19,7 +19,7 @@ import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOB
 import { toMs } from "./sequences";
 import { fadeInMs, isBlackout, patternSpeedOf, sectionMs } from "./model";
 import { colorById, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
-import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder } from "./rig";
+import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder, strobeOnlyLights } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
 import { insertChildren, nextFunctionId, nextGroupId, nextWidgetId, qlcMajorVersion, removeWhere, setMidiListen, writePlaces, type Workspace } from "./workspace";
 
@@ -475,11 +475,15 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const layout = colorLayoutOf(s);
     const rgbOf = (c: string): RGB => colorById(c).rgb;
     /** A light's own settings: its color, brightness and whether it's off. */
+    const BLACK: RGB = [0, 0, 0];
+    const strobeOnly = strobeOnlyLights(s, rig);
     const own = (r: RigFixture) => {
       const l = lightSetting(s, r.fixtureId);
+      // "Only the strobe": the light stays up but shows no color of its own,
+      // so the strobe's flashes are all it shows.
+      if (strobeOnly.has(r.fixtureId)) return { color: BLACK, level: l?.level, off: !!l?.off };
       return { color: l?.color !== undefined ? colorById(l.color).rgb : undefined, level: l?.level, off: !!l?.off };
     };
-    const BLACK: RGB = [0, 0, 0];
     const patternLights = (() => {
       const ids = new Set(patternTargets(s, rig));
       return usedLights.filter((r) => ids.has(r.fixtureId)).sort(stageOrder);
@@ -549,7 +553,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
           const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(job, k, 0));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
-            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
+            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off || strobeOnly.has(r.fixtureId) ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
             else headColor(v, r.fixtureId, h, color, sc);
           }
         }
@@ -653,7 +657,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const sparkleGroup = matrixOn("sparkle");
     if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup, blend: "Additive" }));
     const strobeGroup = matrixOn("strobe");
-    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
+    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [s.effects.strobeColor ? colorById(s.effects.strobeColor).rgb : WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
     if (s.effects.blinder) {
       const t = targetsFor(s, "blinder");
       if (t.length) parts.push(b.chaser("Blinder hit", path, [{ id: sharedScene("Blinder flash", t, WHITE), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));

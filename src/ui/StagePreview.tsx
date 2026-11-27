@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, DEFAULT_PAN_RANGE, patternSpeedOf, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, DEFAULT_PAN_RANGE, patternSpeedOf, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, strobeOnlyLights, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -183,6 +183,12 @@ export function StagePreview({
       chaserLights.push({ id, layers });
     }
   }
+  // Strobe hits flash on their own lights, in their own color.
+  if (section.effects.strobe) {
+    const rgb = colorById(section.effects.strobeColor ?? "white").rgb;
+    for (const id of effectTargets(section, "strobe", rig))
+      chaserLights.push({ id, layers: [{ key: `strobe-${id}`, color: `rgb(${rgb.join(",")})`, anim: <animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.05;0.14;1" dur={`${beat / 2}s`} repeatCount="indefinite" /> }] });
+  }
   const chaserOf = (id: number) => (animate ? chaserLights.filter((c) => c.id === id).flatMap((c) => c.layers) : []);
   const fronts = byRole("front");
   // Colors are handed out stage left first, the same way the export does it.
@@ -191,7 +197,9 @@ export function StagePreview({
   const sparkleOn = new Set(section.effects.sparkle ? effectTargets(section, "sparkle", rig) : []);
   const twinkles = (id: number) => sparkleOn.has(id);
   /** A light's own settings for this section (they win over everything else). */
+  const strobeOnly = strobeOnlyLights(section, rig);
   const ownOf = (id: number) => {
+    if (strobeOnly.has(id)) return { color: DARK_LENS, level: lightSetting(section, id)?.level, off: false };
     const l = lightSetting(section, id);
     const rgb = l?.color !== undefined ? colorById(l.color).rgb : undefined;
     return { color: rgb ? `rgb(${rgb.join(",")})` : undefined, level: l?.level, off: !!l?.off };
@@ -803,11 +811,6 @@ export function StagePreview({
       {animate && (section.effects.lightning || section.effects.blinder) && (
         <rect width={W} height={H} fill="#fff" opacity="0" pointerEvents="none">
           <animate attributeName="opacity" values="0;0;0.75;0;0.45;0;0" keyTimes="0;0.7;0.72;0.75;0.78;0.81;1" dur={section.effects.lightning ? "4.5s" : "3s"} repeatCount="indefinite" />
-        </rect>
-      )}
-      {animate && section.effects.strobe && (
-        <rect width={W} height={BACK} fill="#fff" opacity="0" pointerEvents="none">
-          <animate attributeName="opacity" values="0;0.35;0;0" keyTimes="0;0.05;0.12;1" dur={`${beat / 2}s`} repeatCount="indefinite" />
         </rect>
       )}
       {progress}

@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
+  COLORS,
   COLOR_CHANGES,
   EFFECTS,
   ENERGY,
@@ -2178,7 +2179,28 @@ function LookEditor({
                 );
               })}
             </div>
-            {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec]])}
+            {s.effects.strobe && sees("effects", "full") && (
+              <div className="strobe-options">
+                <strong className="strobe-title">Strobe hits</strong>
+                <div className="strobe-colors" role="radiogroup" aria-label="Strobe color">
+                  {STROBE_COLORS.map((c) => {
+                    const sel = (s.effects.strobeColor ?? "white") === c;
+                    const label = COLORS.find((x) => x.id === c)?.label ?? c;
+                    return (
+                      <button key={c} type="button" role="radio" aria-checked={sel} className={sel ? "lo on" : "lo"} title={label} aria-label={`${label} strobe`} onClick={() => onChange({ effects: { ...s.effects, strobeColor: c === "white" ? undefined : c } })}>
+                        <i style={{ background: cssColor(c) }} />
+                      </button>
+                    );
+                  })}
+                  <label className={s.effects.strobeColor?.startsWith("#") ? "safe-custom on" : "safe-custom"} title="Any color">
+                    <input type="color" value={s.effects.strobeColor?.startsWith("#") ? s.effects.strobeColor : "#ff0000"} onChange={(ev) => onChange({ effects: { ...s.effects, strobeColor: ev.target.value } })} aria-label="Custom strobe color" />
+                    Other
+                  </label>
+                </div>
+                <Toggle checked={!!s.effects.strobeOnly} onChange={(strobeOnly) => onChange({ effects: { ...s.effects, strobeOnly: strobeOnly || undefined } })} label="Only the strobe on these lights" hint="Their look goes dark underneath, so they show nothing but the flashes" />
+              </div>
+            )}
+            {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec || !!s.effects.strobeColor || !!s.effects.strobeOnly]])}
             {showChasers ? (
               <>
                 <h4 className="subhead">Chasers</h4>
@@ -2297,6 +2319,8 @@ function LookEditor({
 }
 
 /** Pattern speeds: how many times its usual pace (Auto follows the section's energy). */
+const STROBE_COLORS = ["white", "red", "amber", "yellow", "green", "cyan", "blue", "violet", "magenta"];
+
 const PATTERN_SPEEDS = [
   { speed: 0.5, label: "Half", hint: "Half its usual pace" },
   { speed: 1, label: "Normal", hint: "Its usual pace" },

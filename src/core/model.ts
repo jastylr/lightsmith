@@ -330,6 +330,10 @@ export interface SectionEffects {
   lightning?: boolean;
   lightningDelaySec?: number;
   strobe?: boolean;
+  /** Strobe hits color: a color ID or "#rrggbb". Default white. */
+  strobeColor?: string;
+  /** The strobe's lights show only the strobe: their look goes dark underneath. */
+  strobeOnly?: boolean;
   blinder?: boolean;
   beatPulse?: boolean;
   sparkle?: boolean;

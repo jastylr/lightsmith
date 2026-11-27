@@ -179,7 +179,7 @@ export const EFFECTS: { id: EffectId; label: string; description: string }[] = [
   { id: "blinder", label: "Blinder hit", description: "A full white hit as the section starts" },
   { id: "beatPulse", label: "Beat pulse", description: "Side and front lights pulse on every beat" },
   { id: "sparkle", label: "Sparkle", description: "White glints over the backdrop" },
-  { id: "strobe", label: "Strobe hits", description: "White strobing on the backdrop" },
+  { id: "strobe", label: "Strobe hits", description: "Hard flashing on the backdrop, or lights you pick" },
 ];
 
 // ---------------------------------------------------------------- color changes

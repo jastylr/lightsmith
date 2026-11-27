@@ -570,6 +570,8 @@ The Songs page is the heart of the app, so it gets several chapters, one per are
 - Designing explanations into the interface.
 - Visual hierarchy inside a card: card title, then part titles (`.subhead`, for "Brightness" and "Which lights get which color"), then field labels, each a clear step apart, with generous padding.
 
+**A colored strobe on one light.** Strobe hits gained a color (`strobeColor`, the RGB matrix's color) and "Only the strobe on these lights" (`strobeOnly`, `strobeOnlyLights`): those lights keep their dimmer up but take black in the look and leave the pattern, so the matrix's flashes are all they show. Black rather than "off", because off lights sit out of effects and an off light's dimmer would be at 0. The preview draws the flashes on each chosen light in their color, through the same per-light layers as chasers.
+
 **Dark until the chaser.** A question from the band: an intro with no light except its chaser. No new setting was needed: switching every light off in Individual lights leaves the section's own look dark (dimmer 0, black), while the chaser's scenes still light them, since a chaser step at a higher dimmer wins (HTP) and its colors arrive later (LTP). What was missing was a quick way to pick every light, so the selection row gained "All lights".
 
 **Files.** `src/ui/SongsPage.tsx` (`BrightnessEditor`, `ColorLayoutEditor`, `copyLights`), `src/ui/IndividualLights.tsx`, `src/ui/LightPicker.tsx` (`MiniStage`), `src/ui/ColorPicker.tsx` (`ColorWheel`, `PaletteEditor`), `src/core/model.ts` (`colorLayoutOf`, `lightLevels`, `LightSetting`, `sitsOut`), `src/core/presets.ts` (`MOODS`, `COLORS`, `COLOR_CHANGES`).

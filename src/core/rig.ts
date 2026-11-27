@@ -212,12 +212,18 @@ export function effectTargets(section: Pick<Section, "effectTargets" | "lights">
   return ids.filter((id) => inUse.has(id) && !sitsOut(section, id, "effects"));
 }
 
+/** Lights showing only the strobe in this section ("Only the strobe"): their look is dark underneath. */
+export function strobeOnlyLights(section: Pick<Section, "effectTargets" | "lights"> & { effects?: Section["effects"] }, rig: Rig): Set<number> {
+  return new Set(section.effects?.strobe && section.effects.strobeOnly ? effectTargets(section, "strobe", rig) : []);
+}
+
 /** The lights a section's pattern runs on: the user's pick, or the backdrop. */
-export function patternTargets(section: Pick<Section, "patternTargets" | "lights">, rig: Rig): number[] {
+export function patternTargets(section: Pick<Section, "patternTargets" | "lights"> & Partial<Pick<Section, "effects" | "effectTargets">>, rig: Rig): number[] {
   const inUse = new Set(rig.fixtures.filter((f) => f.role !== "ignore").map((f) => f.fixtureId));
   const ids = section.patternTargets ?? rig.fixtures.filter((f) => f.role === "backdrop").map((f) => f.fixtureId);
-  // Lights that are off, or holding their own color, sit the pattern out.
-  return ids.filter((id) => inUse.has(id) && !sitsOut(section, id, "pattern"));
+  const strobing = strobeOnlyLights(section, rig);
+  // Lights that are off, holding their own color, or showing only the strobe sit the pattern out.
+  return ids.filter((id) => inUse.has(id) && !sitsOut(section, id, "pattern") && !strobing.has(id));
 }
 
 /**

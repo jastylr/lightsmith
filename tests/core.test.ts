@@ -1414,3 +1414,16 @@ test("the safe look takes its color, brightness and heads from show control", ()
   generateSet({ ws, profiles, rig, songs: [song], control: { ...emptyShowControl(), safeLookStyle: { level: 0.2 } } });
   assert.match(serializeWorkspace(ws), /Safe look/);
 });
+
+test("strobe hits in a color, on chosen lights, with only the strobe showing on them", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("chorus", 120), patternTargets: [2, 3], effects: { strobe: true, strobeColor: "red", strobeOnly: true }, effectTargets: { strobe: [2] } };
+  assert.deepEqual(patternTargets(s, rig), [3], "the strobing light sits the pattern out");
+  generateSong({ ws, profiles, rig, song: { id: "x", title: "Strobe", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  assert.match(xml, /Name="Strobe hits"[\s\S]*?<Color Index="0">4294901760<\/Color>/, "a red strobe");
+  // Without "only the strobe", the light keeps its look and the pattern.
+  assert.deepEqual(patternTargets({ ...s, effects: { strobe: true } }, rig), [2, 3]);
+});

@@ -5727,3 +5727,32 @@ input.extra-slider:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* Effects: strobe color and "only the strobe" */
+.strobe-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem 1.4rem;
+  margin-top: 0.7rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--deck);
+}
+.strobe-title {
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.strobe-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.strobe-colors .lo i {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
