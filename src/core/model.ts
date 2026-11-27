@@ -330,7 +330,7 @@ export interface SectionEffects {
   lightning?: boolean;
   lightningDelaySec?: number;
   strobe?: boolean;
-  /** Strobe hits color: a color ID or "#rrggbb". Default white. */
+  /** Strobe hits color: a color ID, "#rrggbb", or "look" for each light's own look color. Default white. */
   strobeColor?: string;
   /** The strobe's lights show only the strobe: their look goes dark underneath. */
   strobeOnly?: boolean;
@@ -488,6 +488,9 @@ export interface SafeLookStyle {
 }
 
 export const SAFE_LOOK_DEFAULT_LEVEL = 0.55;
+
+/** `strobeColor` for a strobe in each light's own look color. */
+export const LOOK_COLOR = "look";
 
 /** Strobe hits flashes per beat. */
 export const STROBE_RATES = [1, 2, 4] as const;

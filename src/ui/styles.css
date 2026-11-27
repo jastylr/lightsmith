@@ -5756,3 +5756,18 @@ input.extra-slider:focus-visible {
   height: 18px;
   border-radius: 50%;
 }
+.strobe-colors .lo-look {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-right: 0.7rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.strobe-colors .lo-look.on {
+  color: var(--text);
+}
+.strobe-note {
+  margin: 0;
+  flex-basis: 100%;
+}

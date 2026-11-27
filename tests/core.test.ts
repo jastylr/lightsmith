@@ -13,6 +13,7 @@ import {
   generateSong,
   generateSet,
   safeLookSong,
+  strobeOnlyLights,
   emptyShowControl,
   normalizeProject,
   chaserFit,
@@ -1431,4 +1432,16 @@ test("strobe hits in a color, on chosen lights, with only the strobe showing on 
   assert.match(serializeWorkspace(ws4), /Name="Strobe hits"[^>]*>\s*<Speed FadeIn="0" FadeOut="0" Duration="63"/);
   // Without "only the strobe", the light keeps its look and the pattern.
   assert.deepEqual(patternTargets({ ...s, effects: { strobe: true } }, rig), [2, 3]);
+});
+
+test("strobe hits in the look's own colors: one strobe per color, the look dark underneath", () => {
+  const ws = parseWorkspace(WORKSPACE_QXW);
+  const { profiles } = matchProfiles(ws.fixtures, defs());
+  const rig = guessRig(ws.fixtures, profiles);
+  const s = { ...newSection("chorus", 120), colors: ["red", "blue"], colorChange: "hold" as const, pattern: "solid", effects: { strobe: true, strobeColor: "look" }, effectTargets: { strobe: [2, 3] } };
+  assert.deepEqual([...strobeOnlyLights(s, rig)].sort(), [2, 3], "the look always goes dark under a strobe in its own colors");
+  generateSong({ ws, profiles, rig, song: { id: "x", title: "Look strobe", bpm: 120, sections: [s] } });
+  const xml = serializeWorkspace(ws);
+  const colors = [...xml.matchAll(/Name="Strobe hits"[\s\S]*?<Color Index="0">(\d+)<\/Color>/g)].map((m) => (Number(m[1]) & 0xffffff).toString(16).padStart(6, "0"));
+  assert.deepEqual(colors.sort(), ["0032ff", "ff0000"], "each light flashes its own look color (red and blue), in step");
 });

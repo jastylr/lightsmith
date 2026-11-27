@@ -17,7 +17,7 @@ import { capabilityNamed, extraChannels, restingValue, openGobo, prismRange, str
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type SafeLookStyle, type Section, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
-import { fadeInMs, strobeRateOf, isBlackout, patternSpeedOf, sectionMs } from "./model";
+import { fadeInMs, LOOK_COLOR, strobeRateOf, isBlackout, patternSpeedOf, sectionMs } from "./model";
 import { colorById, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder, strobeOnlyLights } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
@@ -477,12 +477,16 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     /** A light's own settings: its color, brightness and whether it's off. */
     const BLACK: RGB = [0, 0, 0];
     const strobeOnly = strobeOnlyLights(s, rig);
+    // QLC+'s strobe script lights one step in two, so a flash takes two steps.
+    const strobeStepMs = beat / (2 * strobeRateOf(s.effects));
+    // Strobe hits in the look's own colors: each light flashes the color its
+    // look gives it, so the strobe goes inside the look (and changes with it).
+    const strobeInLook = !!s.effects.strobe && s.effects.strobeColor === LOOK_COLOR;
     const own = (r: RigFixture) => {
       const l = lightSetting(s, r.fixtureId);
-      // "Only the strobe": the light stays up but shows no color of its own,
-      // so the strobe's flashes are all it shows.
-      if (strobeOnly.has(r.fixtureId)) return { color: BLACK, level: l?.level, off: !!l?.off };
-      return { color: l?.color !== undefined ? colorById(l.color).rgb : undefined, level: l?.level, off: !!l?.off };
+      // "Only the strobe" (`hide`): the light stays up but shows no color of
+      // its own, so the strobe's flashes are all it shows.
+      return { color: l?.color !== undefined ? colorById(l.color).rgb : undefined, level: l?.level, off: !!l?.off, hide: strobeOnly.has(r.fixtureId) };
     };
     const patternLights = (() => {
       const ids = new Set(patternTargets(s, rig));
@@ -504,6 +508,12 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
       const pal = bset.map((_, i) => bset[(i + br) % bn]!);
       const out: number[] = [];
       const named = (n: string) => (tag ? `${n} ${tag}` : n);
+      /** The color each strobing light's look would give it, for a strobe in the look's colors. */
+      const lookColor = new Map<number, RGB>();
+      const shown = (r: RigFixture, o: { hide: boolean; off: boolean }, color: RGB): RGB => {
+        if (o.hide && !o.off) lookColor.set(r.fixtureId, color);
+        return o.hide ? BLACK : color;
+      };
       const fi = withFades ? fade : 0;
       const fo = toBlack ?? (withFades ? beat : 0);
       const p0 = pal[0]!;
@@ -521,11 +531,11 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
           const o = own(r);
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : (o.level ?? levels.backdrop.level));
           const auto = pattern.id === "solid" ? pal[i % pal.length]! : under[i % under.length]!;
-          const color = o.off ? BLACK : (o.color ?? auto);
+          const color = shown(r, o, o.off ? BLACK : (o.color ?? auto));
           // Bars the pattern runs on sit at the pattern's base level; others show a steady wash.
           const underPattern = patternGroup !== undefined && patternLights.some((x) => x.fixtureId === r.fixtureId);
           for (const h of p.heads) headColor(v, r.fixtureId, h, color, (underPattern ? pattern.floor : 1) * sc);
-          if (focusSet.has(r.fixtureId) && !o.off) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
+          if (focusSet.has(r.fixtureId) && !o.off && !o.hide) for (const h of p.heads) if (h.white !== undefined) setVal(v, r.fixtureId, h.white, 80);
         });
         out.push(b.scene(named("Backdrop base"), path, v, fi, fo));
       }
@@ -550,10 +560,10 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
           const lv = o.off ? 0 : focused ? 1 : (o.level ?? (isHot ? base : base * 0.35)) * (focusing ? FOCUS_DIM : 1);
           const sc = fixtureLevel(v, r.fixtureId, p, lv);
           // A side-to-side swap changes brightness only; each light keeps its color.
-          const color = o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(job, k, 0));
+          const color = shown(r, o, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor(job, k, 0)));
           for (const h of p.heads) {
             const whiteOnly = h.red === undefined && h.white !== undefined;
-            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off || strobeOnly.has(r.fixtureId) ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
+            if (whiteOnly) setVal(v, r.fixtureId, h.white, o.off || o.hide ? 0 : focused ? 255 : o.color || o.level !== undefined ? 255 * lv : 0);
             else headColor(v, r.fixtureId, h, color, sc);
           }
         }
@@ -582,7 +592,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
           const o = own(r);
           const focused = focusSet.has(r.fixtureId);
           const sc = fixtureLevel(v, r.fixtureId, p, o.off ? 0 : focused ? 1 : (o.level ?? levels.mover.level) * (focusing ? FOCUS_DIM : 1));
-          for (const h of p.heads) headColor(v, r.fixtureId, h, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor("mover", k, 1)), sc);
+          const color = shown(r, o, o.off ? BLACK : focused ? WARM_WHITE : (o.color ?? colorFor("mover", k, 1)));
+          for (const h of p.heads) headColor(v, r.fixtureId, h, color, sc);
           if (p.ptSpeed) setVal(aimVals, r.fixtureId, p.ptSpeed.channel, p.ptSpeed.fastIsLow ? 0 : 255);
           if (!o.off) beamValues(v, r.fixtureId, p, s.beam ?? {});
           if (!mv.algorithm) {
@@ -595,6 +606,21 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
         }
         out.push(b.scene(named("Movers color"), path, v, fi, fo));
         if (aimVals.size) out.push(b.scene(named(mv.algorithm ? "Movers speed" : "Movers position"), path, aimVals, 0, 0));
+      }
+      // A strobe in the look's colors: one strobe per color, all in step.
+      if (strobeInLook && lookColor.size) {
+        const byColor = new Map<string, RigFixture[]>();
+        for (const r of usedLights) {
+          const c = lookColor.get(r.fixtureId);
+          if (!c) continue;
+          const key = c.join(",");
+          byColor.set(key, [...(byColor.get(key) ?? []), r]);
+        }
+        for (const rs of byColor.values()) {
+          const c = lookColor.get(rs[0]!.fixtureId)!;
+          const group = groupFor(rs.sort(stageOrder));
+          if (group !== undefined) out.push(b.matrix(named("Strobe hits"), path, { algorithm: "Strobe", colors: [c], stepMs: strobeStepMs, group, props: { frequency: 2 }, blend: "Additive", fadeOut: toBlack }));
+        }
       }
       return out;
     };
@@ -656,8 +682,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const matrixOn = (e: EffectId) => (s.effects[e] ? groupFor(targetsFor(s, e)) : undefined);
     const sparkleGroup = matrixOn("sparkle");
     if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup, blend: "Additive" }));
-    const strobeGroup = matrixOn("strobe");
-    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [s.effects.strobeColor ? colorById(s.effects.strobeColor).rgb : WHITE], stepMs: beat / (2 * strobeRateOf(s.effects)), group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
+    const strobeGroup = strobeInLook ? undefined : matrixOn("strobe");
+    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [s.effects.strobeColor ? colorById(s.effects.strobeColor).rgb : WHITE], stepMs: strobeStepMs, group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
     if (s.effects.blinder) {
       const t = targetsFor(s, "blinder");
       if (t.length) parts.push(b.chaser("Blinder hit", path, [{ id: sharedScene("Blinder flash", t, WHITE), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));

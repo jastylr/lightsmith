@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useStat
 import {
   COLORS,
   STROBE_RATES,
+  LOOK_COLOR,
   strobeRateOf,
   COLOR_CHANGES,
   EFFECTS,
@@ -2185,6 +2186,17 @@ function LookEditor({
               <div className="strobe-options">
                 <strong className="strobe-title">Strobe hits</strong>
                 <div className="strobe-colors" role="radiogroup" aria-label="Strobe color">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={s.effects.strobeColor === LOOK_COLOR}
+                    className={s.effects.strobeColor === LOOK_COLOR ? "lo lo-look on" : "lo lo-look"}
+                    title="Each light flashes in the color its look gives it, and follows the look's color changes"
+                    onClick={() => onChange({ effects: { ...s.effects, strobeColor: LOOK_COLOR } })}
+                  >
+                    <i style={{ background: `conic-gradient(${[...paletteOf(s), paletteOf(s)[0]].join(", ")})` }} />
+                    The look's colors
+                  </button>
                   {STROBE_COLORS.map((c) => {
                     const sel = (s.effects.strobeColor ?? "white") === c;
                     const label = COLORS.find((x) => x.id === c)?.label ?? c;
@@ -2205,7 +2217,11 @@ function LookEditor({
                   onChange={(v) => onChange({ effects: { ...s.effects, strobeRate: v === "2" ? undefined : Number(v) } })}
                   options={STROBE_RATES.map((r) => ({ value: String(r), label: r === 1 ? "1 per beat" : `${r} per beat`, title: `${Math.round(((s.bpm * r) / 60) * 10) / 10} flashes a second at ${s.bpm} BPM` }))}
                 />
+                {s.effects.strobeColor === LOOK_COLOR ? (
+                  <p className="hint strobe-note">Each light flashes the color its look gives it, and changes when the look's colors change. Their steady look goes dark underneath, so the flashes stand out.</p>
+                ) : (
                 <Toggle checked={!!s.effects.strobeOnly} onChange={(strobeOnly) => onChange({ effects: { ...s.effects, strobeOnly: strobeOnly || undefined } })} label="Only the strobe on these lights" hint="Their look goes dark underneath, so they show nothing but the flashes" />
+                )}
               </div>
             )}
             {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec || !!s.effects.strobeColor || !!s.effects.strobeOnly || !!s.effects.strobeRate]])}

@@ -214,7 +214,8 @@ export function effectTargets(section: Pick<Section, "effectTargets" | "lights">
 
 /** Lights showing only the strobe in this section ("Only the strobe"): their look is dark underneath. */
 export function strobeOnlyLights(section: Pick<Section, "effectTargets" | "lights"> & { effects?: Section["effects"] }, rig: Rig): Set<number> {
-  return new Set(section.effects?.strobe && section.effects.strobeOnly ? effectTargets(section, "strobe", rig) : []);
+  // A strobe in the look's colors always hides the look underneath, or there'd be nothing to see.
+  return new Set(section.effects?.strobe && (section.effects.strobeOnly || section.effects.strobeColor === "look") ? effectTargets(section, "strobe", rig) : []);
 }
 
 /** The lights a section's pattern runs on: the user's pick, or the backdrop. */
