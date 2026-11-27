@@ -2,6 +2,8 @@ import { createPortal } from "react-dom";
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLORS,
+  STROBE_RATES,
+  strobeRateOf,
   COLOR_CHANGES,
   EFFECTS,
   ENERGY,
@@ -2197,10 +2199,16 @@ function LookEditor({
                     Other
                   </label>
                 </div>
+                <Segmented
+                  label="Strobe speed"
+                  value={String(strobeRateOf(s.effects))}
+                  onChange={(v) => onChange({ effects: { ...s.effects, strobeRate: v === "2" ? undefined : Number(v) } })}
+                  options={STROBE_RATES.map((r) => ({ value: String(r), label: r === 1 ? "1 per beat" : `${r} per beat`, title: `${Math.round(((s.bpm * r) / 60) * 10) / 10} flashes a second at ${s.bpm} BPM` }))}
+                />
                 <Toggle checked={!!s.effects.strobeOnly} onChange={(strobeOnly) => onChange({ effects: { ...s.effects, strobeOnly: strobeOnly || undefined } })} label="Only the strobe on these lights" hint="Their look goes dark underneath, so they show nothing but the flashes" />
               </div>
             )}
-            {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec || !!s.effects.strobeColor || !!s.effects.strobeOnly]])}
+            {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec || !!s.effects.strobeColor || !!s.effects.strobeOnly || !!s.effects.strobeRate]])}
             {showChasers ? (
               <>
                 <h4 className="subhead">Chasers</h4>

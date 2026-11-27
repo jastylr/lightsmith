@@ -17,7 +17,7 @@ import { capabilityNamed, extraChannels, restingValue, openGobo, prismRange, str
 import { newSection, stepLightColor, qlcInputChannel, stepCuesFor, triggerFor, triggerLabel, type SafeLookStyle, type Section, type ShowControl, type Trigger } from "./model";
 import { aimOf, moverTiming, moverShapeAt, colorLayoutOf, colorRateOf, COLOR_JOBS, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, lightLevels, lightSetting, type BeamSettings, type ColorJob, type Rig, type RigFixture, type Sequence, type SequenceOrder, type SequenceStep, type Song } from "./model";
 import { toMs } from "./sequences";
-import { fadeInMs, isBlackout, patternSpeedOf, sectionMs } from "./model";
+import { fadeInMs, strobeRateOf, isBlackout, patternSpeedOf, sectionMs } from "./model";
 import { colorById, moodById, MOVEMENTS, patternById, SPREADS, type EffectId, type RGB } from "./presets";
 import { cornerOf, effectTargets, fixturesWithRole, focusLights, patternTargets, stageOrder, strobeOnlyLights } from "./rig";
 import { el, getAttr, childElements, firstChild, textEl, textOf, type XmlElement } from "./xml";
@@ -657,7 +657,7 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     const sparkleGroup = matrixOn("sparkle");
     if (sparkleGroup !== undefined) parts.push(b.matrix("Sparkle", path, { algorithm: "Random Single", colors: [WHITE], stepMs: beat / 8, group: sparkleGroup, blend: "Additive" }));
     const strobeGroup = matrixOn("strobe");
-    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [s.effects.strobeColor ? colorById(s.effects.strobeColor).rgb : WHITE], stepMs: beat / 4, group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
+    if (strobeGroup !== undefined) parts.push(b.matrix("Strobe hits", path, { algorithm: "Strobe", colors: [s.effects.strobeColor ? colorById(s.effects.strobeColor).rgb : WHITE], stepMs: beat / (2 * strobeRateOf(s.effects)), group: strobeGroup, props: { frequency: 2 }, blend: "Additive" }));
     if (s.effects.blinder) {
       const t = targetsFor(s, "blinder");
       if (t.length) parts.push(b.chaser("Blinder hit", path, [{ id: sharedScene("Blinder flash", t, WHITE), hold: beat, fadeOut: 1500 }, { id: blank(), hold: 1500 }], "SingleShot"));

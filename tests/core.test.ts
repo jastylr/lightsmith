@@ -1424,6 +1424,11 @@ test("strobe hits in a color, on chosen lights, with only the strobe showing on 
   generateSong({ ws, profiles, rig, song: { id: "x", title: "Strobe", bpm: 120, sections: [s] } });
   const xml = serializeWorkspace(ws);
   assert.match(xml, /Name="Strobe hits"[\s\S]*?<Color Index="0">4294901760<\/Color>/, "a red strobe");
+  // Two flashes a beat by default: at 120 BPM a step is 125 ms (a flash takes a lit and a dark step).
+  assert.match(xml, /Name="Strobe hits"[^>]*>\s*<Speed FadeIn="0" FadeOut="0" Duration="125"/);
+  const ws4 = parseWorkspace(WORKSPACE_QXW);
+  generateSong({ ws: ws4, profiles, rig, song: { id: "y", title: "Fast", bpm: 120, sections: [{ ...s, effects: { ...s.effects, strobeRate: 4 } }] } });
+  assert.match(serializeWorkspace(ws4), /Name="Strobe hits"[^>]*>\s*<Speed FadeIn="0" FadeOut="0" Duration="63"/);
   // Without "only the strobe", the light keeps its look and the pattern.
   assert.deepEqual(patternTargets({ ...s, effects: { strobe: true } }, rig), [2, 3]);
 });

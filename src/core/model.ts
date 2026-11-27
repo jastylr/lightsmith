@@ -334,6 +334,8 @@ export interface SectionEffects {
   strobeColor?: string;
   /** The strobe's lights show only the strobe: their look goes dark underneath. */
   strobeOnly?: boolean;
+  /** Strobe hits flashes per beat: 1, 2 (default) or 4. */
+  strobeRate?: number;
   blinder?: boolean;
   beatPulse?: boolean;
   sparkle?: boolean;
@@ -486,6 +488,10 @@ export interface SafeLookStyle {
 }
 
 export const SAFE_LOOK_DEFAULT_LEVEL = 0.55;
+
+/** Strobe hits flashes per beat. */
+export const STROBE_RATES = [1, 2, 4] as const;
+export const strobeRateOf = (e: { strobeRate?: number }): number => (e.strobeRate && e.strobeRate > 0 ? e.strobeRate : 2);
 
 const sameTrigger = (a: Trigger, b: Trigger) => a.device === b.device && a.kind === b.kind && a.number === b.number;
 

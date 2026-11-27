@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, type ReactElement } from "react";
-import { COLOR_CHANGES, DEFAULT_PAN_RANGE, patternSpeedOf, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, strobeOnlyLights, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
+import { COLOR_CHANGES, DEFAULT_PAN_RANGE, patternSpeedOf, sectionMs, beamDirection, calibrationOf, efxPoint, aimOf, moverTiming, moverShapeAt, COLOR_JOBS, colorRateOf, jobColorAt, jobPalette, ratePeriodMs, stepsFor, switchesColors, colorById, mountOf, toMs, type Sequence, type SequenceStep, stepLightColor, FOCUS_DIM, colorLayoutOf, lightLevels, lightSetting, effectTargets, strobeOnlyLights, strobeRateOf, energyOf, focusLights, moodById, MOVEMENTS, patternById, patternTargets, type ColorJob, type Rig, type Section } from "../core";
 
 const reduceMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -187,7 +187,7 @@ export function StagePreview({
   if (section.effects.strobe) {
     const rgb = colorById(section.effects.strobeColor ?? "white").rgb;
     for (const id of effectTargets(section, "strobe", rig))
-      chaserLights.push({ id, layers: [{ key: `strobe-${id}`, color: `rgb(${rgb.join(",")})`, anim: <animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.05;0.14;1" dur={`${beat / 2}s`} repeatCount="indefinite" /> }] });
+      chaserLights.push({ id, layers: [{ key: `strobe-${id}`, color: `rgb(${rgb.join(",")})`, anim: <animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.05;0.14;1" dur={`${beat / strobeRateOf(section.effects)}s`} repeatCount="indefinite" /> }] });
   }
   const chaserOf = (id: number) => (animate ? chaserLights.filter((c) => c.id === id).flatMap((c) => c.layers) : []);
   const fronts = byRole("front");
