@@ -2,7 +2,6 @@ import { createPortal } from "react-dom";
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLORS,
-  emptyShowControl,
   STROBE_RATES,
   LOOK_COLOR,
   strobeRateOf,
