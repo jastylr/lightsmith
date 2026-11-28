@@ -5,6 +5,7 @@
  */
 import { newSection, type Section } from "./model";
 import { SONG_TEMPLATES, sectionTypeById } from "./presets";
+import { genreLookFor } from "./library";
 
 /** One section of the plan: what kind it is, what it's called and how long it is. */
 export interface PlannedSection {
@@ -18,6 +19,8 @@ export interface SongPlan {
   beatsPerBar: number;
   sections: PlannedSection[];
   vibe: string;
+  /** A genre from the look library; its looks are used where it has one for a kind of section, the vibe elsewhere. */
+  genre?: string;
   arc: string;
   moments: string[];
 }
@@ -200,14 +203,16 @@ export function buildSong(plan: SongPlan, opts: { hasMovers: boolean }): Section
 
   const sections: Section[] = plan.sections.map((p, i) => {
     const s = newSection(p.type, plan.bpm);
+    const energy = energies[i] ?? s.energy;
+    const base = { ...s, name: p.name, bars: p.bars, beatsPerBar: plan.beatsPerBar };
+    // A genre's own look for this kind of section, with the arc's energy.
+    const fromGenre = plan.genre ? genreLookFor(plan.genre, p.type) : undefined;
+    if (fromGenre) return { ...base, ...structuredClone(fromGenre.look), energy };
     const mood = vibe.moods[p.type] ?? vibe.moods.default ?? s.mood;
     return {
-      ...s,
-      name: p.name,
-      bars: p.bars,
-      beatsPerBar: plan.beatsPerBar,
+      ...base,
       mood,
-      energy: energies[i] ?? s.energy,
+      energy,
       // Let each mood bring its own pattern; intros and outros stay plainer.
       pattern: p.type === "intro" || p.type === "outro" || p.type === "breakdown" ? "solid" : "mood",
     };

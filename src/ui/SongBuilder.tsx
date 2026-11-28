@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ARCS,
   DEFAULT_MOMENTS,
+  GENRES,
+  genreLookFor,
   MOMENTS,
   SECTION_TYPES,
   SONG_TEMPLATES,
@@ -25,7 +27,7 @@ import { Dropdown, Field, NumberInput, TapTempo } from "./controls";
 import { Icon } from "./icons";
 import { StagePreview } from "./StagePreview";
 
-const STEPS = ["The song", "Structure", "Vibe", "Energy", "Moments", "Review"] as const;
+const STEPS = ["The song", "Structure", "Style", "Energy", "Moments", "Review"] as const;
 
 const paletteOf = (s: Section) => (s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor);
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -46,6 +48,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
   const [template, setTemplate] = useState("short");
   const [sections, setSections] = useState<PlannedSection[]>(() => planFromTemplate("short"));
   const [vibe, setVibe] = useState("rock");
+  const [genre, setGenre] = useState("any");
   const [arc, setArc] = useState("punch");
   const [moments, setMoments] = useState<string[]>(DEFAULT_MOMENTS);
   const [recording, setRecording] = useState<{ file: File; url: string; durationMs: number } | null>(null);
@@ -58,8 +61,8 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
   }, []);
   useEffect(() => () => (recording ? URL.revokeObjectURL(recording.url) : undefined), [recording]);
 
-  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments };
-  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, arc, moments, hasMovers]);
+  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments, genre: genre === "any" ? undefined : genre };
+  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, genre, arc, moments, hasMovers]);
   // The section the preview shows: the one picked, else the first chorus, else the biggest.
   const lit = built.filter((s) => !isBlackout(s));
   const focus = (picked !== null ? built[picked] : undefined) ?? lit.find((s) => s.type === "chorus") ?? lit.reduce<Section | undefined>((a, b) => (!a || b.energy > a.energy ? b : a), undefined);
@@ -179,8 +182,30 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
 
             {step === 2 && (
               <div className="builder-page">
-                <h3>What's the vibe?</h3>
-                <p className="hint">Sets the mood for each kind of section. You can change any section's mood afterwards.</p>
+                <h3>What kind of music is it?</h3>
+                <p className="hint">A genre gives every kind of section a ready-made look from the look library. Or skip it and pick a vibe. You can change any section's look afterwards.</p>
+                <div className="builder-choices genre-choices" role="radiogroup" aria-label="Genre">
+                  <button type="button" role="radio" aria-checked={genre === "any"} className={genre === "any" ? "choice on" : "choice"} onClick={() => setGenre("any")}>
+                    <strong>Any, or skip</strong>
+                    <span>Choose a vibe below instead</span>
+                  </button>
+                  {GENRES.map((g) => {
+                    const looks = ["verse", "chorus", "solo"].map((r) => genreLookFor(g.id, r)).filter(Boolean);
+                    return (
+                      <button key={g.id} type="button" role="radio" aria-checked={genre === g.id} className={genre === g.id ? "choice vibe on" : "choice vibe"} onClick={() => setGenre(g.id)}>
+                        <span className="genre-strip" aria-hidden="true">
+                          {looks.map((l, k) => (
+                            <i key={k} style={{ background: `linear-gradient(90deg, ${(l!.look.colors ?? []).map(cssColor).join(", ")})` }} />
+                          ))}
+                        </span>
+                        <strong>{g.label}</strong>
+                        <span>{g.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {genre === "any" && <h4 className="builder-subhead">Pick a vibe</h4>}
+                {genre === "any" && (
                 <div className="builder-choices" role="radiogroup" aria-label="Vibe">
                   {VIBES.map((v) => (
                     <button key={v.id} type="button" role="radio" aria-checked={vibe === v.id} className={vibe === v.id ? "choice vibe on" : "choice vibe"} onClick={() => setVibe(v.id)}>
@@ -198,6 +223,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
                     </button>
                   ))}
                 </div>
+                )}
               </div>
             )}
 

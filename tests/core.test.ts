@@ -13,6 +13,11 @@ import {
   generateSong,
   generateSet,
   safeLookSong,
+  LIBRARY,
+  GENRES,
+  libraryFor,
+  applyLibraryLook,
+  COLORS,
   buildSong,
   planFromTemplate,
   planFromMarks,
@@ -1518,4 +1523,43 @@ test("song builder: sections from marks made while the recording plays", () => {
   // A mark a little off still lands on a whole beat.
   assert.equal(planFromMarks([16_200], 32_000, 120, 4)[0]!.bars, 8);
   assert.deepEqual(renumber([{ type: "verse", name: "Verse 3", bars: 8 }, { type: "chorus", name: "Big one", bars: 8 }]).map((s) => s.name), ["Verse", "Big one"]);
+});
+
+test("look library: every look uses real moods, colors, patterns and movements", () => {
+  assert.ok(LIBRARY.length >= 100, `a large library (${LIBRARY.length})`);
+  for (const l of LIBRARY) {
+    assert.ok(MOODS.some((m) => m.id === l.look.mood), `${l.id} mood`);
+    assert.ok(l.look.colors!.every((c) => COLORS.some((x) => x.id === c)), `${l.id} colors`);
+    assert.ok(PATTERNS.some((x) => x.id === l.look.pattern), `${l.id} pattern ${l.look.pattern}`);
+    assert.ok(MOVEMENTS.some((x) => x.id === l.look.movement), `${l.id} movement`);
+    assert.ok(l.look.energy! >= 1 && l.look.energy! <= 5);
+  }
+  assert.equal(new Set(LIBRARY.map((l) => l.id)).size, LIBRARY.length, "ids are unique");
+  // Every genre has looks for the main kinds of section.
+  for (const g of GENRES) for (const role of ["intro", "verse", "chorus", "solo", "outro"]) assert.ok(LIBRARY.some((l) => l.genres.includes(g.id) && l.roles.includes(role)), `${g.id} ${role}`);
+  // Filtering: a genre plus the classics, the ones that suit the role first.
+  const metalChorus = libraryFor("metal", "chorus");
+  assert.ok(metalChorus.every((l) => l.genres.includes("metal") || l.genres.includes("classic")));
+  assert.ok(metalChorus[0]!.roles.includes("chorus"));
+});
+
+test("look library: applying a look keeps the section's own lights, chasers and length", () => {
+  const s = { ...newSection("chorus", 120), name: "Big one", bars: 12, lights: { "3": { off: true } }, sequences: [{ id: "q1" }], brightness: { backdrop: 0.2 }, colorLayout: { front: "white" as const } };
+  const look = LIBRARY.find((l) => l.id === "metal-wall-of-death")!;
+  const next = applyLibraryLook(s as never, look);
+  assert.equal(next.name, "Big one");
+  assert.equal(next.bars, 12);
+  assert.deepEqual(next.lights, { "3": { off: true } });
+  assert.deepEqual(next.sequences, [{ id: "q1" }]);
+  assert.equal(next.brightness, undefined, "the old look's brightness goes");
+  assert.equal(next.colorLayout, undefined);
+  assert.equal(next.mood, "aggressive");
+  assert.ok(next.effects.strobe && next.effects.blinder);
+
+  // The guide with a genre builds from that genre's looks, energies from the arc.
+  const plan = { bpm: 120, beatsPerBar: 4, sections: planFromTemplate("short"), vibe: "rock", arc: "punch", moments: [], genre: "metal" };
+  const secs = buildSong(plan, { hasMovers: true });
+  assert.equal(secs.find((x) => x.type === "chorus")!.mood, "aggressive");
+  assert.equal(secs.find((x) => x.type === "intro")!.mood, "dark");
+  assert.ok(secs.every((x) => x.energy >= 1 && x.energy <= 5));
 });

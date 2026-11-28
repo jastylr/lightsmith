@@ -137,7 +137,7 @@ export function CopyLook({ s, others, onCopy }: { s: Section; others: Section[];
   return (
     <div className="copy-look" ref={root}>
       <button type="button" className="ghost small" aria-expanded={open} onClick={() => (open ? setOpen(false) : start())}>
-        <Icon name="copy" size={14} /> Copy this look to…
+        <Icon name="copy" size={14} /> Copy look to…
       </button>
       {open && (
         <div className="copy-look-pop" role="dialog" aria-label={`Copy the look of ${s.name}`}>

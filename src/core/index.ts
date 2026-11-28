@@ -14,3 +14,4 @@ export * from "./aim";
 export * from "./audio";
 export * from "./coach";
 export * from "./builder";
+export * from "./library";

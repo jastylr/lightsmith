@@ -97,6 +97,7 @@ import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
 import { CoachPanel, VariationsDialog } from "./Coach";
 import { SongBuilder } from "./SongBuilder";
+import { LookLibraryDialog } from "./LookLibrary";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
 import { MiniTransport, songSignature, TransportBar } from "./Transport";
@@ -206,6 +207,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [pinTransportSlot, setPinTransportSlot] = useState<HTMLDivElement | null>(null);
   // The section whose variations are open, if any.
   const [variationsFor, setVariationsFor] = useState<string | null>(null);
+  // The section the look library is open for, if any.
+  const [libraryFor, setLibraryFor] = useState<string | null>(null);
   // The guided builder ("Build a song with me"), when it's open.
   const [building, setBuilding] = useState(false);
   const openBuilder = async () => {
@@ -498,6 +501,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 pinTransportRef={setPinTransportSlot}
                 coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => set({ sections: next.sections })} onSelect={setSelected} onVariations={setVariationsFor} />}
                 onVariations={() => setVariationsFor(current.id)}
+                onLibrary={() => setLibraryFor(current.id)}
                 sectionActions={
                   <SectionMenu
                     name={current.name}
@@ -509,6 +513,15 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                   />
                 }
                 stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+            )}
+            {libraryFor && song.sections.some((x) => x.id === libraryFor) && (
+              <LookLibraryDialog
+                s={song.sections.find((x) => x.id === libraryFor)!}
+                rig={store.project.rig}
+                sequences={store.project.sequences ?? []}
+                onApply={(next) => set({ sections: song.sections.map((x) => (x.id === next.id ? next : x)) })}
+                onClose={() => setLibraryFor(null)}
+              />
             )}
             {variationsFor && song.sections.some((x) => x.id === variationsFor) && (
               <VariationsDialog
@@ -1697,7 +1710,10 @@ function LookEditor({
   sectionActions,
   coach,
   onVariations,
+  onLibrary,
 }: {
+  /** Open the look library for this section. */
+  onLibrary?: () => void;
   /** Open the variations for this section. */
   onVariations?: () => void;
   /** The show coach, under the pinned stage. */
@@ -2005,10 +2021,12 @@ function LookEditor({
               {onVariations && (
                 <button type="button" className="tool-btn feature" onClick={onVariations} title="See three other ways this section could look, side by side">
                   <Icon name="sparkle" size={16} />
-                  <span>
-                    <strong>Try variations</strong>
-                    <small>Three other looks to pick from</small>
-                  </span>
+                  <strong>Try variations</strong>
+                </button>
+              )}
+              {onLibrary && (
+                <button type="button" className="tool-btn" onClick={onLibrary} title="Ready-made looks by genre, to start this section from">
+                  <Icon name="stack" size={15} /> Look library
                 </button>
               )}
               {onCopyLookTo && others && others.length > 0 && <CopyLook s={s} others={others} onCopy={onCopyLookTo} />}
