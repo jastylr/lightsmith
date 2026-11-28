@@ -6782,8 +6782,155 @@ dialog.builder[open] {
 }
 .builder-row {
   display: grid;
-  grid-template-columns: 1fr 10rem;
-  gap: 1rem;
+  grid-template-columns: auto 1fr;
+  gap: 1.4rem;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .builder-row {
+    grid-template-columns: 1fr;
+  }
+}
+/* A dot that flashes on the beat, so you can feel the tempo. */
+.tempo-pulse {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tungsten-hi);
+  animation: tempo-pulse 0.5s ease-out infinite;
+}
+@keyframes tempo-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: 0 0 12px var(--tungsten);
+  }
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tempo-pulse {
+    animation: none;
+  }
+}
+.builder-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.builder-head h2 svg {
+  color: var(--tungsten-hi);
+}
+
+/* The recording: a drop zone, and what it's good for. */
+.builder-recording {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(135deg, rgba(242, 167, 59, 0.06), transparent 60%);
+}
+.builder-drop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--muted);
+}
+.builder-drop:hover,
+.builder-drop:focus-within {
+  border-color: var(--tungsten);
+  color: var(--text);
+}
+.builder-drop input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.builder-drop > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.builder-drop strong {
+  color: var(--text);
+  font-size: 1.02rem;
+}
+.builder-drop small {
+  color: var(--muted);
+}
+.builder-drop-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten-hi);
+}
+.builder-recording.has .builder-drop {
+  border-style: solid;
+  border-color: rgba(242, 167, 59, 0.45);
+}
+em.optional {
+  margin-left: 0.3rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+}
+.builder-perks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.builder-perks li {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.builder-perks li svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--tungsten-hi);
+}
+.builder-perks strong {
+  color: var(--text);
+}
+.builder-perks li.muted {
+  padding-left: 1.6rem;
+  font-size: 0.88rem;
+}
+.builder-offset {
+  margin: 0;
+}
+.builder-offset .duration {
+  max-width: 12rem;
+}
+.builder-drop-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem;
 }
 .builder-file {
   display: flex;
@@ -6818,6 +6965,61 @@ dialog.builder[open] {
 }
 .builder-choices.two {
   grid-template-columns: 1fr 1fr;
+}
+.builder-choices.ways {
+  grid-template-columns: repeat(3, 1fr);
+}
+.builder-choices.ways.four {
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (max-width: 900px) {
+  .builder-choices.ways {
+    grid-template-columns: 1fr;
+  }
+}
+.choice.way .way-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+.choice.way.on .way-icon {
+  background: rgba(242, 167, 59, 0.16);
+  color: var(--tungsten-hi);
+}
+.builder-choices.route .choice {
+  padding: 1rem 1.1rem;
+}
+.builder-choices.route .choice strong {
+  font-size: 1.08rem;
+}
+.builder-quick-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.builder-quick-add .chip i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.plan-empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  color: var(--muted);
+}
+.builder-fill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--muted);
 }
 .choice {
   display: flex;
@@ -7113,6 +7315,111 @@ dialog.builder[open] {
 .builder-stage-caption {
   margin: 0;
   color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.5rem;
+  align-items: baseline;
+}
+.builder-side-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.builder-side-head > div {
+  display: flex;
+  flex-direction: column;
+}
+.builder-side-head small {
+  color: var(--muted);
+}
+.builder-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--r-sm);
+  background: rgba(242, 167, 59, 0.1);
+  color: var(--tungsten-hi);
+  font-size: 0.9rem;
+  animation: builder-note-in 260ms ease-out;
+}
+@keyframes builder-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.builder-strip-help {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.builder-strip-help svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+.builder-strip {
+  position: relative;
+}
+.builder-strip button {
+  position: relative;
+}
+.strip-marks {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+}
+.strip-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--house);
+}
+.strip-mark.ending {
+  border-radius: 2px;
+  background: #000;
+  box-shadow: 0 0 0 1.5px var(--text);
+}
+.strip-mark.blinder {
+  background: #fff8e0;
+  box-shadow: 0 0 6px #fff8e0;
+}
+.strip-mark.strobePeak {
+  background: #ffffff;
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+.strip-mark.sweep {
+  background: #7cbcff;
+}
+.strip-mark.cutChorus {
+  background: var(--tungsten-hi);
+}
+.strip-mark.fadeIntro {
+  background: linear-gradient(90deg, transparent, var(--tungsten-hi));
+}
+.strip-playhead {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--tungsten-hi);
+  box-shadow: 0 0 6px var(--tungsten);
+  pointer-events: none;
+}
+button.primary.big {
+  padding: 0.7rem 1.4rem;
+  font-size: 1.02rem;
 }
 .builder-stage-caption strong {
   color: var(--text);

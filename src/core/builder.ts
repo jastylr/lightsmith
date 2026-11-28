@@ -3,7 +3,7 @@
  * of section gets), an energy arc and a few signature moments, turned into
  * sections. Pure, so the builder's preview and its tests see the same song.
  */
-import { newSection, type Section } from "./model";
+import { isBlackout, newSection, type Section } from "./model";
 import { SONG_TEMPLATES, sectionTypeById } from "./presets";
 import { genreLookFor } from "./library";
 
@@ -12,6 +12,8 @@ export interface PlannedSection {
   type: string;
   name: string;
   bars: number;
+  /** Its own tempo, when it isn't the song's (kept when restyling a song that changes tempo). */
+  bpm?: number;
 }
 
 export interface SongPlan {
@@ -122,6 +124,12 @@ export const ARCS: Arc[] = [
         return clamp((BASE[x.type] ?? 3) - (late ? -1 : 1) + (late && (x.type === "chorus" || x.type === "solo") ? 1 : 0));
       }),
   },
+  {
+    id: "natural",
+    label: "Let the sections decide",
+    description: "No arc: each kind of section keeps its usual energy",
+    energies: (xs) => xs.map((x) => clamp(sectionTypeById(x.type).energy)),
+  },
 ];
 
 export interface Moment {
@@ -179,6 +187,35 @@ export function planFromMarks(marksMs: number[], totalMs: number, bpm: number, b
   }));
 }
 
+/**
+ * A song's own sections as a plan, to restyle it without redoing its layout.
+ * A blackout at the very end becomes the "ending" moment instead, so it isn't
+ * doubled; any other blackout is left out (the builder adds its own darkness).
+ */
+export function planFromSong(sections: Section[], songBpm: number): { sections: PlannedSection[]; endsInBlackout: boolean } {
+  const last = sections.at(-1);
+  const endsInBlackout = !!last && isBlackout(last);
+  const plan = sections
+    .filter((x) => !isBlackout(x))
+    .map((x) => ({ type: x.type === "blackout" ? "custom" : x.type, name: x.name, bars: x.bars, ...(x.bpm && x.bpm !== songBpm ? { bpm: x.bpm } : {}) }));
+  return { sections: plan, endsInBlackout };
+}
+
+/** What the signature moments did to each built section, for markers on the song strip. */
+export function momentMarks(sections: Section[]): { id: string; label: string }[][] {
+  return sections.map((s, i) => {
+    const out: { id: string; label: string }[] = [];
+    if (isBlackout(s) && i === sections.length - 1) out.push({ id: "ending", label: "Blackout on the last hit" });
+    if (isBlackout(s)) return out;
+    if (s.effects.blinder) out.push({ id: "blinder", label: "Blinder" });
+    if (s.effects.strobe) out.push({ id: "strobePeak", label: "Strobe" });
+    if (s.movement === "sweep") out.push({ id: "sweep", label: "Heads sweep" });
+    if (s.type === "chorus" && s.transition === "snap") out.push({ id: "cutChorus", label: "Cuts in" });
+    if (i === 0 && s.type === "intro" && s.transition === "fade" && (s.fadeBeats ?? 0) > 1) out.push({ id: "fadeIntro", label: "Slow fade in" });
+    return out;
+  });
+}
+
 /** Gives repeated kinds numbers (Verse 1, Verse 2) and single ones plain names. */
 export function renumber(sections: PlannedSection[]): PlannedSection[] {
   const totals: Record<string, number> = {};
@@ -202,7 +239,7 @@ export function buildSong(plan: SongPlan, opts: { hasMovers: boolean }): Section
   const has = (m: string) => plan.moments.includes(m) && (!MOMENTS.find((x) => x.id === m)?.needsMovers || opts.hasMovers);
 
   const sections: Section[] = plan.sections.map((p, i) => {
-    const s = newSection(p.type, plan.bpm);
+    const s = newSection(p.type, p.bpm ?? plan.bpm);
     const energy = energies[i] ?? s.energy;
     const base = { ...s, name: p.name, bars: p.bars, beatsPerBar: plan.beatsPerBar };
     // A genre's own look for this kind of section, with the arc's energy.

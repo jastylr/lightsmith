@@ -220,21 +220,9 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [libraryFor, setLibraryFor] = useState<string | null>(null);
   // The Song Builder, when it's open.
   const [building, setBuilding] = useState(false);
-  const openBuilder = async () => {
-    if (!song) return;
-    if (song.sections.length) {
-      const ok = await askConfirm({
-        title: "Build this song again in the Song Builder?",
-        message: (
-          <>
-            The Song Builder makes a new set of sections for <strong>{song.title || "this song"}</strong>, replacing its {song.sections.length} sections. Undo brings them back.
-          </>
-        ),
-        confirmLabel: "Open the Song Builder",
-      });
-      if (!ok) return;
-    }
-    setBuilding(true);
+  // Nothing changes until "Make the song" at the end (and Undo brings the old sections back), so no need to ask first.
+  const openBuilder = () => {
+    if (song) setBuilding(true);
   };
   useCommands((c) => {
     if (c.type === "select-section") setSelected(c.id);
@@ -242,13 +230,14 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     else if (c.type === "open-library" && selected) setLibraryFor(selected);
     else if (c.type === "open-variations" && selected && !isBlackout(song?.sections.find((x) => x.id === selected) ?? ({} as Section))) setVariationsFor(selected);
   });
-  const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File) => {
+  const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File, offsetMs?: number) => {
     if (!song) return;
-    let audio: Song["audio"];
+    // The builder asks where the song starts in the recording (a count-in to skip).
+    let audio: Song["audio"] = song.audio && offsetMs !== undefined ? { ...song.audio, offsetMs } : undefined;
     if (file) {
       try {
         const a = await loadAudioFile(file);
-        audio = { key: a.key, name: a.name, durationMs: a.durationMs, offsetMs: 0 };
+        audio = { key: a.key, name: a.name, durationMs: a.durationMs, offsetMs: offsetMs ?? 0 };
       } catch (err) {
         setAudioError(err instanceof Error ? err.message : "That file couldn't be read.");
       }
@@ -582,7 +571,17 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         </>
       )}
 
-      {building && <SongBuilder song={song} rig={store.project.rig} sequences={store.project.sequences ?? []} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onDone={(patch, file) => void finishBuilder(patch, file)} onClose={() => setBuilding(false)} />}
+      {building && (
+        <SongBuilder
+          song={song}
+          rig={store.project.rig}
+          sequences={store.project.sequences ?? []}
+          hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")}
+          existingRecording={song.audio && track.status === "ready" ? { url: track.el.currentSrc || track.el.src, durationMs: song.audio.durationMs, name: song.audio.name, offsetMs: song.audio.offsetMs } : undefined}
+          onDone={(patch, file, offset) => void finishBuilder(patch, file, offset)}
+          onClose={() => setBuilding(false)}
+        />
+      )}
 
       <div className="page-actions">
         <button className="primary" onClick={onNext} disabled={song.sections.length === 0}>

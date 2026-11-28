@@ -10,8 +10,10 @@ import {
   VIBES,
   buildSong,
   isBlackout,
+  momentMarks,
   moodById,
   planFromMarks,
+  planFromSong,
   planFromTemplate,
   renumber,
   sectionMs,
@@ -23,63 +25,166 @@ import {
   type Song,
 } from "../core";
 import { cssColor } from "./ColorPicker";
-import { Dropdown, Field, NumberInput, TapTempo } from "./controls";
+import { Dropdown, DurationInput, Field, NumberInput, Segmented, TapTempo } from "./controls";
 import { Icon } from "./icons";
 import { StagePreview } from "./StagePreview";
 
-const STEPS = ["The song", "Structure", "Style", "Energy", "Moments", "Review"] as const;
+const STEPS = ["The song", "Structure", "Style", "Energy", "Moments", "Your show"] as const;
 
 const paletteOf = (s: Section) => (s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor);
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 
+/** A recording in the builder: a new file, or the song's own (already stored). */
+interface BuilderRecording {
+  url: string;
+  durationMs: number;
+  name: string;
+  /** Set when it's a new file, to store with the song. */
+  file?: File;
+}
+
+/** What a section looks like, in words: for the caption under the stage. */
+function describe(s: Section): string {
+  if (isBlackout(s)) return "all lights off";
+  const bits = [moodById(s.mood).label, `energy ${s.energy}`];
+  if (s.transition === "snap") bits.push("cuts in on the downbeat");
+  if (s.movement === "sweep") bits.push("heads sweep the crowd");
+  if (s.effects.blinder) bits.push("blinder hit");
+  if (s.effects.strobe) bits.push("strobe");
+  return bits.join(", ");
+}
+
+/** The parts of a section a choice in the builder can change, to spot what a choice did. */
+const lookKey = (s: Section) => JSON.stringify([s.mood, s.colors, s.energy, s.pattern, s.transition, s.fadeBeats, s.movement, s.effects, s.colorChange]);
+
 /**
  * The Song Builder: a few questions with big visual choices (the song,
- * its structure, a vibe, an energy arc, some signature moments), a live
- * preview that follows every choice, and the finished song at the end. Every
- * section it makes can be edited afterwards like any other.
+ * its structure, a style, an energy arc, some signature moments), a live
+ * stage that follows every choice and can play the whole song, and the
+ * finished song at the end. Every section it makes can be edited afterwards.
  */
-export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }: { song: Song; rig: Rig; sequences: Sequence[]; hasMovers: boolean; onDone: (patch: Pick<Song, "title" | "bpm" | "sections">, recording?: File) => void; onClose: () => void }) {
+export function SongBuilder({
+  song,
+  rig,
+  sequences,
+  hasMovers,
+  existingRecording,
+  onDone,
+  onClose,
+}: {
+  song: Song;
+  rig: Rig;
+  sequences: Sequence[];
+  hasMovers: boolean;
+  /** The song's own recording, when it has one loaded: to mark sections against and play along with. */
+  existingRecording?: { url: string; durationMs: number; name: string; offsetMs: number };
+  onDone: (patch: Pick<Song, "title" | "bpm" | "sections">, recording?: File, offsetMs?: number) => void;
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
+  const restyle = useMemo(() => (song.sections.length ? planFromSong(song.sections, song.bpm) : null), [song]);
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState(song.title === "New song" || song.title === "Untitled song" ? "" : song.title);
   const [bpm, setBpm] = useState(song.bpm);
-  const [beatsPerBar, setBeatsPerBar] = useState(4);
-  const [mode, setMode] = useState<"template" | "marks">("template");
+  const [beatsPerBar, setBeatsPerBar] = useState(song.sections[0]?.beatsPerBar ?? 4);
+  const [mode, setMode] = useState<"keep" | "template" | "marks" | "scratch">(restyle?.sections.length ? "keep" : "template");
   const [template, setTemplate] = useState("short");
-  const [sections, setSections] = useState<PlannedSection[]>(() => planFromTemplate("short"));
+  const [sections, setSections] = useState<PlannedSection[]>(() => (restyle?.sections.length ? restyle.sections : planFromTemplate("short")));
+  const [route, setRoute] = useState<"genre" | "vibe">("genre");
   const [vibe, setVibe] = useState("rock");
-  const [genre, setGenre] = useState("any");
+  const [genre, setGenre] = useState("rock");
   const [arc, setArc] = useState("punch");
-  const [moments, setMoments] = useState<string[]>(DEFAULT_MOMENTS);
-  const [recording, setRecording] = useState<{ file: File; url: string; durationMs: number } | null>(null);
+  const [moments, setMoments] = useState<string[]>(() => (restyle && !restyle.endsInBlackout ? DEFAULT_MOMENTS.filter((m) => m !== "ending") : DEFAULT_MOMENTS));
+  const [recording, setRecording] = useState<BuilderRecording | null>(existingRecording ? { url: existingRecording.url, durationMs: existingRecording.durationMs, name: existingRecording.name } : null);
+  // Where the song starts in the recording: a count-in or silence to skip.
+  const [offsetMs, setOffsetMsNow] = useState(Math.max(0, existingRecording?.offsetMs ?? 0));
+  // Only a start the user set here (or a new file's) is saved: a recording that comes in after a live sample keeps its timeline setting.
+  const [offsetTouched, setOffsetTouched] = useState(false);
+  const setOffsetMs = (ms: number) => {
+    setOffsetMsNow(ms);
+    setOffsetTouched(true);
+  };
+  const lateRecording = !!existingRecording && existingRecording.offsetMs < 0 && !offsetTouched;
   const [marks, setMarks] = useState<number[]>([]);
   const [picked, setPicked] = useState<number | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
   }, []);
-  useEffect(() => () => (recording ? URL.revokeObjectURL(recording.url) : undefined), [recording]);
+  useEffect(() => () => (recording?.file ? URL.revokeObjectURL(recording.url) : undefined), [recording]);
 
-  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments, genre: genre === "any" ? undefined : genre };
-  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, genre, arc, moments, hasMovers]);
-  // The section the preview shows: the one picked, else the first chorus, else the biggest.
+  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments, genre: route === "genre" ? genre : undefined };
+  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, genre, route, arc, moments, hasMovers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const marksOn = useMemo(() => momentMarks(built), [built]);
+  const totalMs = built.reduce((t, s) => t + sectionMs(s), 0);
+
+  // Playing the whole song on the stage (with the recording, when there is one).
+  const player = useSongPlayer(built, recording, lateRecording ? existingRecording!.offsetMs : offsetMs);
+  const playing = player.at !== null;
+
+  // The section the stage shows: the one playing, else the one picked, else the first chorus, else the biggest.
   const lit = built.filter((s) => !isBlackout(s));
-  const focus = (picked !== null ? built[picked] : undefined) ?? lit.find((s) => s.type === "chorus") ?? lit.reduce<Section | undefined>((a, b) => (!a || b.energy > a.energy ? b : a), undefined);
+  const focusIndex = playing ? player.at!.index : picked !== null && built[picked] ? picked : (() => {
+    const c = built.findIndex((s) => s.type === "chorus");
+    if (c >= 0) return c;
+    const top = lit.reduce<Section | undefined>((a, b) => (!a || b.energy > a.energy ? b : a), undefined);
+    return top ? built.indexOf(top) : -1;
+  })();
+  const focus = built[focusIndex];
+
+  // When a style, energy or moment choice changes the song, show the section it changed most, and say so.
+  const before = useRef<Section[] | null>(null);
+  useEffect(() => {
+    const prev = before.current;
+    before.current = built;
+    if (!prev || step < 2 || step > 4 || prev.length !== built.length) return;
+    const changed = built.map((s, i) => (lookKey(s) !== lookKey(prev[i]!) ? i : -1)).filter((i) => i >= 0);
+    if (!changed.length) return;
+    const best = changed.reduce((a, b) => (built[b]!.type === "chorus" && built[a]!.type !== "chorus" ? b : built[b]!.energy > built[a]!.energy && built[a]!.type !== "chorus" ? b : a));
+    if (!playing) setPicked(best);
+    setNote(changed.length === built.length ? "That changed every section." : `That changed ${changed.length} of ${built.length} sections${playing ? "" : `. Showing ${built[best]!.name}`}.`);
+  }, [built]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setNote(null), [step]);
 
   const canNext = step === 0 ? bpm >= 30 : step === 1 ? sections.length > 0 : true;
   const finish = () => {
-    onDone({ title: title.trim() || "Untitled song", bpm, sections: built.map((s) => ({ ...s, bpm })) }, recording?.file);
+    player.stop();
+    onDone({ title: title.trim() || "Untitled song", bpm, sections: built }, recording?.file, recording && (recording.file || offsetTouched) ? offsetMs : undefined);
     ref.current?.close();
   };
+  const go = (next: number) => {
+    setStep(next);
+    // The last step is the show: start it.
+    if (next === STEPS.length - 1 && !playing) player.play(0);
+  };
+  const remark = (m: number[], rec: BuilderRecording, offset: number) =>
+    setSections(planFromMarks(m.filter((x) => x > offset).map((x) => x - offset), rec.durationMs - offset, bpm, beatsPerBar));
+
+  const pickFile = (file: File | undefined) => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const probe = new Audio(url);
+    probe.addEventListener("loadedmetadata", () => {
+      setRecording({ url, durationMs: probe.duration * 1000, name: file.name, file });
+      setOffsetMsNow(0);
+      setMarks([]);
+    });
+    if (!title) setTitle(file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "));
+  };
+  // Genre looks cover most kinds of section; anything a genre has none for uses the vibe.
+  const uncovered = route === "genre" ? [...new Set(sections.map((x) => x.type))].filter((t) => !genreLookFor(genre, t)) : [];
 
   return (
-    <dialog ref={ref} className="builder" aria-labelledby="builder-title" onClose={onClose}>
+    <dialog ref={ref} className="builder" aria-labelledby="builder-title" onClose={() => { player.stop(); onClose(); }}>
       <div className="builder-box">
         <header className="builder-head">
           <div>
-            <h2 id="builder-title">Song Builder</h2>
-            <p className="hint">A few questions, then a finished song you can fine-tune. The preview follows every choice.</p>
+            <h2 id="builder-title">
+              <Icon name="sparkle" size={20} /> Song Builder
+            </h2>
+            <p className="hint">Six quick questions, then a finished light show for your song. Watch the stage on the right: it follows every answer.</p>
           </div>
           <button type="button" className="icon-button" onClick={() => ref.current?.close()} aria-label="Close without making the song">
             <Icon name="x" size={16} />
@@ -89,7 +194,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
         <ol className="builder-steps" aria-label="Steps">
           {STEPS.map((label, i) => (
             <li key={label}>
-              <button type="button" className={i === step ? "on" : i < step ? "done" : ""} aria-current={i === step ? "step" : undefined} onClick={() => (i <= step || canNext ? setStep(i) : undefined)} disabled={i > step + 1 || (i > step && !canNext)}>
+              <button type="button" className={i === step ? "on" : i < step ? "done" : ""} aria-current={i === step ? "step" : undefined} onClick={() => (i <= step || canNext ? go(i) : undefined)} disabled={i > step + 1 || (i > step && !canNext)}>
                 <span className="builder-step-num">{i < step ? <Icon name="check" size={13} /> : i + 1}</span>
                 {label}
               </button>
@@ -101,128 +206,201 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
           <div className="builder-main">
             {step === 0 && (
               <div className="builder-page">
-                <h3>What are we lighting?</h3>
+                <h3>Let's light a song</h3>
+                <p className="hint">Start with the basics. The tempo matters most: patterns, chases and color changes all move with it.</p>
                 <Field label="Song title">
-                  <input className="builder-title-input" value={title} placeholder="Song title" onChange={(e) => setTitle(e.target.value)} autoFocus />
+                  <input className="builder-title-input" value={title} placeholder="What's it called?" onChange={(e) => setTitle(e.target.value)} autoFocus />
                 </Field>
                 <div className="builder-row">
-                  <Field label="Tempo" hint="Tap along to find it">
+                  <Field label="Tempo" hint="Type it, or tap along with the song">
                     <span className="tempo-pair">
+                      <span className="tempo-pulse" style={{ animationDuration: `${60 / Math.max(30, bpm)}s` }} aria-hidden="true" title="Flashes on the beat" />
                       <NumberInput label="Tempo in BPM" value={bpm} min={30} max={300} suffix="BPM" onChange={setBpm} />
                       <TapTempo label="Tempo" onTempo={setBpm} />
                     </span>
                   </Field>
-                  <Field label="Beats per bar">
-                    <Dropdown label="Beats per bar" value={String(beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => setBeatsPerBar(+v)} />
+                  <Field label="Beats per bar" hint="4 for most songs, 3 for a waltz, 6 for 6/8">
+                    <Segmented label="Beats per bar" value={String(beatsPerBar)} onChange={(v) => setBeatsPerBar(+v)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} />
                   </Field>
                 </div>
-                <Field label="The recording (optional)" hint="Lets you mark the sections while it plays, and lays the song out against the music.">
-                  <label className="builder-file">
+
+                <div className={recording ? "builder-recording has" : "builder-recording"}>
+                  <label
+                    className="builder-drop"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      pickFile(e.dataTransfer.files[0]);
+                    }}
+                  >
                     <input
                       type="file"
                       accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
+                        pickFile(e.target.files?.[0]);
                         e.target.value = "";
-                        if (!file) return;
-                        const url = URL.createObjectURL(file);
-                        const probe = new Audio(url);
-                        probe.addEventListener("loadedmetadata", () => {
-                          setRecording({ file, url, durationMs: probe.duration * 1000 });
-                          setMarks([]);
-                        });
-                        if (!title) setTitle(file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "));
                       }}
                     />
-                    <Icon name="music" size={16} />
+                    <span className="builder-drop-icon" aria-hidden="true">
+                      <Icon name="music" size={20} />
+                    </span>
                     {recording ? (
                       <span>
-                        <strong>{recording.file.name}</strong> ({clock(recording.durationMs)})
+                        <span className="builder-drop-line">
+                          <strong>{recording.name}</strong> <em className="optional">{clock(recording.durationMs)}</em>
+                        </span>
+                        <small>{recording.file ? "Ready. Choose another file to swap it." : "This song's recording. Choose another file to swap it."}</small>
                       </span>
                     ) : (
-                      <span>Choose an audio file</span>
+                      <span>
+                        <span className="builder-drop-line">
+                          <strong>Add the recording</strong> <em className="optional">optional</em>
+                        </span>
+                        <small>Drop an audio file here, or click to choose one. MP3, WAV, M4A and more.</small>
+                      </span>
                     )}
                   </label>
-                </Field>
+                  {recording && lateRecording ? (
+                    <p className="hint builder-offset">This recording comes in after the song starts (after a sample you play live, say). That's kept as it is; change it on the timeline.</p>
+                  ) : recording ? (
+                    <div className="builder-offset">
+                      <Field label="Where does the song start?" hint="Skip a count-in or silence at the start of the recording. 0 if the song starts right away.">
+                        <DurationInput label="Where the song starts in the recording" valueMs={offsetMs} minMs={0} maxMs={Math.max(0, recording.durationMs - 1000)} onChange={(ms) => { setOffsetMs(ms); if (marks.length) remark(marks, recording, ms); }} />
+                      </Field>
+                    </div>
+                  ) : (
+                    <ul className="builder-perks">
+                      <li>
+                        <Icon name="ear" size={16} />
+                        <span>
+                          <strong>A guide to build around.</strong> Mark each part as the song plays, then see the waveform under your sections.
+                        </span>
+                      </li>
+                      <li>
+                        <Icon name="play" size={16} />
+                        <span>
+                          <strong>A backing or click track.</strong> QLC+ can play it with the lights, every section right on time.
+                        </span>
+                      </li>
+                      <li className="muted">No recording? No problem. Skip it and cue the lights live; you can add one any time.</li>
+                    </ul>
+                  )}
+                </div>
               </div>
             )}
 
             {step === 1 && (
               <div className="builder-page">
                 <h3>How does the song go?</h3>
-                <div className="builder-choices two" role="radiogroup" aria-label="How to lay out the sections">
-                  <button type="button" role="radio" aria-checked={mode === "template"} className={mode === "template" ? "choice on" : "choice"} onClick={() => { setMode("template"); setSections(planFromTemplate(template)); }}>
-                    <strong>A common structure</strong>
-                    <span>Pick the shape closest to the song, then adjust the parts and lengths.</span>
-                  </button>
-                  <button type="button" role="radio" aria-checked={mode === "marks"} className={mode === "marks" ? "choice on" : "choice"} disabled={!recording} onClick={() => setMode("marks")} title={recording ? undefined : "Add the recording on the first step to mark sections while it plays"}>
-                    <strong>Mark it while it plays</strong>
-                    <span>{recording ? "Play the recording and press M (or the button) each time a new section starts." : "Needs the recording, from the first step."}</span>
-                  </button>
+                <p className="hint">Lay out its parts in order. Pick a way to start below; however you start, you can change, add, move and remove parts in the list.</p>
+                <div className={restyle?.sections.length ? "builder-choices ways four" : "builder-choices ways"} role="radiogroup" aria-label="How to lay out the sections">
+                  {restyle?.sections.length ? (
+                    <WayCard on={mode === "keep"} icon="repeat" title="Keep this song's parts" text={`Restyle its ${restyle.sections.length} sections without touching the layout.`} onClick={() => { setMode("keep"); setSections(restyle.sections); setPicked(null); }} />
+                  ) : null}
+                  <WayCard on={mode === "template"} icon="stack" title="Start from a common shape" text="Pick the shape closest to the song, then adjust it." onClick={() => { setMode("template"); setSections(planFromTemplate(template)); setPicked(null); }} />
+                  <WayCard
+                    on={mode === "marks"}
+                    icon="ear"
+                    title="Mark it while it plays"
+                    text={recording ? "Play the recording and press M each time a new part starts. Your taps become sections of the right length." : "Play the recording and tap M at each new part; your taps become sections. Add a recording on step 1 to use this."}
+                    disabled={!recording}
+                    onClick={() => setMode("marks")}
+                  />
+                  <WayCard on={mode === "scratch"} icon="plus" title="Start from scratch" text="An empty list: add the parts one at a time." onClick={() => { setMode("scratch"); setSections([]); setPicked(null); }} />
                 </div>
-                {mode === "template" ? (
-                  <div className="builder-templates">
-                    {SONG_TEMPLATES.map((t) => (
-                      <button key={t.id} type="button" className={template === t.id ? "template on" : "template"} aria-pressed={template === t.id} onClick={() => { setTemplate(t.id); setSections(planFromTemplate(t.id)); setPicked(null); }}>
-                        <span className="template-strip" aria-hidden="true">
-                          {t.sections.map((type, i) => (
-                            <i key={i} style={{ height: `${30 + sectionTypeById(type).energy * 14}%`, background: cssColor(moodById(sectionTypeById(type).mood).colors[0]!) }} />
-                          ))}
-                        </span>
-                        <strong>{t.label}</strong>
+                {mode === "template" && (
+                  <>
+                    <h4 className="builder-subhead">Starting points</h4>
+                    <div className="builder-templates">
+                      {SONG_TEMPLATES.map((t) => (
+                        <button key={t.id} type="button" className={template === t.id ? "template on" : "template"} aria-pressed={template === t.id} onClick={() => { setTemplate(t.id); setSections(planFromTemplate(t.id)); setPicked(null); }}>
+                          <span className="template-strip" aria-hidden="true">
+                            {t.sections.map((type, i) => (
+                              <i key={i} style={{ height: `${30 + sectionTypeById(type).energy * 14}%`, background: cssColor(moodById(sectionTypeById(type).mood).colors[0]!) }} />
+                            ))}
+                          </span>
+                          <strong>{t.label}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {mode === "marks" && recording && <Marker recording={recording} marks={marks} onMarks={(m) => { setMarks(m); remark(m, recording, offsetMs); setPicked(null); }} />}
+                {mode === "scratch" && (
+                  <div className="builder-quick-add" role="group" aria-label="Add a part">
+                    {SECTION_TYPES.filter((t) => t.id !== "blackout").map((t) => (
+                      <button key={t.id} type="button" className="chip" onClick={() => setSections(renumber([...sections, { type: t.id, name: t.label, bars: t.bars }]))}>
+                        <i style={{ background: cssColor(moodById(t.mood).colors[0]!) }} aria-hidden="true" />+ {t.label}
                       </button>
                     ))}
                   </div>
-                ) : (
-                  recording && <Marker recording={recording} marks={marks} onMarks={(m) => { setMarks(m); setSections(planFromMarks(m, recording.durationMs, bpm, beatsPerBar)); setPicked(null); }} />
                 )}
-                <PlanList sections={sections} bpm={bpm} beatsPerBar={beatsPerBar} onChange={(next) => { setSections(next); setPicked(null); }} />
+                <PlanList sections={sections} bpm={bpm} beatsPerBar={beatsPerBar} recordingMs={recording ? recording.durationMs - offsetMs : undefined} onChange={(next) => { setSections(next); setPicked(null); }} />
               </div>
             )}
 
             {step === 2 && (
               <div className="builder-page">
-                <h3>What kind of music is it?</h3>
-                <p className="hint">A genre gives every kind of section a ready-made look from the look library. Or skip it and pick a vibe. You can change any section's look afterwards.</p>
-                <div className="builder-choices genre-choices" role="radiogroup" aria-label="Genre">
-                  <button type="button" role="radio" aria-checked={genre === "any"} className={genre === "any" ? "choice on" : "choice"} onClick={() => setGenre("any")}>
-                    <strong>Any, or skip</strong>
-                    <span>Choose a vibe below instead</span>
+                <h3>What should it look like?</h3>
+                <p className="hint">Choose how Lightsmith dresses the whole song. Your pick styles every section; click any section under the stage to see how it lands there.</p>
+                <div className="builder-choices two route" role="radiogroup" aria-label="Style the song by">
+                  <button type="button" role="radio" aria-checked={route === "genre"} className={route === "genre" ? "choice on" : "choice"} onClick={() => setRoute("genre")}>
+                    <strong>By genre</strong>
+                    <span>Hand-picked looks from the look library for each kind of part, so verses, choruses and solos each get their own look. The most designed result.</span>
                   </button>
-                  {GENRES.map((g) => {
-                    const looks = ["verse", "chorus", "solo"].map((r) => genreLookFor(g.id, r)).filter(Boolean);
-                    return (
-                      <button key={g.id} type="button" role="radio" aria-checked={genre === g.id} className={genre === g.id ? "choice vibe on" : "choice vibe"} onClick={() => setGenre(g.id)}>
-                        <span className="genre-strip" aria-hidden="true">
-                          {looks.map((l, k) => (
-                            <i key={k} style={{ background: `linear-gradient(90deg, ${(l!.look.colors ?? []).map(cssColor).join(", ")})` }} />
-                          ))}
-                        </span>
-                        <strong>{g.label}</strong>
-                        <span>{g.description}</span>
-                      </button>
-                    );
-                  })}
+                  <button type="button" role="radio" aria-checked={route === "vibe"} className={route === "vibe" ? "choice on" : "choice"} onClick={() => setRoute("vibe")}>
+                    <strong>By vibe</strong>
+                    <span>One color family and feeling across the whole song, shifting a little from verse to chorus. Simple and cohesive, for songs that don't fit a genre.</span>
+                  </button>
                 </div>
-                {genre === "any" && <h4 className="builder-subhead">Pick a vibe</h4>}
-                {genre === "any" && (
-                <div className="builder-choices" role="radiogroup" aria-label="Vibe">
-                  {VIBES.map((v) => (
-                    <button key={v.id} type="button" role="radio" aria-checked={vibe === v.id} className={vibe === v.id ? "choice vibe on" : "choice vibe"} onClick={() => setVibe(v.id)}>
-                      <span className="vibe-swatches" aria-hidden="true">
-                        {["verse", "chorus", "bridge"].map((type) => (
-                          <span key={type}>
-                            {moodById(v.moods[type] ?? v.moods.default!).colors.slice(0, 3).map((c) => (
-                              <i key={c} style={{ background: cssColor(c) }} />
+                {route === "genre" ? (
+                  <>
+                    <h4 className="builder-subhead">Pick a genre</h4>
+                    <div className="builder-choices genre-choices" role="radiogroup" aria-label="Genre">
+                      {GENRES.map((g) => {
+                        const looks = ["verse", "chorus", "solo"].map((r) => genreLookFor(g.id, r)).filter(Boolean);
+                        return (
+                          <button key={g.id} type="button" role="radio" aria-checked={genre === g.id} className={genre === g.id ? "choice vibe on" : "choice vibe"} onClick={() => setGenre(g.id)}>
+                            <span className="genre-strip" aria-hidden="true">
+                              {looks.map((l, k) => (
+                                <i key={k} style={{ background: `linear-gradient(90deg, ${(l!.look.colors ?? []).map(cssColor).join(", ")})` }} />
+                              ))}
+                            </span>
+                            <strong>{g.label}</strong>
+                            <span>{g.description}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {uncovered.length > 0 && (
+                      <p className="builder-fill">
+                        {GENRES.find((g) => g.id === genre)?.label ?? "This genre"} has no look for {listOf(uncovered.map((t) => sectionTypeById(t).label.toLowerCase()))}, so {uncovered.length === 1 ? "it uses" : "they use"} the
+                        <Dropdown label="Vibe for the rest" value={vibe} options={VIBES.map((v) => ({ value: v.id, label: v.label }))} onChange={setVibe} />
+                        vibe.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h4 className="builder-subhead">Pick a vibe</h4>
+                    <div className="builder-choices" role="radiogroup" aria-label="Vibe">
+                      {VIBES.map((v) => (
+                        <button key={v.id} type="button" role="radio" aria-checked={vibe === v.id} className={vibe === v.id ? "choice vibe on" : "choice vibe"} onClick={() => setVibe(v.id)}>
+                          <span className="vibe-swatches" aria-hidden="true">
+                            {["verse", "chorus", "bridge"].map((type) => (
+                              <span key={type}>
+                                {moodById(v.moods[type] ?? v.moods.default!).colors.slice(0, 3).map((c) => (
+                                  <i key={c} style={{ background: cssColor(c) }} />
+                                ))}
+                              </span>
                             ))}
                           </span>
-                        ))}
-                      </span>
-                      <strong>{v.label}</strong>
-                      <span>{v.description}</span>
-                    </button>
-                  ))}
-                </div>
+                          <strong>{v.label}</strong>
+                          <span>{v.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -230,7 +408,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
             {step === 3 && (
               <div className="builder-page">
                 <h3>How should the energy move?</h3>
-                <p className="hint">Energy sets how bright and busy each section is. Drawn here for your song's sections; you can drag any of them up or down on the timeline later.</p>
+                <p className="hint">Energy is how bright and busy each part is. Each shape is drawn here for your song's own parts; you can drag any section up or down on the timeline later.</p>
                 <div className="builder-choices" role="radiogroup" aria-label="Energy arc">
                   {ARCS.map((a) => {
                     const e = a.energies(sections);
@@ -256,7 +434,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
             {step === 4 && (
               <div className="builder-page">
                 <h3>Any signature moments?</h3>
-                <p className="hint">The touches that make a show feel designed. Tick any you want.</p>
+                <p className="hint">The touches that make a show feel designed. Tick any you like: the stage jumps to the part each one changes, and a marker appears on it in the strip.</p>
                 <div className="builder-moments">
                   {MOMENTS.filter((m) => !m.needsMovers || hasMovers).map((m) => {
                     const on = moments.includes(m.id);
@@ -279,21 +457,18 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
 
             {step === 5 && (
               <div className="builder-page">
-                <h3>Here's your song</h3>
-                <p className="hint">Click a section to see it on the stage. After you make it, every section can be changed like any other, and the show coach will have ideas if it spots any.</p>
+                <h3>Here's your show</h3>
+                <p className="hint">
+                  {playing ? "It's playing on the stage now" : "Press play on the stage to watch it"}
+                  {recording ? ", with your recording." : "."} Click any part to look closer. When you make it, everything here becomes yours to tweak{song.sections.length ? " (it replaces the song's current sections; Undo brings them back)" : ""}.
+                </p>
                 <ol className="builder-review">
                   {built.map((s, i) => (
                     <li key={i}>
-                      <button type="button" className={focus === s ? "on" : ""} onClick={() => setPicked(i)}>
+                      <button type="button" className={focusIndex === i ? "on" : ""} onClick={() => (playing ? player.play(startOf(built, i)) : setPicked(i))}>
                         <span className="swatch-row">{isBlackout(s) ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}</span>
                         <strong>{s.name}</strong>
-                        <small>
-                          {isBlackout(s) ? "Blackout" : `${moodById(s.mood).label}, energy ${s.energy}`}
-                          {s.transition === "snap" && !isBlackout(s) ? ", cuts in" : ""}
-                          {s.movement === "sweep" ? ", heads sweep" : ""}
-                          {s.effects.blinder ? ", blinder" : ""}
-                          {s.effects.strobe ? ", strobe" : ""}
-                        </small>
+                        <small>{describe(s)}</small>
                       </button>
                     </li>
                   ))}
@@ -302,29 +477,57 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
             )}
           </div>
 
-          <aside className="builder-side" aria-label="Preview">
+          <aside className="builder-side" aria-label="Your show">
+            <div className="builder-side-head">
+              <button type="button" className={playing ? "transport-btn play on" : "transport-btn play"} onClick={() => (playing ? player.stop() : player.play(picked !== null && !playing ? startOf(built, focusIndex) : 0))} disabled={!built.length} aria-label={playing ? "Stop" : "Play the whole song"}>
+                <Icon name={playing ? "pause" : "play"} size={16} />
+              </button>
+              <div>
+                <strong>{playing ? "Playing your song" : "Your show"}</strong>
+                <small>{playing ? `${clock(player.at!.ms)} / ${clock(totalMs)}${recording ? ", with the recording" : ""}` : `Press play to watch the whole song${recording ? " with the recording" : ""}`}</small>
+              </div>
+            </div>
             <div className="builder-stage">
-              {focus ? <StagePreview key={`${focus.name}-${focus.mood}-${focus.energy}-${focus.movement}`} section={{ ...focus, bpm }} rig={rig} sequences={sequences} loop /> : <p className="hint">Add a section to see it here.</p>}
+              {focus ? (
+                <StagePreview
+                  key={playing ? `play-${player.token}-${focusIndex}` : `${focusIndex}-${lookKey(focus)}`}
+                  section={focus}
+                  rig={rig}
+                  sequences={sequences}
+                  loop={!playing}
+                  startAt={playing ? Math.max(0, (player.at!.ms - startOf(built, focusIndex)) / 1000) : 0}
+                />
+              ) : (
+                <p className="hint">Add a part to see it here.</p>
+              )}
             </div>
             {focus && (
               <p className="builder-stage-caption">
-                <strong>{focus.name}</strong> {isBlackout(focus) ? "(all lights off)" : `(${moodById(focus.mood).label}, energy ${focus.energy})`}
+                <strong>{focus.name}</strong> <span>{describe(focus)}</span>
               </p>
             )}
-            <SongStrip sections={built} focus={focus} onPick={(i) => setPicked(i)} />
+            {note && !playing && (
+              <p className="builder-note" role="status" key={note}>
+                <Icon name="sparkle" size={14} /> {note}
+              </p>
+            )}
+            <SongStrip sections={built} focusIndex={focusIndex} marks={step >= 4 ? marksOn : undefined} playFraction={playing ? player.at!.ms / Math.max(1, totalMs) : undefined} onPick={(i) => (playing ? player.play(startOf(built, i)) : setPicked(i))} />
+            <p className="builder-strip-help">
+              <Icon name="info" size={13} /> Your whole song, part by part. Every answer applies to all of it; click a part to see how it looks there.
+            </p>
           </aside>
         </div>
 
         <footer className="builder-foot">
-          <button type="button" className="ghost" onClick={() => (step ? setStep(step - 1) : ref.current?.close())}>
+          <button type="button" className="ghost" onClick={() => (step ? go(step - 1) : ref.current?.close())}>
             {step ? "Back" : "Cancel"}
           </button>
           {step < STEPS.length - 1 ? (
-            <button type="button" className="primary" disabled={!canNext} onClick={() => setStep(step + 1)}>
+            <button type="button" className="primary" disabled={!canNext} onClick={() => go(step + 1)}>
               Next: {STEPS[step + 1]}
             </button>
           ) : (
-            <button type="button" className="primary" onClick={finish}>
+            <button type="button" className="primary big" onClick={finish}>
               <Icon name="check" size={16} /> Make the song
             </button>
           )}
@@ -334,28 +537,122 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
   );
 }
 
-/** The whole song in small: a block per section, width by length, height by energy. */
-function SongStrip({ sections, focus, onPick }: { sections: Section[]; focus?: Section; onPick: (i: number) => void }) {
+/** One way to lay out the structure. */
+function WayCard({ on, icon, title, text, disabled, onClick }: { on: boolean; icon: "repeat" | "stack" | "ear" | "plus"; title: string; text: string; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" role="radio" aria-checked={on} className={on ? "choice way on" : "choice way"} disabled={disabled} onClick={onClick}>
+      <span className="way-icon" aria-hidden="true">
+        <Icon name={icon} size={18} />
+      </span>
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </button>
+  );
+}
+
+const listOf = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`);
+const startOf = (sections: Section[], i: number) => sections.slice(0, Math.max(0, i)).reduce((t, s) => t + sectionMs(s), 0);
+
+/**
+ * Plays the built song through: which section is on and how far in, from the
+ * recording's own clock when there is one (so the lights follow the music),
+ * else from the wall clock.
+ */
+function useSongPlayer(sections: Section[], recording: BuilderRecording | null, offsetMs: number) {
+  const [at, setAt] = useState<{ index: number; ms: number } | null>(null);
+  const [token, setToken] = useState(0);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const raf = useRef(0);
+  const latest = useRef({ sections, offsetMs });
+  latest.current = { sections, offsetMs };
+  const stop = () => {
+    cancelAnimationFrame(raf.current);
+    audio.current?.pause();
+    audio.current = null;
+    setAt(null);
+  };
+  const play = (fromMs: number) => {
+    stop();
+    setToken((t) => t + 1);
+    const t0 = performance.now() - fromMs;
+    let a: HTMLAudioElement | null = null;
+    if (recording) {
+      const el = new Audio(recording.url);
+      a = el;
+      audio.current = el;
+      // Seek once the browser knows the file; until it plays, the wall clock keeps time.
+      const start = () => {
+        if (audio.current !== el) return;
+        const pos = latest.current.offsetMs + (performance.now() - t0);
+        // A recording that comes in after the song starts waits for its moment.
+        if (pos < 0) {
+          window.setTimeout(start, -pos);
+          return;
+        }
+        el.currentTime = pos / 1000;
+        void el.play().catch(() => undefined);
+      };
+      if (el.readyState >= 1) start();
+      else el.addEventListener("loadedmetadata", start, { once: true });
+    }
+    const tick = () => {
+      const { sections: xs, offsetMs: off } = latest.current;
+      const ms = a && !a.paused ? a.currentTime * 1000 - off : performance.now() - t0;
+      let start = 0;
+      let index = -1;
+      for (let i = 0; i < xs.length; i++) {
+        const len = sectionMs(xs[i]!);
+        if (ms < start + len) {
+          index = i;
+          break;
+        }
+        start += len;
+      }
+      if (index < 0) {
+        stop();
+        return;
+      }
+      setAt((prev) => (prev && prev.index === index && Math.abs(prev.ms - ms) < 100 ? prev : { index, ms }));
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+  };
+  useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { at, token, play, stop };
+}
+
+/** The whole song in small: a block per section, width by length, height by energy, with moment markers and the playhead. */
+function SongStrip({ sections, focusIndex, marks, playFraction, onPick }: { sections: Section[]; focusIndex: number; marks?: { id: string; label: string }[][]; playFraction?: number; onPick: (i: number) => void }) {
   const total = sections.reduce((n, s) => n + sectionMs(s), 0) || 1;
   return (
-    <div className="builder-strip" role="list" aria-label="The song">
+    <div className="builder-strip" role="list" aria-label="The song, part by part">
       {sections.map((s, i) => (
         <button
           key={i}
           type="button"
           role="listitem"
-          className={focus === s ? "on" : ""}
+          className={focusIndex === i ? "on" : ""}
           style={{ flexGrow: sectionMs(s) / total, height: `${isBlackout(s) ? 18 : 26 + s.energy * 14.8}%`, background: isBlackout(s) ? undefined : `linear-gradient(90deg, ${paletteOf(s).join(", ")})` }}
-          title={`${s.name}${isBlackout(s) ? ", blackout" : `, energy ${s.energy}`}`}
+          title={`${s.name}: ${describe(s)}${marks?.[i]?.length ? ` (${marks[i]!.map((m) => m.label.toLowerCase()).join(", ")})` : ""}`}
+          aria-label={`${s.name}: ${describe(s)}`}
           onClick={() => onPick(i)}
-        />
+        >
+          {marks?.[i]?.length ? (
+            <span className="strip-marks" aria-hidden="true">
+              {marks[i]!.map((m) => (
+                <i key={m.id} className={`strip-mark ${m.id}`} />
+              ))}
+            </span>
+          ) : null}
+        </button>
       ))}
+      {playFraction !== undefined && <span className="strip-playhead" style={{ left: `${playFraction * 100}%` }} aria-hidden="true" />}
     </div>
   );
 }
 
 /** The structure as an editable list: kind, name, length; reorder, add, remove. */
-function PlanList({ sections, bpm, beatsPerBar, onChange }: { sections: PlannedSection[]; bpm: number; beatsPerBar: number; onChange: (next: PlannedSection[]) => void }) {
+function PlanList({ sections, bpm, beatsPerBar, recordingMs, onChange }: { sections: PlannedSection[]; bpm: number; beatsPerBar: number; recordingMs?: number; onChange: (next: PlannedSection[]) => void }) {
   const types = SECTION_TYPES.filter((t) => t.id !== "blackout");
   const set = (i: number, patch: Partial<PlannedSection>) => onChange(renumber(sections.map((s, k) => (k === i ? { ...s, ...patch } : s))));
   const move = (i: number, d: number) => {
@@ -364,15 +661,18 @@ function PlanList({ sections, bpm, beatsPerBar, onChange }: { sections: PlannedS
     next.splice(i + d, 0, x!);
     onChange(renumber(next));
   };
-  const totalMs = sections.reduce((n, s) => n + (s.bars * beatsPerBar * 60000) / bpm, 0);
+  const totalMs = sections.reduce((n, s) => n + (s.bars * beatsPerBar * 60000) / (s.bpm ?? bpm), 0);
+  const gap = recordingMs !== undefined ? recordingMs - totalMs : 0;
   return (
     <div className="plan-list">
       <div className="plan-list-head">
         <h4>The sections</h4>
         <span className="muted">
-          {sections.length} sections, {clock(totalMs)}
+          {sections.length} {sections.length === 1 ? "part" : "parts"}, {clock(totalMs)}
+          {recordingMs !== undefined && sections.length > 0 && (Math.abs(gap) < 2000 ? ", the same as the recording" : gap > 0 ? `, ${clock(gap)} shorter than the recording` : `, ${clock(-gap)} longer than the recording`)}
         </span>
       </div>
+      {!sections.length && <p className="plan-empty">No parts yet. Add them in order with the buttons above, or with Add a section below.</p>}
       <ol>
         {sections.map((s, i) => (
           <li key={i} className="plan-row">
