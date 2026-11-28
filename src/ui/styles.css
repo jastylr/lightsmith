@@ -1439,8 +1439,37 @@ body.is-resizing * {
 .zoom {
   display: flex;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.3rem;
   flex: none;
+}
+input.zoom-slider {
+  width: 130px;
+  height: 4px;
+  margin: 0 0.15rem;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--tungsten) var(--fill, 0%), rgba(255, 255, 255, 0.16) var(--fill, 0%));
+  cursor: pointer;
+}
+input.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--tungsten-hi);
+  border: 2px solid #1a1206;
+}
+input.zoom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tungsten-hi);
+  border: 2px solid #1a1206;
+}
+.zoom button.fit.on {
+  border-color: var(--tungsten);
+  color: var(--tungsten-hi);
 }
 .timeline-add {
   flex: none;
@@ -4760,12 +4789,52 @@ body.is-resizing * {
 .bar-line.beat {
   background: rgba(255, 255, 255, 0.045);
 }
-.timeline-row.with-audio.tall .timeline,
-.timeline-row.with-audio.tall .timeline-add {
+.timeline-row.with-audio.wave-m .timeline,
+.timeline-row.with-audio.wave-m .timeline-add {
   height: 290px;
 }
-.timeline-row.with-audio.tall .wave-lane {
+.timeline-row.with-audio.wave-m .wave-lane {
   height: 146px;
+}
+.timeline-row.with-audio.wave-l .timeline,
+.timeline-row.with-audio.wave-l .timeline-add {
+  height: 384px;
+}
+.timeline-row.with-audio.wave-l .wave-lane {
+  height: 240px;
+}
+/* Waveform height: three little waveforms of growing height. */
+.wave-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.wave-size-label {
+  padding: 0 0.45rem 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.wave-size button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+.wave-size button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.wave-size button.on {
+  color: #1a1206;
+  background: var(--tungsten);
 }
 .playhead-grip {
   position: absolute;

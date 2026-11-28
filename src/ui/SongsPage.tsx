@@ -101,7 +101,7 @@ import { changedSections, sendCommand, useCommands } from "./commands";
 import { toast } from "./Toast";
 import { LookLibraryDialog } from "./LookLibrary";
 import { PreviewWindow } from "./PreviewWindow";
-import { RecordingControls, WaveLane } from "./Recording";
+import { RecordingControls, WaveLane, type WaveSize } from "./Recording";
 import { MiniTransport, songSignature, TransportBar } from "./Transport";
 import { loadAudioFile, useSongAudio, type AudioTrack } from "./songAudio";
 import { StagePreview } from "./StagePreview";
@@ -756,7 +756,7 @@ function Timeline({
   onPickAudio: () => void;
   onDropAudio: (f: File) => void;
   /** The recording's controls, shown under the timeline. */
-  recording: (ctx: { playheadMs: number; tall: boolean; onTall: (t: boolean) => void }) => ReactNode;
+  recording: (ctx: { playheadMs: number; waveSize: WaveSize; onWaveSize: (w: WaveSize) => void }) => ReactNode;
   sequences: Sequence[];
   /** Playback started (or jumped) to `at` seconds into a section: restart the preview there. */
   onPlayFrom: (section: string, at: number) => void;
@@ -786,10 +786,10 @@ function Timeline({
   const scroller = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const [scale, setScaleNow] = useState(10); // pixels per second
-  const [tall, setTallNow] = useState(rememberedTall);
-  const setTall = (t: boolean) => {
-    setTallNow(t);
-    rememberTall(t);
+  const [waveSize, setWaveSizeNow] = useState(rememberedWaveSize);
+  const setWaveSize = (w: WaveSize) => {
+    setWaveSizeNow(w);
+    rememberWaveSize(w);
   };
   // Zooming keeps one moment in the same place on screen: where the pointer is, or the playhead.
   const zoomAnchor = useRef<{ sec: number; x: number } | null>(null);
@@ -1182,7 +1182,7 @@ function Timeline({
         onDropAudio(f);
       }}
     >
-      <div className={audio ? `timeline-row with-audio${tall ? " tall" : ""}` : "timeline-row"}>
+      <div className={audio ? `timeline-row with-audio wave-${waveSize}` : "timeline-row"}>
         <div className="timeline" ref={scroller}>
           <div className="timeline-track" ref={track} style={{ width: width + 16 }}>
             <div className="ruler" title="Click or drag to move the playhead" onPointerDown={scrub}>
@@ -1351,22 +1351,34 @@ function Timeline({
         {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, transportSlot)}
         {!stageFullScreen && pinTransportSlot && createPortal(<MiniTransport sections={song.sections} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} />, pinTransportSlot)}
         {stageFullScreen && stageTransportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, stageTransportSlot)}
-        {recording({ playheadMs: pos, tall, onTall: setTall })}
+        {recording({ playheadMs: pos, waveSize, onWaveSize: setWaveSize })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
         {tools}
         <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">
           <span>Snap</span>
           <Segmented label="Snap section lengths to" value={snap} onChange={setSnap} options={[{ value: "bar", label: "Bars" }, { value: "beat", label: "Beats" }, { value: "off", label: "Off" }]} />
         </div>
-        <div className="zoom" role="group" aria-label="Zoom the timeline">
-          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} aria-label="Zoom out" title="Zoom out">
+        <div className="zoom" role="group" aria-label="Zoom the timeline" title="Zoom the timeline. Ctrl or Cmd and scroll, or pinch, zooms around the pointer.">
+          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} disabled={scale <= MIN_SCALE} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
           </button>
-          <button type="button" className="ghost small" onClick={fit} title="Fit the whole song">
-            Fit
-          </button>
+          {/* Logarithmic, so each step of the slider zooms by the same amount. */}
+          <input
+            type="range"
+            className="zoom-slider"
+            min={0}
+            max={1000}
+            value={Math.round((Math.log(scale / MIN_SCALE) / Math.log(MAX_SCALE / MIN_SCALE)) * 1000)}
+            onChange={(e) => zoom(MIN_SCALE * Math.pow(MAX_SCALE / MIN_SCALE, Number(e.target.value) / 1000))}
+            aria-label="Zoom"
+            aria-valuetext={`${Math.round(scale)} pixels a second`}
+            style={{ "--fill": `${(Math.log(scale / MIN_SCALE) / Math.log(MAX_SCALE / MIN_SCALE)) * 100}%` } as CSSProperties}
+          />
           <button type="button" className="ghost small icon-only" onClick={() => zoom(scale * 1.5)} disabled={scale >= MAX_SCALE} aria-label="Zoom in" title="Zoom in">
             <Icon name="plus" size={14} />
+          </button>
+          <button type="button" className={fitted.current ? "ghost small fit on" : "ghost small fit"} onClick={fit} aria-pressed={fitted.current} title="Show the whole song">
+            Fit
           </button>
         </div>
       </div>
@@ -2846,17 +2858,23 @@ function rememberSnap(v: Snap) {
 
 /** The timeline's closest zoom: 400 pixels a second, so single beats are easy to place. */
 const MAX_SCALE = 400;
-const TALL_KEY = "lightsmith.waveTall.v1";
-function rememberedTall(): boolean {
+/** The farthest: 1 pixel a second, a long song in one view. */
+const MIN_SCALE = 1;
+
+const WAVE_KEY = "lightsmith.waveSize.v1";
+function rememberedWaveSize(): WaveSize {
   try {
-    return localStorage.getItem(TALL_KEY) === "1";
+    const v = localStorage.getItem(WAVE_KEY);
+    if (v === "s" || v === "m" || v === "l") return v;
+    // Before three sizes there was "tall", which is now the middle one.
+    return localStorage.getItem("lightsmith.waveTall.v1") === "1" ? "m" : "s";
   } catch {
-    return false;
+    return "s";
   }
 }
-function rememberTall(on: boolean) {
+function rememberWaveSize(w: WaveSize) {
   try {
-    localStorage.setItem(TALL_KEY, on ? "1" : "0");
+    localStorage.setItem(WAVE_KEY, w);
   } catch {
     /* private mode: not remembered */
   }

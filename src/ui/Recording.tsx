@@ -9,6 +9,9 @@ import { DurationInput } from "./controls";
 import { Icon } from "./icons";
 import type { AudioTrack } from "./songAudio";
 
+/** How tall the recording's waveform is drawn under the sections. */
+export type WaveSize = "s" | "m" | "l";
+
 type Gesture = { begin: () => void; end: () => void };
 
 const fmt = (ms: number) => {
@@ -159,13 +162,13 @@ export function RecordingControls({
   busy,
   error,
   playheadMs,
-  tall,
-  onTall,
+  waveSize,
+  onWaveSize,
 }: {
   /** Where the playhead is, for "Start at the playhead". */
   playheadMs: number;
-  tall: boolean;
-  onTall: (t: boolean) => void;
+  waveSize: WaveSize;
+  onWaveSize: (w: WaveSize) => void;
   audio?: SongAudio;
   track: AudioTrack;
   muted: boolean;
@@ -202,9 +205,7 @@ export function RecordingControls({
       <button type="button" className="ghost small" onClick={() => onOffset(clampOffset(-Math.round(playheadMs), audio))} title="Start the recording where the playhead is: drag the playhead to where the music should come in, then click this.">
         Use playhead
       </button>
-      <button type="button" className="ghost small icon-only" onClick={() => onTall(!tall)} aria-pressed={tall} aria-label={tall ? "Make the waveform shorter" : "Make the waveform taller"} title={tall ? "Make the waveform shorter" : "Make the waveform taller"}>
-        <Icon name="expand" size={15} />
-      </button>
+      <WaveSizePicker value={waveSize} onChange={onWaveSize} />
       <button type="button" className={muted ? "ghost small icon-only mute-on" : "ghost small icon-only"} onClick={() => onMute(!muted)} disabled={track.status !== "ready"} aria-pressed={muted} aria-label={muted ? "Unmute the recording" : "Mute the recording"} title={muted ? "Unmute the recording" : "Mute the recording"}>
         <Icon name={muted ? "volumeOff" : "volume"} size={15} />
       </button>
@@ -216,6 +217,30 @@ export function RecordingControls({
           {error}
         </span>
       )}
+    </div>
+  );
+}
+
+const WAVE_SIZES: { value: WaveSize; label: string; bars: number[] }[] = [
+  { value: "s", label: "Small", bars: [3, 5, 4, 6, 3] },
+  { value: "m", label: "Medium", bars: [5, 9, 7, 11, 5] },
+  { value: "l", label: "Large", bars: [7, 13, 10, 16, 7] },
+];
+
+/** Three waveform heights, each button drawn as a little waveform of that height, so the choice reads at a glance. */
+function WaveSizePicker({ value, onChange }: { value: WaveSize; onChange: (w: WaveSize) => void }) {
+  return (
+    <div className="wave-size" role="radiogroup" aria-label="Waveform height" title="How tall the waveform is drawn">
+      <span className="wave-size-label">Waveform</span>
+      {WAVE_SIZES.map((w) => (
+        <button key={w.value} type="button" role="radio" aria-checked={value === w.value} aria-label={w.label} title={`${w.label} waveform`} className={value === w.value ? "on" : ""} onClick={() => onChange(w.value)}>
+          <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden="true">
+            {w.bars.map((h, i) => (
+              <rect key={i} x={1 + i * 3.4} y={(16 - h) / 2} width="2" height={h} rx="1" fill="currentColor" />
+            ))}
+          </svg>
+        </button>
+      ))}
     </div>
   );
 }
