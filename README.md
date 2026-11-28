@@ -16,7 +16,7 @@ never leave your computer.
 No QLC+ show file yet? Click **Try the demo** on the first page: a typical small band rig
 (LED bars, floor washes, front lights and two moving heads) with three songs ready to play.
 
-![A song in Lightsmith: sections on a timeline, the look editor and a live stage preview](docs/screenshot-songs.jpg)
+![A song in Lightsmith: sections laid over the recording's waveform, the look editor and a live stage preview](docs/screenshot-songs.jpg)
 
 ## What you can do
 
