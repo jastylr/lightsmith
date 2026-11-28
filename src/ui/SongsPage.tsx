@@ -1882,9 +1882,32 @@ function LookEditor({
   const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
   const sideName: Record<Side, string> = { SL: "Stage left", C: "Center", SR: "Stage right" };
   const blackout = isBlackout(s);
+  const hasMoversAll = rig.fixtures.some((f) => f.role === "mover");
   // Hovering a mood, pattern, movement, color change or effect shows it on the stage before you pick it.
   const [hoverLook, setHoverLook] = useState<{ label: string; patch: Partial<Section> } | null>(null);
   const peekAt = (label: string | null, patch?: Partial<Section>) => setHoverLook(label && patch ? { label, patch } : null);
+  // A mood only shows where the section follows it: its own colors, color changes,
+  // movement or brightness hide it. Previewing a mood shows all of it, and picking
+  // one asks whether to take all of it (as previewed) or only the mood.
+  const ownOverMood = [s.colors.length > 0 && "colors", s.colorChange !== "mood" && "color changes", hasMoversAll && s.movement !== "mood" && "movement", Object.keys(s.brightness ?? {}).length > 0 && "brightness"].filter((x): x is string => !!x);
+  const wholeMood = (m: string): Partial<Section> => ({ mood: m, colors: [], colorChange: "mood", movement: "mood", brightness: undefined, colorLayout: undefined, colorSwitch: undefined, colorRates: undefined });
+  const pickMood = async (m: string) => {
+    if (m === s.mood) return;
+    if (!ownOverMood.length) return onChange({ mood: m });
+    const label = moodById(m).label;
+    const list = ownOverMood.length > 1 ? `${ownOverMood.slice(0, -1).join(", ")} and ${ownOverMood[ownOverMood.length - 1]}` : ownOverMood[0];
+    const all = await askConfirm({
+      title: `Use all of the ${label} mood?`,
+      message: (
+        <>
+          <strong>{s.name}</strong> has its own {list}, so changing only the mood would barely show. Use {label}'s {list} too, as the preview showed, or keep yours and change only the mood?
+        </>
+      ),
+      confirmLabel: `Use all of ${label}`,
+      cancelLabel: "Keep mine",
+    });
+    onChange(all ? wholeMood(m) : { mood: m });
+  };
 
   // ---- collapsible cards: what each one says when closed, and whether it has settings of its own
   const [closed, setClosed] = useClosedCards();
@@ -2221,7 +2244,7 @@ function LookEditor({
           {!blackout && (
             <>
           <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
-            <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" onHighlight={(m) => (m && m !== s.mood ? peekAt(`The ${moodById(m).label} mood`, { mood: m }) : peekAt(null))} />
+            <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => void pickMood(m)} className="wide" onHighlight={(m) => (m && m !== s.mood ? peekAt(`The ${moodById(m).label} mood`, wholeMood(m)) : peekAt(null))} />
             {(() => {
               // The mood is a starting point: each of these follows it until you set it in its tab.
               const parts = [

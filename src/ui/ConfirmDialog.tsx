@@ -6,6 +6,8 @@ export interface ConfirmRequest {
   message: ReactNode;
   /** The confirm button's label, such as "Delete section". */
   confirmLabel: string;
+  /** The cancel button's label, when it does more than cancel (default "Cancel"). */
+  cancelLabel?: string;
   danger?: boolean;
   /** A third button that does something without closing the dialog, such as saving a copy first. */
   extra?: { label: string; doneLabel?: string; icon?: IconName; run: () => void };
@@ -87,7 +89,7 @@ export function ConfirmHost() {
           <div className="dialog-actions">
             {req.extra && <ExtraButton extra={req.extra} />}
             <button ref={cancelBtn} type="button" className="ghost" onClick={() => close(false)}>
-              Cancel
+              {req.cancelLabel ?? "Cancel"}
             </button>
             <button ref={confirmBtn} type="button" className={req.danger ? "danger-solid" : "primary"} onClick={() => close(true)}>
               {req.confirmLabel}
