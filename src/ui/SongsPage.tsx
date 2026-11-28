@@ -428,6 +428,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             stageTransportSlot={stageTransportSlot}
             pinTransportSlot={pinTransportSlot}
             onEnergy={(id, energy) => setSection(id, { energy })}
+            tools={
+              <button type="button" className={showList ? "ghost small list-toggle on" : "ghost small list-toggle"} aria-pressed={showList} onClick={() => setShowList(!showList)} title={showList ? "Hide the section list beside the editor" : "Show the sections as a list beside the editor"}>
+                <Icon name="list" size={15} /> Section list
+              </button>
+            }
             onTempo={setTempo}
             onSignature={setSignature}
             audioTrack={track}
@@ -454,28 +459,19 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 key={current.id}
                 pinTransportRef={setPinTransportSlot}
                 coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => set({ sections: next.sections })} onSelect={setSelected} onVariations={setVariationsFor} />}
+                onVariations={() => setVariationsFor(current.id)}
                 sectionActions={
-                  <div className="editor-actions">
-                    {!isBlackout(current) && (
-                      <button type="button" className="ghost small variations-open" onClick={() => setVariationsFor(current.id)} title="See three other ways this section could look">
-                        <Icon name="sparkle" size={15} /> Variations
-                      </button>
-                    )}
-                    {!showList && (
-                      <button type="button" className="ghost small" onClick={() => setShowList(true)} title="Show the sections as a list beside the editor">
-                        <Icon name="list" size={15} /> List
-                      </button>
-                    )}
-                    <button type="button" className="icon-button" onClick={() => split(current)} aria-label={`Split ${current.name} into two linked parts`} title="Split into two linked halves: same look, one cue plays both">
-                      <Icon name="split" size={16} />
+                  <>
+                    <button type="button" className="tool-btn" onClick={() => split(current)} title="Split into two linked halves: same look, one cue plays both">
+                      <Icon name="split" size={15} /> Split
                     </button>
-                    <button type="button" className="icon-button" onClick={() => duplicate(current)} aria-label={`Duplicate ${current.name}`} title="Duplicate this section">
-                      <Icon name="copy" size={16} />
+                    <button type="button" className="tool-btn" onClick={() => duplicate(current)} title="Add a copy of this section after it">
+                      <Icon name="copy" size={15} /> Duplicate
                     </button>
-                    <button type="button" className="icon-button danger" onClick={() => remove(current)} aria-label={`Delete ${current.name}`} title="Delete this section">
-                      <Icon name="trash" size={16} />
+                    <button type="button" className="tool-btn danger" onClick={() => remove(current)} title="Delete this section (Undo brings it back)">
+                      <Icon name="trash" size={15} /> Delete
                     </button>
-                  </div>
+                  </>
                 }
                 stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
@@ -643,7 +639,10 @@ function Timeline({
   onTempo,
   onSignature,
   onEnergy,
+  tools,
 }: {
+  /** Extra controls in the timeline's tool row (such as showing the section list). */
+  tools?: ReactNode;
   /** Set a section's energy (1–5) by dragging the dot on top of its block. */
   onEnergy?: (id: string, energy: number) => void;
   /** Under the pinned preview: a small transport, so you can play without scrolling up. */
@@ -1235,6 +1234,7 @@ function Timeline({
         {stageFullScreen && stageTransportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, stageTransportSlot)}
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
+        {tools}
         <div className="snap-pick" title="How a section's length snaps when you drag its edge. Hold Option (Alt) for one step finer, or Option and Shift to not snap at all.">
           <span>Snap</span>
           <Segmented label="Snap section lengths to" value={snap} onChange={setSnap} options={[{ value: "bar", label: "Bars" }, { value: "beat", label: "Beats" }, { value: "off", label: "Off" }]} />
@@ -1649,7 +1649,10 @@ function LookEditor({
   onCopyLookTo,
   sectionActions,
   coach,
+  onVariations,
 }: {
+  /** Open the variations for this section. */
+  onVariations?: () => void;
   /** The show coach, under the pinned stage. */
   coach?: ReactNode;
   /** Split, duplicate and delete, beside the section's name. */
@@ -1921,24 +1924,51 @@ function LookEditor({
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
       <header className="editor-head">
-        <span className="editor-num">{index + 1}</span>
-        <input className="editor-name" aria-label="Section name" value={s.name} onChange={(e) => onChange({ name: e.target.value })} />
-        <div className="editor-type" title="The kind of section. Changing it sets a matching mood, energy and start.">
-          <Dropdown
-            label="Section type"
-            className="type-pick"
-            value={s.type}
-            options={SECTION_TYPES.map((t) => ({ value: t.id, label: t.label }))}
-            onChange={(type) => {
-              const t = sectionTypeById(type);
-              const renamed = SECTION_TYPES.some((x) => x.label === s.name) || !s.name;
-              onChange({ type: t.id, ...(renamed ? { name: t.label } : {}), mood: t.mood, energy: t.energy, transition: t.transition });
-            }}
-          />
+        <div className="editor-id">
+          <span className="editor-num" aria-hidden="true">{index + 1}</span>
+          <div className="editor-id-text">
+            <input className="editor-name" aria-label="Section name" value={s.name} onChange={(e) => onChange({ name: e.target.value })} />
+            <p className="editor-meta">
+              <span className="swatch-row">{blackout ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}</span>
+              <span>{blackout ? "All lights off" : `${mood.label}, ${lower(energyOf(s.energy).label)} energy`}</span>
+              <span className="editor-meta-time">
+                {lengthLabel(s)} ({fmt(sectionMs(s))}) at {s.bpm} BPM
+              </span>
+            </p>
+          </div>
+          <label className="editor-type" title="The kind of section. Changing it sets a matching mood, energy and start.">
+            <span className="editor-type-label">Section type</span>
+            <Dropdown
+              label="Section type"
+              className="type-pick"
+              value={s.type}
+              options={SECTION_TYPES.map((t) => ({ value: t.id, label: t.label }))}
+              onChange={(type) => {
+                const t = sectionTypeById(type);
+                const renamed = SECTION_TYPES.some((x) => x.label === s.name) || !s.name;
+                onChange({ type: t.id, ...(renamed ? { name: t.label } : {}), mood: t.mood, energy: t.energy, transition: t.transition });
+              }}
+            />
+          </label>
         </div>
-        <div className="editor-head-actions">
-          {!blackout && onCopyLookTo && others && others.length > 0 && <CopyLook s={s} others={others} onCopy={onCopyLookTo} />}
-          {sectionActions}
+        <div className="editor-toolbar" role="toolbar" aria-label={`${s.name}: actions`}>
+          {!blackout && (
+            <div className="toolbar-group creative">
+              {onVariations && (
+                <button type="button" className="tool-btn feature" onClick={onVariations} title="See three other ways this section could look, side by side">
+                  <Icon name="sparkle" size={16} />
+                  <span>
+                    <strong>Try variations</strong>
+                    <small>Three other looks to pick from</small>
+                  </span>
+                </button>
+              )}
+              {onCopyLookTo && others && others.length > 0 && <CopyLook s={s} others={others} onCopy={onCopyLookTo} />}
+            </div>
+          )}
+          <div className="toolbar-group manage" aria-label="Section">
+            {sectionActions}
+          </div>
         </div>
       </header>
 

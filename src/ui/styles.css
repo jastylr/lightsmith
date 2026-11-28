@@ -6214,3 +6214,164 @@ dialog.variations[open] {
     transform: none;
   }
 }
+
+/* ---- Section header: who it is on top, what you can do with it below ---- */
+.editor-head {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.9rem;
+  padding: 1rem 1.2rem 0.9rem;
+}
+.editor-id {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+.editor-num {
+  flex: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.05rem;
+}
+.editor-id-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.editor-id .editor-name {
+  width: 100%;
+  padding: 0.1rem 0.4rem;
+  margin-left: -0.4rem;
+  font-size: 1.45rem;
+}
+.editor-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.45rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.editor-meta .swatch-row {
+  margin-right: 0.15rem;
+}
+.editor-type {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.editor-type-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.editor-type .type-pick {
+  min-width: 10.5rem;
+}
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line-soft);
+}
+.toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.toolbar-group.manage {
+  margin-left: auto;
+}
+.tool-btn,
+.toolbar-group .copy-look > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tool-btn:hover,
+.toolbar-group .copy-look > button:hover {
+  border-color: var(--tungsten);
+}
+.tool-btn:focus-visible,
+.toolbar-group .copy-look > button:focus-visible {
+  outline: 2px solid var(--tungsten);
+  outline-offset: 2px;
+}
+.toolbar-group.manage .tool-btn {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+.toolbar-group.manage .tool-btn:hover {
+  color: var(--text);
+}
+.tool-btn.danger:hover {
+  border-color: #e5484d;
+  color: #ff8d8f;
+}
+/* Variations is the headline action: lit in the house color. */
+.tool-btn.feature {
+  padding: 0.35rem 1rem 0.35rem 0.8rem;
+  border-color: color-mix(in srgb, var(--tungsten) 70%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tungsten) 26%, var(--raised)), color-mix(in srgb, #b49cff 20%, var(--raised)));
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--tungsten) 80%, transparent);
+}
+.tool-btn.feature > svg {
+  color: var(--tungsten);
+}
+.tool-btn.feature span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.tool-btn.feature small {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.76rem;
+}
+.tool-btn.feature:hover {
+  border-color: var(--tungsten);
+  box-shadow: 0 8px 22px -10px var(--tungsten);
+}
+.list-toggle.on {
+  border-color: var(--tungsten);
+  color: var(--text);
+}
+@container editor (max-width: 620px) {
+  .editor-id {
+    flex-wrap: wrap;
+  }
+  .editor-type {
+    width: 100%;
+  }
+  .toolbar-group.manage {
+    margin-left: 0;
+  }
+}
+.editor-meta-time {
+  margin-left: 0.6rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--line);
+}
