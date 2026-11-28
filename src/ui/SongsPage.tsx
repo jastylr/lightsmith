@@ -1758,13 +1758,16 @@ function LookEditor({
     setTabState(id);
     rememberTab(id);
   };
+  // Cards fold away (to a one-line summary) in All, and in a step with more
+  // than one card; a step with one card has nothing to fold it out of the way of.
+  const foldable = (id: string) => tab === "all" || (STEPS.find((st) => st.cards.includes(id))?.cards.filter((c) => visibleCards.includes(c)).length ?? 0) > 1;
   const card = (id: string) => ({
     ...cards[id]!,
     id,
     hidden: tab !== "all" && !STEPS.find((st) => st.id === shownTab)?.cards.includes(id),
-    closed: tab === "all" && closed.has(id),
+    closed: foldable(id) && closed.has(id),
     onToggle:
-      tab === "all"
+      foldable(id)
         ? () => {
             const next = new Set(closed);
             if (next.has(id)) next.delete(id);
