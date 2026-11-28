@@ -3,7 +3,9 @@ import { fixtureKey, type FixtureProfile, type Rig, type Role } from "../core";
 import { Icon, type IconName } from "./icons";
 import type { Store } from "./store";
 
-const ACCEPT = ".qxw,.qxf,.lightsmith,.json";
+// No "accept" filter on the file picker: macOS doesn't know the .lightsmith
+// extension (or, on some Macs, .qxw and .qxf), so a filter greys those files out
+// in Finder. Any file can be chosen; one of the wrong kind gets a clear message.
 
 /** Anything files can be dropped on (or clicked, to choose them). */
 function DropTarget({ store, className, children, label }: { store: Store; className: string; children: (open: () => void) => ReactNode; label: string }) {
@@ -31,7 +33,6 @@ function DropTarget({ store, className, children, label }: { store: Store; class
       <input
         ref={input}
         type="file"
-        accept={ACCEPT}
         multiple
         hidden
         onChange={(e) => {
