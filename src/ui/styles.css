@@ -6520,7 +6520,11 @@ dialog.variations[open] {
   flex: none;
 }
 .guide-open {
-  border-color: color-mix(in srgb, var(--tungsten) 50%, var(--line));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  box-shadow: 0 6px 18px -8px var(--tungsten);
 }
 
 dialog.builder {

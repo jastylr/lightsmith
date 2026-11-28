@@ -409,7 +409,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             )}
           </div>
           <div className="song-actions">
-            <button type="button" className="ghost small guide-open" onClick={() => void openBuilder()} title="Answer a few questions and the Song Builder lays out the whole song">
+            <button type="button" className="primary small guide-open" onClick={() => void openBuilder()} title="Answer a few questions and the Song Builder lays out the whole song">
               <Icon name="sparkle" size={15} /> Song Builder
             </button>
             <button type="button" className="icon-button" onClick={() => setSongId(store.addSong())} aria-label="Add a song" title="Add a song">
