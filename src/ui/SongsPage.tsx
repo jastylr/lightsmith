@@ -796,7 +796,8 @@ function Timeline({
   const zoom = (next: number, clientX?: number) => {
     const box = scroller.current;
     const tr = track.current;
-    const v = Math.max(1, Math.min(MAX_SCALE, next));
+    // Never further out than the whole song: past that the timeline only gets harder to read.
+    const v = Math.max(latest.current.fitScale, Math.min(MAX_SCALE, next));
     if (box && tr) {
       const b = box.getBoundingClientRect();
       const t0 = tr.getBoundingClientRect().left;
@@ -805,7 +806,8 @@ function Timeline({
       const x = clientX ?? (head >= b.left && head <= b.right ? head : b.left + b.width / 2);
       zoomAnchor.current = { sec: (x - t0) / scale, x: x - b.left };
     }
-    fitted.current = false;
+    // All the way out is the same as Fit: it keeps fitting when the window changes.
+    fitted.current = v <= latest.current.fitScale * 1.001;
     setScaleNow(v);
   };
   useLayoutEffect(() => {
@@ -841,21 +843,33 @@ function Timeline({
   // The recording can run on past the last section: the timeline shows all of it.
   const totalSec = timelineMs(song.sections.reduce((t, s) => t + sectionMs(s), 0), audio) / 1000;
   const el = audioTrack.status === "ready" ? audioTrack.el : null;
-  const latest = useRef({ song, onResize, scale, snap, totalSec });
-  latest.current = { song, onResize, scale, snap, totalSec };
+  // The zoom that shows the whole song: the furthest out the timeline goes.
+  const [fitScale, setFitScale] = useState(2);
+  const latest = useRef({ song, onResize, scale, snap, totalSec, fitScale });
+  latest.current = { song, onResize, scale, snap, totalSec, fitScale };
 
   // Fit the song to the strip when it's first shown (and when switching songs).
   // While the song is fitted (not zoomed by hand), it stays fitted when the strip changes width,
   // for example when the sidebar folds away.
   const fitted = useRef(true);
+  const fitScaleNow = () => Math.max(MIN_SCALE, Math.min(40, ((scroller.current?.clientWidth ?? 800) - 24) / Math.max(latest.current.totalSec, 10)));
   const fit = () => {
-    const w = (scroller.current?.clientWidth ?? 800) - 24;
+    const f = fitScaleNow();
     fitted.current = true;
-    setScaleNow(Math.max(2, Math.min(40, w / Math.max(latest.current.totalSec, 10))));
+    setFitScale(f);
+    setScaleNow(f);
   };
   useLayoutEffect(fit, [song.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A longer or shorter song moves the furthest-out zoom with it.
+  useLayoutEffect(() => {
+    const f = fitScaleNow();
+    setFitScale(f);
+    if (fitted.current || latest.current.scale < f) setScaleNow(f);
+  }, [totalSec]); // eslint-disable-line react-hooks/exhaustive-deps
   const fitRef = useRef(fit);
   fitRef.current = fit;
+  const fitScaleRef = useRef(fitScaleNow);
+  fitScaleRef.current = fitScaleNow;
   useEffect(() => {
     const box = scroller.current;
     if (!box || typeof ResizeObserver === "undefined") return;
@@ -864,6 +878,11 @@ function Timeline({
       if (box.clientWidth === last) return;
       last = box.clientWidth;
       if (fitted.current) fitRef.current();
+      else {
+        const f = fitScaleRef.current();
+        setFitScale(f);
+        if (latest.current.scale < f) setScaleNow(f);
+      }
     });
     ro.observe(box);
     return () => ro.disconnect();
@@ -1359,20 +1378,24 @@ function Timeline({
           <Segmented label="Snap section lengths to" value={snap} onChange={setSnap} options={[{ value: "bar", label: "Bars" }, { value: "beat", label: "Beats" }, { value: "off", label: "Off" }]} />
         </div>
         <div className="zoom" role="group" aria-label="Zoom the timeline" title="Zoom the timeline. Ctrl or Cmd and scroll, or pinch, zooms around the pointer.">
-          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} disabled={scale <= MIN_SCALE} aria-label="Zoom out" title="Zoom out">
+          <button type="button" className="ghost small icon-only" onClick={() => zoom(scale / 1.5)} disabled={scale <= fitScale + 0.01} aria-label="Zoom out" title="Zoom out">
             <Icon name="minus" size={14} />
           </button>
-          {/* Logarithmic, so each step of the slider zooms by the same amount. */}
+          {/* From the whole song (left) to single beats (right). Logarithmic, so each step zooms by the same amount. */}
           <input
             type="range"
             className="zoom-slider"
             min={0}
             max={1000}
-            value={Math.round((Math.log(scale / MIN_SCALE) / Math.log(MAX_SCALE / MIN_SCALE)) * 1000)}
-            onChange={(e) => zoom(MIN_SCALE * Math.pow(MAX_SCALE / MIN_SCALE, Number(e.target.value) / 1000))}
+            value={Math.round(zoomFraction(scale, fitScale) * 1000)}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v <= 0) fit();
+              else zoom(fitScale * Math.pow(MAX_SCALE / fitScale, v / 1000));
+            }}
             aria-label="Zoom"
             aria-valuetext={`${Math.round(scale)} pixels a second`}
-            style={{ "--fill": `${(Math.log(scale / MIN_SCALE) / Math.log(MAX_SCALE / MIN_SCALE)) * 100}%` } as CSSProperties}
+            style={{ "--fill": `${zoomFraction(scale, fitScale) * 100}%` } as CSSProperties}
           />
           <button type="button" className="ghost small icon-only" onClick={() => zoom(scale * 1.5)} disabled={scale >= MAX_SCALE} aria-label="Zoom in" title="Zoom in">
             <Icon name="plus" size={14} />
@@ -2858,8 +2881,13 @@ function rememberSnap(v: Snap) {
 
 /** The timeline's closest zoom: 400 pixels a second, so single beats are easy to place. */
 const MAX_SCALE = 400;
-/** The farthest: 1 pixel a second, a long song in one view. */
+/** The furthest out any song goes, even a very long one in a narrow window. */
 const MIN_SCALE = 1;
+/** Where a zoom sits between the whole song (0) and the closest zoom (1), on a log scale. */
+function zoomFraction(scale: number, fitScale: number): number {
+  if (MAX_SCALE <= fitScale) return 1;
+  return Math.max(0, Math.min(1, Math.log(scale / fitScale) / Math.log(MAX_SCALE / fitScale)));
+}
 
 const WAVE_KEY = "lightsmith.waveSize.v1";
 function rememberedWaveSize(): WaveSize {
