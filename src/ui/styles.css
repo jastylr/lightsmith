@@ -3776,15 +3776,13 @@ body.is-resizing * {
 }
 
 /* ---- Settings cards: an accent each, so they don't all look alike ---- */
-[data-card="mood"] { --accent: #f2a73b; }
-[data-card="colors"] { --accent: #ef7fb0; }
-[data-card="lights"] { --accent: #7cbcff; }
-[data-card="pattern"] { --accent: #b49cff; }
-[data-card="movers"] { --accent: #4fd1bf; }
-[data-card="focus"] { --accent: #f3dc6b; }
-[data-card="effects"] { --accent: #ff8f66; }
-[data-card="sequences"] { --accent: #95d36f; }
-[data-card="timing"] { --accent: #b9b1a7; }
+/* One color per step; the cards in a step share it, so the tab and its cards read as one. */
+[data-card="look"], [data-card="mood"], [data-card="colors"] { --accent: #f2a73b; }
+[data-card="motion"], [data-card="pattern"], [data-card="movers"] { --accent: #b49cff; }
+[data-card="accents"], [data-card="effects"], [data-card="chasers"], [data-card="sequences"] { --accent: #ff8f66; }
+[data-card="lights"], [data-card="focus"] { --accent: #7cbcff; }
+[data-card="timing"] { --accent: #4fd1bf; }
+[data-card="all"] { --accent: #e8e2d6; }
 .group[data-card] {
   border-left: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
   scroll-margin-top: 7rem;
@@ -4286,7 +4284,8 @@ body.is-resizing * {
   }
 }
 .card-link.all {
-  --accent: var(--tungsten);
+  /* A neutral light gray, so it doesn't look like a sixth step (or like Look's amber). */
+  --accent: #dcd6cc;
 }
 .card-link.all .icon {
   color: var(--muted);
@@ -5951,4 +5950,30 @@ input.extra-slider:focus-visible {
 }
 .card-nav-links {
   grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+
+/* Step tabs: each shows its color, and the chosen one is filled with it so it can't be missed. */
+.card-link svg {
+  color: color-mix(in srgb, var(--accent) 75%, var(--muted));
+}
+.card-link.on {
+  color: #16131a;
+  font-weight: 700;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.card-link.on svg {
+  color: currentColor;
+}
+.card-link.on .card-link-dot {
+  background: #16131a;
+}
+.card-link:hover:not(.on) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--raised));
+}
+.card-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
