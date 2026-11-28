@@ -19,7 +19,6 @@ import {
   renumber,
   VIBES,
   ARCS,
-  MOODS,
   coachSong,
   variationsOf,
   effectiveLook,

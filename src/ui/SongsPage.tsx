@@ -209,6 +209,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   // The guided builder ("Build a song with me"), when it's open.
   const [building, setBuilding] = useState(false);
   const openBuilder = async () => {
+    if (!song) return;
     if (song.sections.length) {
       const ok = await askConfirm({
         title: "Build this song again with the guide?",
@@ -224,6 +225,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     setBuilding(true);
   };
   const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File) => {
+    if (!song) return;
     let audio: Song["audio"];
     if (file) {
       try {
