@@ -12,6 +12,9 @@ import { SongsPage } from "./SongsPage";
 import { ExportPage } from "./ExportPage";
 import { ShowControlPage } from "./ShowControlPage";
 import { hasWork, startNewProject } from "./newProject";
+import { CommandPalette, ShortcutsSheet, sectionItems, type PaletteItem } from "./Palette";
+import { sendCommand } from "./commands";
+import { ToastHost } from "./Toast";
 
 type StepId = "stage" | "songs" | "control" | "export";
 
@@ -83,6 +86,28 @@ export function App() {
   const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = mac ? "⌘" : "Ctrl+";
 
+  // The command palette (Cmd/Ctrl+K) and the shortcuts sheet (?).
+  const [palette, setPalette] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((p) => !p);
+        return;
+      }
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (e.key === "?" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShortcuts(true);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+  const { level, setLevel } = useLevel();
+
   const placed = store.project.rig.fixtures.filter((f) => f.role !== "ignore").length;
   const devices = store.project.control?.devices.length ?? 0;
   const controlStatus = devices ? `${devices} MIDI ${devices === 1 ? "device" : "devices"}` : "Pads and footswitches";
@@ -97,6 +122,40 @@ export function App() {
     { id: "control", label: "Show control", icon: "midi", status: controlStatus },
     { id: "export", label: "Export", icon: "download", status: "Build the QLC+ file" },
   ];
+
+  const currentSong = store.project.songs.find((x) => x.id === songId) ?? store.project.songs[0];
+  /** Go to a section: the Songs page, its song, then pick it once the page is there. */
+  const goToSection = (song: string, section: string) => {
+    setSongId(song);
+    setStep("songs");
+    window.setTimeout(() => sendCommand({ type: "select-section", id: section }), 30);
+  };
+  const onSongs = (then: () => void) => {
+    setStep("songs");
+    window.setTimeout(then, 30);
+  };
+  const paletteItems: PaletteItem[] = !ready
+    ? [{ id: "help", group: "Help", label: "Open the user manual", icon: "book", run: () => window.open("manual.html", "_blank") }]
+    : [
+        ...steps.map((st) => ({ id: `go-${st.id}`, group: "Go to", label: st.label, hint: st.status, icon: st.icon, keywords: "page step", run: () => setStep(st.id) })),
+        ...store.project.songs.map((song) => ({ id: `song-${song.id}`, group: "Songs", label: song.title || "Untitled song", hint: `${song.sections.length} sections`, icon: "music" as IconName, keywords: "song open", run: () => { setSongId(song.id); setStep("songs"); } })),
+        ...(currentSong
+          ? [
+              { id: "builder", group: "Actions", label: "Song Builder", hint: `for ${currentSong.title || "this song"}`, icon: "sparkle" as IconName, keywords: "wizard guide build", run: () => onSongs(() => sendCommand({ type: "open-builder" })) },
+              { id: "library", group: "Actions", label: "Look library", hint: "for the section you're editing", icon: "stack" as IconName, keywords: "looks genre presets", run: () => onSongs(() => sendCommand({ type: "open-library" })) },
+              { id: "variations", group: "Actions", label: "Try variations", hint: "on the section you're editing", icon: "sparkle" as IconName, keywords: "ideas alternatives", run: () => onSongs(() => sendCommand({ type: "open-variations" })) },
+            ]
+          : []),
+        { id: "new-song", group: "Actions", label: "Add a song", icon: "plus", run: () => { setSongId(store.addSong()); setStep("songs"); } },
+        { id: "save", group: "Actions", label: "Save project", hint: "a .lightsmith file", icon: "download", keywords: "backup export file", run: () => { const f = store.projectFile(); download(f.name, f.text, "application/json"); } },
+        { id: "undo", group: "Actions", label: "Undo", icon: "undo", shortcut: `${mod}Z`, run: undo },
+        { id: "redo", group: "Actions", label: "Redo", icon: "redo", shortcut: mac ? "⇧⌘Z" : "Ctrl+Y", run: redo },
+        { id: "level", group: "View", label: level === "simple" ? "Show every setting (Full)" : "Show the essentials (Simple)", icon: "list", keywords: "simple full mode level", run: () => setLevel(level === "simple" ? "full" : "simple") },
+        { id: "rail", group: "View", label: collapsed ? "Expand the sidebar" : "Collapse the sidebar", icon: collapsed ? "chevronsRight" : "chevronsLeft", shortcut: `${mod}\\`, run: () => setCollapsed(!collapsed) },
+        { id: "keys", group: "Help", label: "Keyboard shortcuts", icon: "keyboard", shortcut: "?", run: () => setShortcuts(true) },
+        { id: "manual", group: "Help", label: "Open the user manual", icon: "book", run: () => window.open("manual.html", "_blank") },
+        ...sectionItems(store.project.songs, currentSong?.id ?? "", goToSection),
+      ];
 
   return (
     <div className={collapsed ? "shell rail-collapsed" : "shell"}>
@@ -137,6 +196,11 @@ export function App() {
             <Icon name="download" size={15} /> <span className="rail-hide">Save project</span>
           </button>
         </div>
+        <button type="button" className="rail-search" onClick={() => setPalette(true)} title={`Find a song, section or action (${mod}K)`}>
+          <Icon name="search" size={15} />
+          <span className="rail-hide">Search and commands</span>
+          <kbd className="rail-hide">{mod}K</kbd>
+        </button>
         <LevelSwitch />
         <nav aria-label="Steps">
           <ol className="rail-steps">
@@ -222,6 +286,9 @@ export function App() {
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}
       </main>
       <ConfirmHost />
+      <ToastHost onUndo={undo} />
+      {palette && <CommandPalette items={paletteItems} onClose={() => setPalette(false)} />}
+      {shortcuts && <ShortcutsSheet mod={mod} onClose={() => setShortcuts(false)} />}
     </div>
   );
 }

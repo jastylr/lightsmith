@@ -7627,3 +7627,302 @@ dialog.library[open] {
     max-height: none;
   }
 }
+
+/* Hover-to-preview: what the stage is showing instead of the section's own look */
+.preview-peek {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.7);
+}
+
+/* ---- Phase 4: toasts, the command palette, shortcuts, and a little motion ---- */
+.toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 1.4rem;
+  transform: translateX(-50%);
+  z-index: 200;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #26222b;
+  color: var(--text);
+  box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.8);
+  font-size: 0.92rem;
+  animation: toast-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.toast > svg:first-child {
+  color: #4fd1bf;
+}
+.toast-undo {
+  margin-left: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--tungsten);
+  background: transparent;
+  color: var(--tungsten);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toast-undo:hover {
+  background: var(--tungsten);
+  color: var(--tungsten-ink);
+}
+.toast-close {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+}
+
+.rail-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--house);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+  width: 100%;
+}
+.rail-search:hover {
+  color: var(--text);
+  border-color: var(--tungsten);
+}
+.rail-search kbd {
+  margin-left: auto;
+}
+kbd {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  background: var(--raised);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+dialog.palette {
+  margin: 12vh auto auto;
+  width: min(640px, calc(100vw - 2rem));
+  max-height: 70vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--deck);
+  color: var(--text);
+  box-shadow: 0 40px 90px -20px rgba(0, 0, 0, 0.9);
+}
+dialog.palette::backdrop,
+dialog.shortcuts::backdrop {
+  background: rgba(8, 6, 12, 0.6);
+  backdrop-filter: blur(3px);
+}
+dialog.palette[open],
+dialog.shortcuts[open] {
+  animation: variations-in 140ms ease-out;
+}
+.palette-box {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+}
+.palette-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 0.2rem 0;
+  outline: none;
+}
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.4rem;
+  overflow-y: auto;
+}
+.palette-group {
+  padding: 0.55rem 0.6rem 0.25rem;
+  color: var(--faint);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+}
+.palette-item > svg {
+  color: var(--muted);
+  flex: none;
+}
+.palette-item.on {
+  background: color-mix(in srgb, var(--tungsten) 18%, var(--raised));
+}
+.palette-item.on > svg {
+  color: var(--tungsten);
+}
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+.palette-label small {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-empty {
+  padding: 1rem;
+  color: var(--muted);
+}
+.palette-foot {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.55rem 1rem;
+  border-top: 1px solid var(--line-soft);
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+dialog.shortcuts {
+  width: min(820px, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--deck);
+  color: var(--text);
+  box-shadow: 0 40px 90px -20px rgba(0, 0, 0, 0.9);
+}
+.shortcuts-box {
+  padding: 1.2rem 1.4rem 1.4rem;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.2rem 2rem;
+  margin-top: 0.8rem;
+}
+.shortcuts-grid h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.shortcuts-grid dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.shortcuts-grid dl > div {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.8rem;
+  align-items: baseline;
+}
+.shortcuts-grid dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* A section a change just touched glows for a moment on the timeline. */
+.block.flash {
+  animation: block-flash 1.3s ease-out;
+}
+@keyframes block-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 2px #fff, 0 0 22px 4px var(--tungsten);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+/* Pages and a step's cards come in with a short fade, so a change of place reads as one. */
+.page {
+  animation: page-in 200ms ease-out;
+}
+.editor-controls .group {
+  animation: page-in 180ms ease-out;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .page,
+  .editor-controls .group,
+  .block.flash,
+  dialog.palette[open],
+  dialog.shortcuts[open] {
+    animation: none;
+  }
+  .block.flash {
+    box-shadow: 0 0 0 2px #fff;
+  }
+}
+.rail-search span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

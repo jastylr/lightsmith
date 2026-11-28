@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { coachSong, variationsOf, type CoachTip, type Rig, type Section, type Sequence, type Song } from "../core";
 import { Icon } from "./icons";
 import { StagePreview } from "./StagePreview";
+import { toast } from "./Toast";
 
 const DISMISSED_KEY = "lightsmith.coachDismissed.v1";
 const OPEN_KEY = "lightsmith.coachOpen.v1";
@@ -80,7 +81,14 @@ export function CoachPanel({ song, hasMovers, onSong, onSelect, onVariations }: 
                   <p>{t.detail}</p>
                   <div className="coach-actions">
                     {t.fix && (
-                      <button type="button" className="primary small" onClick={() => onSong(t.fix!.apply(song))}>
+                      <button
+                        type="button"
+                        className="primary small"
+                        onClick={() => {
+                          onSong(t.fix!.apply(song));
+                          toast(`Done: ${t.fix!.label}`);
+                        }}
+                      >
                         {t.fix.label}
                       </button>
                     )}
@@ -117,7 +125,7 @@ export function CoachPanel({ song, hasMovers, onSong, onSelect, onVariations }: 
  * Three alternative looks for a section, each a small live preview, in a
  * modal. "Use this" applies one (Undo takes it back); Shuffle deals three more.
  */
-export function VariationsDialog({ s, rig, sequences, hasMovers, onApply, onClose }: { s: Section; rig: Rig; sequences: Sequence[]; hasMovers: boolean; onApply: (patch: Partial<Section>) => void; onClose: () => void }) {
+export function VariationsDialog({ s, rig, sequences, hasMovers, onApply, onClose }: { s: Section; rig: Rig; sequences: Sequence[]; hasMovers: boolean; onApply: (patch: Partial<Section>, label: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1000));
   useEffect(() => {
@@ -169,7 +177,7 @@ export function VariationsDialog({ s, rig, sequences, hasMovers, onApply, onClos
                 type="button"
                 className="primary small"
                 onClick={() => {
-                  onApply(v.patch);
+                  onApply(v.patch, v.label);
                   ref.current?.close();
                 }}
               >

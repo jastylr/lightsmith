@@ -97,6 +97,8 @@ import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
 import { CoachPanel, VariationsDialog } from "./Coach";
 import { SongBuilder } from "./SongBuilder";
+import { changedSections, sendCommand, useCommands } from "./commands";
+import { toast } from "./Toast";
 import { LookLibraryDialog } from "./LookLibrary";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
@@ -234,6 +236,12 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     }
     setBuilding(true);
   };
+  useCommands((c) => {
+    if (c.type === "select-section") setSelected(c.id);
+    else if (c.type === "open-builder") void openBuilder();
+    else if (c.type === "open-library" && selected) setLibraryFor(selected);
+    else if (c.type === "open-variations" && selected && !isBlackout(song?.sections.find((x) => x.id === selected) ?? ({} as Section))) setVariationsFor(selected);
+  });
   const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File) => {
     if (!song) return;
     let audio: Song["audio"];
@@ -248,6 +256,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     store.updateSong({ ...song, ...patch, ...(audio ? { audio } : {}) });
     if (audio) setAudioVersion((v) => v + 1);
     setSelected(patch.sections[0]?.id ?? null);
+    sendCommand({ type: "flash", ids: patch.sections.map((x) => x.id) });
+    toast(`Made ${patch.title}: ${patch.sections.length} sections`);
   };
   // The section list beside the editor: the timeline has every section too, so it's optional.
   const [showList, setShowListState] = useState<boolean>(() => remembered(LIST_KEY, "0") === "1");
@@ -349,6 +359,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     const rest = song.sections.filter((x) => x.id !== s.id);
     set({ sections: rest });
     setSelected(rest[Math.min(i, rest.length - 1)]?.id ?? null);
+    toast(`Deleted ${s.name}`);
   };
 
   /** Read a sound file into the song. Loading a different file than the one the project names asks first. */
@@ -506,7 +517,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <LookEditor
                 key={current.id}
                 pinTransportRef={setPinTransportSlot}
-                coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => set({ sections: next.sections })} onSelect={setSelected} onVariations={setVariationsFor} />}
+                coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => {
+                  const ids = changedSections(song.sections, next.sections);
+                  set({ sections: next.sections });
+                  sendCommand({ type: "flash", ids });
+                }} onSelect={setSelected} onVariations={setVariationsFor} />}
                 onVariations={() => setVariationsFor(current.id)}
                 onLibrary={() => setLibraryFor(current.id)}
                 sectionActions={
@@ -519,14 +534,22 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                     ]}
                   />
                 }
-                stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+                stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => {
+                  set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) });
+                  sendCommand({ type: "flash", ids });
+                  toast(`Copied the look of ${current.name} to ${ids.length} ${ids.length === 1 ? "section" : "sections"}`);
+                }} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {libraryFor && song.sections.some((x) => x.id === libraryFor) && (
               <LookLibraryDialog
                 s={song.sections.find((x) => x.id === libraryFor)!}
                 rig={store.project.rig}
                 sequences={store.project.sequences ?? []}
-                onApply={(next) => set({ sections: song.sections.map((x) => (x.id === next.id ? next : x)) })}
+                onApply={(next, name) => {
+                  set({ sections: song.sections.map((x) => (x.id === next.id ? next : x)) });
+                  sendCommand({ type: "flash", ids: [next.id] });
+                  toast(`Used the "${name}" look on ${next.name}`);
+                }}
                 onClose={() => setLibraryFor(null)}
               />
             )}
@@ -536,9 +559,11 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 rig={store.project.rig}
                 sequences={store.project.sequences ?? []}
                 hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")}
-                onApply={(patch) => {
+                onApply={(patch, label) => {
                   setSelected(variationsFor);
                   setSection(variationsFor, patch);
+                  sendCommand({ type: "flash", ids: [variationsFor] });
+                  toast(`Used "${label}" on ${song.sections.find((x) => x.id === variationsFor)?.name ?? "the section"}`);
                 }}
                 onClose={() => setVariationsFor(null)}
               />
@@ -1021,6 +1046,13 @@ function Timeline({
     if (by) box.scrollBy({ left: by, behavior: reduceMotionPref() ? "auto" : "smooth" });
   }, [selected, song.sections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sections a change just touched (a coach fix, a variation, a copied look) glow for a moment.
+  const [flashing, setFlashing] = useState<Set<string>>(new Set());
+  useCommands((c) => {
+    if (c.type !== "flash" || !c.ids.length) return;
+    setFlashing(new Set(c.ids));
+    window.setTimeout(() => setFlashing(new Set()), 1400);
+  });
   /** Drag the dot on top of a block up or down to set its energy; the block's height follows. */
   const startEnergy = (e: ReactPointerEvent<HTMLElement>, id: string) => {
     if (e.button !== 0 || !onEnergy) return;
@@ -1202,7 +1234,7 @@ function Timeline({
                     role="listitem"
                     data-id={s.id}
                     ref={itemRef(s.id)}
-                    className={`block${isBlackout(s) ? " blackout" : ""}${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
+                    className={`block${isBlackout(s) ? " blackout" : ""}${flashing.has(s.id) ? " flash" : ""}${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
                     style={{ width: w, ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
                     tabIndex={0}
                     title={`${s.name}: ${isBlackout(s) ? "blackout" : moodById(s.mood).label}, ${lengthLabel(s)}, ${fmt(ms)}`}
@@ -1850,6 +1882,9 @@ function LookEditor({
   const focusIds = s.focus === "all" ? [] : focusOptions.find((f) => f.side === s.focus)?.ids ?? [];
   const sideName: Record<Side, string> = { SL: "Stage left", C: "Center", SR: "Stage right" };
   const blackout = isBlackout(s);
+  // Hovering a mood, pattern, movement, color change or effect shows it on the stage before you pick it.
+  const [hoverLook, setHoverLook] = useState<{ label: string; patch: Partial<Section> } | null>(null);
+  const peekAt = (label: string | null, patch?: Partial<Section>) => setHoverLook(label && patch ? { label, patch } : null);
 
   // ---- collapsible cards: what each one says when closed, and whether it has settings of its own
   const [closed, setClosed] = useClosedCards();
@@ -2085,7 +2120,12 @@ function LookEditor({
               <div className="preview-frame">
                 {/* While the song plays it moves from section to section itself: looping a
                     section would start it over at its end, a moment before the next one takes over. */}
-                <SectionPreview s={previewSection ?? s} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop && !previewPlaying} follow={!!previewPlaying} />
+                <SectionPreview s={previewSection ?? (hoverLook ? { ...s, ...hoverLook.patch } : s)} rig={rig} sequences={sequences} replay={replay} view={view} names={names} loop={loop && !previewPlaying} follow={!!previewPlaying} />
+                {hoverLook && !previewSection && (
+                  <span className="preview-peek" role="status">
+                    Previewing: {hoverLook.label}
+                  </span>
+                )}
                 {previewSection && previewSection.id !== s.id && <span className="preview-playing">{previewPlaying ? "Playing" : "Showing"}: {previewSection.name}</span>}
                 <div className="preview-views" role="radiogroup" aria-label="View the stage from">
                   {(
@@ -2181,7 +2221,7 @@ function LookEditor({
           {!blackout && (
             <>
           <Group card={card("mood")} icon="sun" title="Mood and energy" description="The overall feel. The mood sets starting colors and movement, and suggests a pattern; energy sets brightness and speed. Fine-tune brightness for each kind of light below.">
-            <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" />
+            <Dropdown label="Mood" value={s.mood} options={moodOptions} onChange={(m) => onChange({ mood: m })} className="wide" onHighlight={(m) => (m && m !== s.mood ? peekAt(`The ${moodById(m).label} mood`, { mood: m }) : peekAt(null))} />
             {(() => {
               // The mood is a starting point: each of these follows it until you set it in its tab.
               const parts = [
@@ -2229,7 +2269,7 @@ function LookEditor({
             <PaletteEditor colors={s.colors} fallback={mood.colors} onChange={setColors} />
             <div className="row">
               <Field label="Switch between colors" hint="For lights that change with the section. Each row below can also stay steady or have its own rate.">
-                <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} />
+                <Dropdown label="Color changes" value={s.colorChange} options={changeOptions} onChange={(v) => onChange({ colorChange: v as Section["colorChange"] })} onHighlight={(v) => (v && v !== s.colorChange ? peekAt(changeOptions.find((o) => o.value === v)?.label ?? v, { colorChange: v as Section["colorChange"] }) : peekAt(null))} />
               </Field>
               {changeId !== "hold" && sees("colors", "full") && <Toggle checked={s.colorFade} onChange={(colorFade) => onChange({ colorFade })} label="Crossfade" hint="Blend into the next color" />}
             </div>
@@ -2239,7 +2279,7 @@ function LookEditor({
 
 
           <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
-            <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
+            <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" onHighlight={(p) => (p && p !== s.pattern ? peekAt(patternOptions.find((o) => o.value === p)?.label ?? p, { pattern: p }) : peekAt(null))} />
             {pattern.algorithm && (
               <Field
                 label="Speed"
@@ -2302,7 +2342,7 @@ function LookEditor({
                   <p className="hint">Each head rests where you set its home position on the Stage page. Pick or add a position to point them somewhere else in this section.</p>
                 )}
                 <Field label="Movement" hint={moveId === "static" ? "The heads hold still where they point." : "The shape the heads trace around where they point. Where they point (above) is the middle of the movement; the movement is how they move around it."}>
-                  <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" />
+                  <Dropdown label="Movement" value={s.movement} options={moveOptions} onChange={(movement) => onChange({ movement })} className="wide" onHighlight={(m) => (m && m !== s.movement ? peekAt(moveOptions.find((o) => o.value === m)?.label ?? m, { movement: m }) : peekAt(null))} />
                 </Field>
                 {timing.slowed && (
                   <div className="notice warn">
@@ -2375,7 +2415,7 @@ function LookEditor({
                 const needsRgb = MATRIX_EFFECTS.includes(e.id);
                 const possible = lights.filter((l) => !needsRgb || l.hasRgb);
                 return (
-                  <div key={e.id} className={on ? "effect on" : "effect"}>
+                  <div key={e.id} className={on ? "effect on" : "effect"} onPointerEnter={() => !on && possible.length && peekAt(e.label, { effects: { ...s.effects, [e.id]: true } })} onPointerLeave={() => peekAt(null)}>
                     <button type="button" aria-pressed={on} disabled={!possible.length} title={possible.length ? undefined : "None of your lights can show this effect"} onClick={() => onChange({ effects: { ...s.effects, [e.id]: !on } })}>
                       <Icon name={EFFECT_ICON[e.id]} size={20} />
                       <span>

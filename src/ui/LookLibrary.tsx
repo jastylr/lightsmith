@@ -11,7 +11,7 @@ const GENRE_KEY = "lightsmith.libraryGenre.v1";
  * you're editing (or every kind). Pick one to see it on your stage, with this
  * section's lights and length; "Use this look" makes it the section's look.
  */
-export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: Section; rig: Rig; sequences: Sequence[]; onApply: (next: Section) => void; onClose: () => void }) {
+export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: Section; rig: Rig; sequences: Sequence[]; onApply: (next: Section, lookName: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [genre, setGenreState] = useState<string>(() => {
     try {
@@ -87,7 +87,7 @@ export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: 
               const on = picked?.id === l.id;
               const move = MOVEMENTS.find((m) => m.id === l.look.movement);
               return (
-                <button key={l.id} type="button" role="option" aria-selected={on} className={on ? "look-card on" : "look-card"} onClick={() => setPicked(l)} onDoubleClick={() => { onApply(applyLibraryLook(s, l)); ref.current?.close(); }}>
+                <button key={l.id} type="button" role="option" aria-selected={on} className={on ? "look-card on" : "look-card"} onClick={() => setPicked(l)} onDoubleClick={() => { onApply(applyLibraryLook(s, l), l.name); ref.current?.close(); }}>
                   <span className="look-swatch" style={{ background: `linear-gradient(90deg, ${(l.look.colors ?? []).map(cssColor).join(", ")})` }} aria-hidden="true" />
                   <strong>{l.name}</strong>
                   <span className="look-desc">{l.description}</span>
@@ -110,7 +110,7 @@ export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: 
               disabled={!picked}
               onClick={() => {
                 if (!picked) return;
-                onApply(applyLibraryLook(s, picked));
+                onApply(applyLibraryLook(s, picked), picked.name);
                 ref.current?.close();
               }}
             >

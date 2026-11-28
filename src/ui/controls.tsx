@@ -47,7 +47,10 @@ export function Dropdown<T extends string>({
   className,
   placeholder,
   arrowOnly,
+  onHighlight,
 }: {
+  /** The option the pointer or arrow keys are on while the list is open (null when it closes), to preview it. */
+  onHighlight?: (v: T | null) => void;
   value: T;
   options: Option<T>[];
   onChange: (v: T) => void;
@@ -71,7 +74,11 @@ export function Dropdown<T extends string>({
     const i = Math.max(0, options.findIndex((o) => o.value === value));
     setActive(i);
     requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-i="${i}"]`)?.scrollIntoView({ block: "nearest" }));
-  }, [open, options, value]);
+    // Only when it opens: the options are often a new array on every render
+    // (a preview of the highlighted one re-renders the page), which mustn't
+    // throw the highlight back to the current value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const choose = (i: number) => {
     const o = options[i];
@@ -100,6 +107,14 @@ export function Dropdown<T extends string>({
   useEffect(() => {
     if (open) list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active, open]);
+  const highlight = useRef(onHighlight);
+  highlight.current = onHighlight;
+  const lit = open ? (options[active]?.value ?? null) : null;
+  useEffect(() => {
+    highlight.current?.(lit);
+  }, [lit]);
+  // Closing for good (unmounting) ends any preview too.
+  useEffect(() => () => highlight.current?.(null), []);
 
   let lastGroup: string | undefined;
   return (
