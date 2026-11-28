@@ -13,6 +13,9 @@ import {
   generateSong,
   generateSet,
   safeLookSong,
+  coachSong,
+  variationsOf,
+  effectiveLook,
   strobeOnlyLights,
   emptyShowControl,
   normalizeProject,
@@ -1444,4 +1447,42 @@ test("strobe hits in the look's own colors: one strobe per color, the look dark 
   const xml = serializeWorkspace(ws);
   const colors = [...xml.matchAll(/Name="Strobe hits"[\s\S]*?<Color Index="0">(\d+)<\/Color>/g)].map((m) => (Number(m[1]) & 0xffffff).toString(16).padStart(6, "0"));
   assert.deepEqual(colors.sort(), ["0032ff", "ff0000"], "each light flashes its own look color (red and blue), in step");
+});
+
+test("show coach: a chorus that doesn't lift, no ending, still heads, a flat song", () => {
+  const v = { ...newSection("verse", 120), energy: 3, movement: "static" };
+  const c = { ...newSection("chorus", 120), energy: 2, movement: "static" };
+  const v2 = { ...newSection("verse", 120), energy: 3, movement: "static" };
+  const song = { id: "s", title: "T", bpm: 120, sections: [v, c, v2] };
+  const tips = coachSong(song, { hasMovers: true });
+  const ids = tips.map((t) => t.id);
+  assert.ok(ids.includes(`lift:${c.id}`), "the chorus should lift");
+  assert.ok(ids.includes("ending"));
+  assert.ok(ids.includes("still-heads"));
+  assert.ok(!coachSong(song, { hasMovers: false }).some((t) => t.id === "still-heads"), "no movement tip without moving heads");
+
+  const lifted = tips.find((t) => t.id === `lift:${c.id}`)!.fix!.apply(song);
+  assert.equal(lifted.sections[1]!.energy, 4);
+  assert.equal(song.sections[1]!.energy, 2, "the fix doesn't change what it was given");
+  const ended = tips.find((t) => t.id === "ending")!.fix!.apply(song);
+  assert.equal(ended.sections.length, 4);
+  assert.ok(!coachSong(ended, { hasMovers: false }).some((t) => t.id === "ending"));
+  const swept = tips.find((t) => t.id === "still-heads")!.fix!.apply(song);
+  assert.equal(swept.sections[1]!.movement, "sweep", "the chorus gets the sweep");
+
+  const flat = { ...song, sections: [v, { ...c, energy: 3 }, v2] };
+  assert.ok(coachSong(flat, { hasMovers: false }).some((t) => t.id === "flat"));
+});
+
+test("variations: three different looks, repeatable for a seed", () => {
+  const s = { ...newSection("verse", 120), energy: 3 };
+  const a = variationsOf(s, 1, { hasMovers: true });
+  assert.deepEqual(a.map((x) => x.id), ["motion", "colors", "bigger"]);
+  assert.deepEqual(variationsOf(s, 1, { hasMovers: true }), a, "same seed, same picks");
+  assert.notEqual(a[0]!.patch.pattern, effectiveLook(s).pattern);
+  assert.ok(a[0]!.patch.movement, "the heads move too when there are some");
+  assert.ok(!variationsOf(s, 1, { hasMovers: false })[0]!.patch.movement);
+  assert.notDeepEqual(a[1]!.patch.colors, effectiveLook(s).palette);
+  assert.equal(a[2]!.patch.energy, 4);
+  assert.equal(variationsOf({ ...s, energy: 5 }, 1, { hasMovers: false })[2]!.id, "calmer");
 });

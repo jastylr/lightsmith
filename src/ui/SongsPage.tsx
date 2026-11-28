@@ -95,6 +95,7 @@ import { askConfirm } from "./ConfirmDialog";
 import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
+import { CoachPanel, VariationsDialog } from "./Coach";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
 import { MiniTransport, songSignature, TransportBar } from "./Transport";
@@ -202,6 +203,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   // A second place for the transport: floating over the preview when it fills the screen.
   const [stageTransportSlot, setStageTransportSlot] = useState<HTMLDivElement | null>(null);
   const [pinTransportSlot, setPinTransportSlot] = useState<HTMLDivElement | null>(null);
+  // The section whose variations are open, if any.
+  const [variationsFor, setVariationsFor] = useState<string | null>(null);
   // The section list beside the editor: the timeline has every section too, so it's optional.
   const [showList, setShowListState] = useState<boolean>(() => remembered(LIST_KEY, "0") === "1");
   const setShowList = (on: boolean) => {
@@ -424,6 +427,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             transportSlot={transportSlot}
             stageTransportSlot={stageTransportSlot}
             pinTransportSlot={pinTransportSlot}
+            onEnergy={(id, energy) => setSection(id, { energy })}
             onTempo={setTempo}
             onSignature={setSignature}
             audioTrack={track}
@@ -449,8 +453,14 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               <LookEditor
                 key={current.id}
                 pinTransportRef={setPinTransportSlot}
+                coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => set({ sections: next.sections })} onSelect={setSelected} onVariations={setVariationsFor} />}
                 sectionActions={
                   <div className="editor-actions">
+                    {!isBlackout(current) && (
+                      <button type="button" className="ghost small variations-open" onClick={() => setVariationsFor(current.id)} title="See three other ways this section could look">
+                        <Icon name="sparkle" size={15} /> Variations
+                      </button>
+                    )}
                     {!showList && (
                       <button type="button" className="ghost small" onClick={() => setShowList(true)} title="Show the sections as a list beside the editor">
                         <Icon name="list" size={15} /> List
@@ -468,6 +478,19 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                   </div>
                 }
                 stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+            )}
+            {variationsFor && song.sections.some((x) => x.id === variationsFor) && (
+              <VariationsDialog
+                s={song.sections.find((x) => x.id === variationsFor)!}
+                rig={store.project.rig}
+                sequences={store.project.sequences ?? []}
+                hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")}
+                onApply={(patch) => {
+                  setSelected(variationsFor);
+                  setSection(variationsFor, patch);
+                }}
+                onClose={() => setVariationsFor(null)}
+              />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -619,7 +642,10 @@ function Timeline({
   pinTransportSlot,
   onTempo,
   onSignature,
+  onEnergy,
 }: {
+  /** Set a section's energy (1–5) by dragging the dot on top of its block. */
+  onEnergy?: (id: string, energy: number) => void;
   /** Under the pinned preview: a small transport, so you can play without scrolling up. */
   pinTransportSlot?: HTMLElement | null;
   onTempo: (bpm: number) => void;
@@ -924,6 +950,32 @@ function Timeline({
     if (by) box.scrollBy({ left: by, behavior: reduceMotionPref() ? "auto" : "smooth" });
   }, [selected, song.sections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Drag the dot on top of a block up or down to set its energy; the block's height follows. */
+  const startEnergy = (e: ReactPointerEvent<HTMLElement>, id: string) => {
+    if (e.button !== 0 || !onEnergy) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const lane = (e.currentTarget as HTMLElement).closest(".blocks") as HTMLElement | null;
+    if (!lane) return;
+    gesture.begin();
+    const at = (clientY: number) => {
+      const r = lane.getBoundingClientRect();
+      const pct = ((r.bottom - clientY) / r.height) * 100;
+      return Math.max(1, Math.min(5, Math.round((pct - 38) / 12)));
+    };
+    const move = (ev: PointerEvent) => {
+      const energy = at(ev.clientY);
+      const s = latest.current.song.sections.find((x) => x.id === id);
+      if (s && s.energy !== energy) onEnergy(id, energy);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      gesture.end();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   const startResize = (e: ReactPointerEvent<HTMLElement>, id: string) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -1038,6 +1090,21 @@ function Timeline({
               ))}
             </div>
             <div className="blocks" role="list" aria-label="Song timeline. Drag sections to reorder, or drag a section's right edge to change its length.">
+              {/* The song's energy arc: a line through the top of each block. */}
+              {(() => {
+                let x = 0;
+                const pts: string[] = [];
+                for (const s of song.sections) {
+                  const w = (sectionMs(s) / 1000) * scale;
+                  if (!isBlackout(s)) pts.push(`${x + w / 2},${100 - (38 + s.energy * 12)}`);
+                  x += w;
+                }
+                return pts.length > 1 ? (
+                  <svg className="energy-arc" viewBox={`0 0 ${Math.max(1, x)} 100`} preserveAspectRatio="none" aria-hidden="true" style={{ width: x }}>
+                    <polyline points={pts.join(" ")} vectorEffect="non-scaling-stroke" />
+                  </svg>
+                ) : null;
+              })()}
               {song.sections.map((s) => {
                 const pal = paletteOf(s);
                 const ms = sectionMs(s);
@@ -1084,6 +1151,28 @@ function Timeline({
                       <strong>{s.name}</strong>
                       <small>{fmt(ms)}</small>
                     </span>
+                    {onEnergy && !isBlackout(s) && (
+                      <span
+                        className="block-energy"
+                        role="slider"
+                        tabIndex={0}
+                        aria-label={`${s.name} energy`}
+                        aria-valuemin={1}
+                        aria-valuemax={5}
+                        aria-valuenow={s.energy}
+                        aria-valuetext={`${energyOf(s.energy).label} (${s.energy} of 5)`}
+                        title={`Energy: ${energyOf(s.energy).label.toLowerCase()}. Drag up or down to change it.`}
+                        onPointerDown={(e) => startEnergy(e, s.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          const d = e.key === "ArrowUp" ? 1 : e.key === "ArrowDown" ? -1 : 0;
+                          if (!d) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEnergy(s.id, Math.max(1, Math.min(5, s.energy + d)));
+                        }}
+                      />
+                    )}
                     <span className="block-resize" title="Drag to change the length (hold Alt / Option for single beats)" onPointerDown={(e) => startResize(e, s.id)} />
                   </div>
                 );
@@ -1559,7 +1648,10 @@ function LookEditor({
   others,
   onCopyLookTo,
   sectionActions,
+  coach,
 }: {
+  /** The show coach, under the pinned stage. */
+  coach?: ReactNode;
   /** Split, duplicate and delete, beside the section's name. */
   sectionActions?: ReactNode;
   /** Where a small transport sits under the pinned preview. */
@@ -1910,6 +2002,7 @@ function LookEditor({
             </figure>
           )}
           <div className="pin-transport" ref={pinTransportRef} />
+          {coach}
         </div>
 
         <div className="editor-controls">
