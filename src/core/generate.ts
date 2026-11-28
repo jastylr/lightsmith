@@ -135,6 +135,25 @@ class Builder {
     return this.fn("Chaser", name, path, kids);
   }
 
+  /** A recording. QLC+ looks for a bare file name next to the show file. */
+  audio(name: string, path: string, source: string, durationMs: number): number {
+    return this.fn("Audio", name, path, [el("Speed", { FadeIn: 0, FadeOut: 0, Duration: Math.round(durationMs) }), textEl("RunOrder", "SingleShot"), textEl("Source", source)]);
+  }
+
+  /** A Show Manager timeline: tracks of functions, each starting at a set time and running for a set length. */
+  show(name: string, path: string, bpm: number, tracks: { name: string; items: { id: number; startMs: number; durationMs: number; color?: string }[] }[]): number {
+    return this.fn("Show", name, path, [
+      el("TimeDivision", { Type: "Time", BPM: Math.round(bpm) }),
+      ...tracks.map((t, i) =>
+        el(
+          "Track",
+          { ID: i, Name: t.name, isMute: 0 },
+          t.items.map((it) => el("ShowFunction", { ID: it.id, StartTime: Math.max(0, Math.round(it.startMs)), Duration: Math.max(1, Math.round(it.durationMs)), Color: it.color ?? "#646464" })),
+        ),
+      ),
+    ]);
+  }
+
   collection(name: string, path: string, ids: number[]): number {
     return this.fn("Collection", name, path, ids.map((id, n) => textEl("Step", id, { Number: n })));
   }
@@ -188,6 +207,12 @@ export interface GenerateInput {
    * it doesn't carry on into the next section or song. Defaults to this song.
    */
   neighbours?: Song[];
+  /**
+   * Also make a Show Manager timeline that plays the song with its recording:
+   * every section at its place on the timeline, and the recording where it
+   * starts. Only for songs with a recording. Default true.
+   */
+  withRecording?: boolean;
 }
 
 export interface GenerateSummary {
@@ -198,6 +223,10 @@ export interface GenerateSummary {
   /** Where the button frame was put, in words: "inside “CV Console” on the page “CV Show”". */
   buttonsWhere: string;
   songChaserId: number;
+  /** The timeline that plays the song with its recording (QLC+'s Show Manager), when there is one. */
+  showId?: number;
+  /** The recording's file name, which goes next to the show file for QLC+ to find it. */
+  recording?: string;
   /** The Collection for each section, in order. */
   sectionIds: number[];
   /**
@@ -219,7 +248,7 @@ export function songPathFor(title: string): string {
 }
 
 /** Mutates `ws` (merging the song into it) and returns a summary. */
-export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true, control, neighbours }: GenerateInput): GenerateSummary {
+export function generateSong({ ws, profiles, rig, song, sequences = [], buttons = true, control, neighbours, withRecording = true }: GenerateInput): GenerateSummary {
   const title = safeName(song.title);
   const songPath = songPathFor(song.title);
   const frameCaption = `${title} (${APP_NAME})`;
@@ -744,6 +773,25 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
     "SingleShot",
   );
 
+  // The song with its recording, on a Show Manager timeline. The recording's
+  // offset says where the song starts in it: a count-in to skip moves the
+  // lights later, a sample played live first moves the recording later.
+  let showId: number | undefined;
+  const recording = withRecording && song.audio && song.sections.length ? song.audio : undefined;
+  if (recording) {
+    const audioId = b.audio(recording.name, songPath, recording.name, recording.durationMs);
+    const lightsAt = Math.max(0, recording.offsetMs);
+    // Rounded edges, each section ending exactly where the next begins.
+    const edges = [lightsAt];
+    for (const s of song.sections) edges.push(edges.at(-1)! + sectionMs(s));
+    const at = edges.map(Math.round);
+    const items = song.sections.map((s, i) => ({ id: sectionIds[i]!, startMs: at[i]!, durationMs: at[i + 1]! - at[i]!, color: showColor(s) }));
+    showId = b.show(`${title} — with the recording`, songPath, song.bpm, [
+      { name: "Recording", items: [{ id: audioId, startMs: Math.max(0, -recording.offsetMs), durationMs: recording.durationMs, color: "#608053" }] },
+      { name: "Lights", items },
+    ]);
+  }
+
   // 3. Write functions into the workspace.
   insertChildren(engine, b.functions, ["Function"], ["Monitor"]);
 
@@ -755,7 +803,8 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   );
   removed += removeWhere(engine, (e) => e.name === "FixtureGroup" && textOf(firstChild(e, "Name")).trim().startsWith("Lightsmith: ") && !usedGroups.has(Number(getAttr(e, "ID"))));
 
-  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, sectionIds, startIds, controlNotes: [] };
+  const played = showId !== undefined ? { showId, recording: recording!.name } : {};
+  if (!buttons) return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: "", buttonsWhere: "", songChaserId, ...played, sectionIds, startIds, controlNotes: [] };
   const inputs = new ControlInputs(ws, control);
 
   // 4. Virtual Console: a solo frame with one button per section.
@@ -776,7 +825,9 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
   const stepPx = 90;
   const step = control?.cueing === "step";
   const rows = step ? 3 : Math.ceil(song.sections.length / perRow);
-  const width = step ? 580 : Math.min(song.sections.length, perRow) * stepPx + 20;
+  // With a recording, a button on the right plays the whole song along with it.
+  const playX = step ? 580 : Math.min(song.sections.length, perRow) * stepPx + 20;
+  const width = playX + (showId !== undefined ? stepPx : 0);
   const height = rows * stepPx + 46;
   const spot = placeFrame(page, width, height, previousSpot);
   const frame = el("SoloFrame", { Caption: frameCaption, ID: wid++ }, [
@@ -805,9 +856,21 @@ export function generateSong({ ws, profiles, rig, song, sequences = [], buttons 
         ]),
       );
     });
+  if (showId !== undefined) frame.children.push(playButton(wid++, showId, { Visible: "True", X: playX, Y: 40, Width: size, Height: size }));
   spot.parent.children.push(frame);
 
-  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, sectionIds, startIds, controlNotes: [...inputs.finish(), ...extraNotes] };
+  return { sections: song.sections.length, functions: b.functions.length, removedPrevious: removed, buttonsFrame: frameCaption, buttonsWhere: spot.where, songChaserId, ...played, sectionIds, startIds, controlNotes: [...inputs.finish(), ...extraNotes] };
+}
+
+/** A section's color on the Show Manager timeline: its first color, so the timeline looks like Lightsmith's. */
+function showColor(s: Section): string {
+  const c = s.colors[0] ? colorById(s.colors[0]).rgb : moodById(s.mood).colors[0] ? colorById(moodById(s.mood).colors[0]!).rgb : ([100, 100, 100] as RGB);
+  return `#${c.map((v) => clamp(v * 0.75).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The button that plays a song along with its recording, from the top. */
+function playButton(id: number, showId: number, box: { Visible: string; X: number; Y: number; Width: number; Height: number }, page?: number): XmlElement {
+  return el("Button", { Caption: "▶ With recording", ID: id, ...(page ? { Page: page } : {}) }, [el("WindowState", box), el("Function", { ID: showId }), textEl("Action", "Toggle")]);
 }
 
 /**
@@ -922,6 +985,8 @@ export interface SetSummary {
   buttonsFrame: string;
   buttonsWhere: string;
   controlNotes: string[];
+  /** Recordings the set's timelines play, which go next to the show file. */
+  recordings: string[];
 }
 
 /**
@@ -932,7 +997,7 @@ export interface SetSummary {
  * same section number in whichever song is showing. QLC+ answers external
  * input only for widgets on a frame's current page, in both its interfaces.
  */
-export function generateSet({ ws, profiles, rig, songs, sequences = [], control }: Omit<GenerateInput, "song" | "buttons"> & { songs: Song[] }): SetSummary {
+export function generateSet({ ws, profiles, rig, songs, sequences = [], control, withRecording = true }: Omit<GenerateInput, "song" | "buttons"> & { songs: Song[] }): SetSummary {
   if (!songs.length) throw new Error("The set has no songs in it.");
   if (songs.some((s) => songPathFor(s.title).toLowerCase() === songPathFor(SAFE_LOOK).toLowerCase())) throw new Error(`“${SAFE_LOOK}” is the name Lightsmith uses for its own safe look. Rename that song.`);
   const titles = new Map<string, string>();
@@ -958,7 +1023,8 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
     removed += removeWhere(ws.virtualConsole, (e) => e.name === "SoloFrame" && getAttr(e, "Caption") === SET_FRAME);
   }
 
-  const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false, neighbours: songs }) }));
+  const results = songs.map((song) => ({ song, r: generateSong({ ws, profiles, rig, song, sequences, buttons: false, neighbours: songs, withRecording }) }));
+  const anyShow = results.some(({ r }) => r.showId !== undefined);
   removed += results.reduce((n, { r }) => n + r.removedPrevious, 0);
   // The safe look: a plain warm wash with the heads at home, made the same way as any section.
   const safe = generateSong({ ws, profiles, rig, song: safeLookSong(control?.safeLookStyle), buttons: false, neighbours: songs });
@@ -981,7 +1047,8 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
   const stepPx = 90;
   const step = control?.cueing === "step";
   const most = Math.max(1, ...songs.map((s) => s.sections.length));
-  const rows = step ? 3 : Math.max(2, Math.ceil(most / perRow));
+  // Two rows at least for Safe look and Blackout; three when songs have a "with recording" button under them.
+  const rows = step ? 3 : Math.max(anyShow ? 3 : 2, Math.ceil(most / perRow));
   // Section buttons (or, with step cueing, the song's cue list) on the left;
   // Safe look and Blackout in a column on the right of every page.
   const listW = 560;
@@ -1046,6 +1113,9 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
         ...inputs.button(control?.blackout, "Blackout", scope),
       ]),
     );
+    if (r.showId !== undefined) {
+      frame.children.push(playButton(wid++, r.showId, page(sideX, 40 + 2 * stepPx), p));
+    }
   });
   spot.parent.children.push(frame);
 
@@ -1072,6 +1142,7 @@ export function generateSet({ ws, profiles, rig, songs, sequences = [], control 
     buttonsFrame: SET_FRAME,
     buttonsWhere: spot.where,
     controlNotes: [...inputs.finish(), ...clash, ...new Set(stepNotes)],
+    recordings: [...new Set(results.flatMap(({ r }) => (r.recording ? [r.recording] : [])))],
   };
 }
 

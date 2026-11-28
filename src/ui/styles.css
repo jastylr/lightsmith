@@ -2201,6 +2201,12 @@ body.is-resizing * {
 }
 
 /* ------------------------------------------------------------- export */
+/* An option for the export, under the songs: playing along with the recording. */
+.export-option {
+  padding: 0.9rem 1.25rem;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+}
 .export-card {
   display: flex;
   gap: 1.5rem;

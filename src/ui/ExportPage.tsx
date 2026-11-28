@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { checkWorkspace, formatClock, generateSet, generateSong, moodById, newId, parseWorkspace, PATH_ROOT, sectionMs, serializeWorkspace, setlistsOf, setMs, setOrder, songMs, songPathFor, type Setlist, type GenerateSummary, type Issue, type SetSummary, type Song } from "../core";
 import { cssColor } from "./ColorPicker";
-import { Dropdown, Segmented } from "./controls";
+import { Dropdown, Segmented, Toggle } from "./controls";
 import { startNewProject } from "./newProject";
 import { Icon } from "./icons";
 import { download, type Store } from "./store";
@@ -17,6 +17,8 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
   const [mode, setMode] = useState<Mode>(songs.length > 1 ? "set" : "song");
   const [result, setResult] = useState<Built | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // Songs with a recording can also get a timeline that plays along with it.
+  const [withRecording, setWithRecording] = useState(true);
   const unusable = useMemo(() => store.project.rig.fixtures.filter((f) => f.role !== "ignore" && !store.profiles.has(f.fixtureId)).length, [store.project.rig, store.profiles]);
 
   const { sets, current: set } = setlistsOf(store.project);
@@ -47,12 +49,12 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
     try {
       const ws = parseWorkspace(store.workspace.xml);
       if (mode === "set") {
-        const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences, control: store.project.control });
+        const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences, control: store.project.control, withRecording });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, PATH_ROOT);
         setResult({ mode, xml, summary, issues, title: set.name || "Set" });
       } else if (song) {
-        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control, neighbours: store.project.songs });
+        const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control, neighbours: store.project.songs, withRecording });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, songPathFor(song.title));
         setResult({ mode, xml, summary, issues, title: song.title });
@@ -68,6 +70,8 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
   const warnings = [...(result?.issues.filter((i) => i.level === "warning") ?? []), ...(result?.summary.controlNotes ?? []).map((message): Issue => ({ level: "warning", message }))];
   const fileName = result ? `${baseName} - ${result.title}.qxw` : "";
   const canBuild = mode === "set" ? inSet.length > 0 : !!song?.sections.length;
+  const recorded = (mode === "set" ? inSet : song ? [song] : []).filter((x) => x.audio).length;
+  const recordings = result ? (result.mode === "set" ? result.summary.recordings : result.summary.recording ? [result.summary.recording] : []) : [];
 
   return (
     <section className="page">
@@ -141,6 +145,20 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
         </div>
       )}
 
+      {recorded > 0 && (
+        <div className="export-option">
+          <Toggle
+            checked={withRecording}
+            onChange={(v) => {
+              setWithRecording(v);
+              setResult(null);
+            }}
+            label="Play along with the recording"
+            hint={`For ${recorded === 1 && mode === "song" ? "this song" : recorded === 1 ? "the 1 song with a recording" : `the ${recorded} songs with a recording`}: a timeline in QLC+'s Show Manager that plays the recording and every section in time with it, with a "▶ With recording" button to start it. Handy for songs played to a click or backing track.`}
+          />
+        </div>
+      )}
+
       {unusable > 0 && (
         <div className="notice warn">
           <Icon name="info" />
@@ -191,6 +209,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
               <li>Each button starts its section and stops whatever was running, even from the song before. Section 1 sits in the same spot on every page, as do section 2 and the rest, so a pad or footswitch can be set up once per spot.</li>
               <li>Every page also has Safe look (stops everything and brings up the steady wash you chose on the Show control page) and Blackout.</li>
               <li>{store.project.control?.devices.length ? "Your pads, switches and presets from Show control are already mapped to the buttons, the song arrows and the song pages. Keep the devices patched to the same universes in QLC+'s Inputs/Outputs." : "To start sections from pads and footswitches, set them up on the Show control step and export again."}</li>
+              {recordings.length > 0 && <RecordingSteps files={recordings} />}
               <li>If you exported single songs before, their own frames are replaced by the set. Songs you left out keep what they had.</li>
               <li>Check moving-head positions on the real rig, adjust them on the Stage step, and export again. The frame stays where you put it.</li>
             </ol>
@@ -203,6 +222,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
               <li>
                 To step through the song with one footswitch, add a Cue List widget and pick the chaser “{result.title} — song cues”. Then map your MIDI controller to it in QLC+.
               </li>
+              {recordings.length > 0 && <RecordingSteps files={recordings} />}
               <li>Check moving-head positions on the real rig, adjust their home positions on the Stage step, and export again.</li>
             </ol>
           )}
@@ -231,6 +251,26 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
         </div>
       </section>
     </section>
+  );
+}
+
+/** Where the recordings go, and how to play a song along with one. */
+function RecordingSteps({ files }: { files: string[] }) {
+  return (
+    <>
+      <li>
+        Put {files.length === 1 ? "the recording" : "the recordings"} in the same folder as the downloaded show file, with {files.length === 1 ? "its" : "their"} name{files.length === 1 ? "" : "s"} unchanged: {files.map((f, i) => (
+          <span key={f}>
+            {i ? ", " : ""}
+            <code>{f}</code>
+          </span>
+        ))}
+        . QLC+ looks for {files.length === 1 ? "it" : "them"} there (your browser can't tell QLC+ where the file{files.length === 1 ? " is" : "s are"} on your computer).
+      </li>
+      <li>
+        <strong>▶ With recording</strong> plays the song from the top: the recording, and every section at its place on the timeline. Press it again to stop. The same timeline is in QLC+'s Show Manager, named “… — with the recording”, if you'd like to see it or nudge it there (exporting again replaces it).
+      </li>
+    </>
   );
 }
 
