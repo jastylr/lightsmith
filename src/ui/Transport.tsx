@@ -5,7 +5,7 @@
  * signature, and the song's length. Click the bar number to go to a bar.
  */
 import { useState } from "react";
-import { msForBar, musicalPosition, sectionJump, type Section } from "../core";
+import { msForBar, musicalPosition, sectionJump, sectionMs as sectionMsOf, type Section } from "../core";
 import { TapTempo } from "./controls";
 import { Icon } from "./icons";
 
@@ -179,6 +179,71 @@ export function TransportBar({
           <strong>{clock(totalMs).replace(/\.\d$/, "")}</strong>
           <span className="lcd-label">Length</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A small transport for under the pinned preview: back to the previous
+ * section, play/pause, on to the next, where you are, and a bar to seek on.
+ */
+export function MiniTransport({ sections, posMs, totalMs, playing, onPlay, onSeek }: { sections: Section[]; posMs: number; totalMs: number; playing: boolean; onPlay: () => void; onSeek: (ms: number) => void }) {
+  const p = musicalPosition(sections, posMs, 120);
+  const section = sections[p.section];
+  const toMarker = (dir: -1 | 1) => {
+    const ms = sectionJump(sections, posMs, dir);
+    if (ms !== null) onSeek(ms);
+  };
+  const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
+  // Each section's share of the bar, so the sections show as segments.
+  let at = 0;
+  const marks = sections.map((x) => {
+    const start = at;
+    at += sectionMsOf(x);
+    return start;
+  });
+  return (
+    <div className="mini-transport" role="group" aria-label="Transport">
+      <div className="mini-buttons">
+        <button type="button" className="transport-btn" onClick={() => toMarker(-1)} aria-label="Previous section" title="Previous section">
+          <Icon name="chevronLeft" size={17} />
+        </button>
+        <button type="button" className={playing ? "transport-btn play on" : "transport-btn play"} onClick={onPlay} aria-label={playing ? "Pause" : "Play"} title={playing ? "Pause (Space)" : "Play (Space)"}>
+          <Icon name={playing ? "pause" : "play"} size={16} />
+        </button>
+        <button type="button" className="transport-btn" onClick={() => toMarker(1)} aria-label="Next section" title="Next section">
+          <Icon name="chevronRight" size={17} />
+        </button>
+      </div>
+      <div className="mini-where">
+        <strong>{section?.name ?? ""}</strong>
+        <span>
+          {clock(posMs)} / {clock(totalMs)}
+        </span>
+      </div>
+      <div
+        className="mini-bar"
+        role="slider"
+        tabIndex={0}
+        aria-label="Song position"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(totalMs / 1000)}
+        aria-valuenow={Math.round(posMs / 1000)}
+        aria-valuetext={`${clock(posMs)}, ${section?.name ?? ""}`}
+        onPointerDown={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          onSeek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * totalMs);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") onSeek(Math.min(totalMs, posMs + 5000));
+          else if (e.key === "ArrowLeft") onSeek(Math.max(0, posMs - 5000));
+          else return;
+          e.preventDefault();
+        }}
+      >
+        {marks.map((m, i) => (i ? <i key={i} className="mini-mark" style={{ left: `${(m / Math.max(1, totalMs)) * 100}%` }} /> : null))}
+        <span className="mini-fill" style={{ width: `${(posMs / Math.max(1, totalMs)) * 100}%` }} />
       </div>
     </div>
   );

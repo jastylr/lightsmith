@@ -165,7 +165,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
       {step ? (
         <section className="control-card no-print">
           <h2>Cues</h2>
-          <p className="hint">Any of these messages moves whichever song is showing on to its next section. Add every switch that marks a section change, such as each scene switch on a guitar modeler; leave out switches that don't. A section can also have a cue of its own, like the sample pad that starts it, in its Start and end card on the Songs page. Linked sections move on by themselves.</p>
+          <p className="hint">Any of these messages moves whichever song is showing on to its next section. Add every switch that marks a section change, such as each scene switch on a guitar modeler; leave out switches that don't. A section can also have a cue of its own, like the sample pad that starts it, in its Timing card on the Songs page. Linked sections move on by themselves.</p>
           <ol className="slot-list">
             {(control.cues ?? []).map((t, i) => (
               <li key={`${t.device}/${t.kind}/${t.number}/${i}`} className="slot-row">
@@ -198,7 +198,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
       ) : (
         <section className="control-card no-print">
           <h2>Sections</h2>
-          <p className="hint">One trigger per place in the song: the first starts section 1 of whichever song is showing, the second section 2, and so on. Set it up once for the whole set. A section can have its own trigger instead, in its Start and end card on the Songs page.</p>
+          <p className="hint">One trigger per place in the song: the first starts section 1 of whichever song is showing, the second section 2, and so on. Set it up once for the whole set. A section can have its own trigger instead, in its Timing card on the Songs page.</p>
           <ol className="slot-list">
             {Array.from({ length: slotCount }, (_, i) => {
               const names = songs.flatMap((s) => (s.sections[i] ? [s.sections[i]!.name] : []));

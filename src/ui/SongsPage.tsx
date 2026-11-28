@@ -97,7 +97,7 @@ import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
-import { songSignature, TransportBar } from "./Transport";
+import { MiniTransport, songSignature, TransportBar } from "./Transport";
 import { loadAudioFile, useSongAudio, type AudioTrack } from "./songAudio";
 import { StagePreview } from "./StagePreview";
 import type { Store } from "./store";
@@ -201,6 +201,13 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [transportSlot, setTransportSlot] = useState<HTMLDivElement | null>(null);
   // A second place for the transport: floating over the preview when it fills the screen.
   const [stageTransportSlot, setStageTransportSlot] = useState<HTMLDivElement | null>(null);
+  const [pinTransportSlot, setPinTransportSlot] = useState<HTMLDivElement | null>(null);
+  // The section list beside the editor: the timeline has every section too, so it's optional.
+  const [showList, setShowListState] = useState<boolean>(() => remembered(LIST_KEY, "0") === "1");
+  const setShowList = (on: boolean) => {
+    setShowListState(on);
+    remember(LIST_KEY, on ? "1" : "0");
+  };
   useEffect(() => setAudioError(null), [song?.id]);
 
   useEffect(() => {
@@ -416,6 +423,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           <Timeline
             transportSlot={transportSlot}
             stageTransportSlot={stageTransportSlot}
+            pinTransportSlot={pinTransportSlot}
             onTempo={setTempo}
             onSignature={setSignature}
             audioTrack={track}
@@ -425,16 +433,41 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             recording={(ctx) => <RecordingControls {...ctx} audio={song.audio} track={track} muted={muted} onMute={setMuted} onPick={() => filePick.current?.click()} onOffset={setOffset} onRemove={() => set({ audio: undefined })} busy={audioBusy} error={audioError} />}
             sequences={store.project.sequences ?? []}
             song={song} selected={playingId ?? stageId ?? selected} onSelect={choose} onPlaying={onPlaying} onPlayFrom={(section, at) => setReplay((r) => ({ n: r.n + 1, skip: false, at, section }))} onMove={move} onResize={(id, bars) => setSection(id, { bars })} onLink={(id, on) => setSection(id, { autoAdvance: on })} onDelete={remove} addButton={<AddSectionMenu onAdd={add} presets={store.project.presets ?? []} onAddPreset={addFromPreset} />} gesture={gesture} />
-          <div className="songs-body">
-            <div className="cue-panel">
-              <div className="cue-panel-head">
-                <h2>Sections</h2>
-                <span>Drag to reorder</span>
+          <div className={showList ? "songs-body with-list" : "songs-body"}>
+            {showList && (
+              <div className="cue-panel">
+                <div className="cue-panel-head">
+                  <h2>Sections</h2>
+                  <button type="button" className="ghost small icon-only" onClick={() => setShowList(false)} aria-label="Hide the section list" title="Hide the list (the timeline above has every section too)">
+                    <Icon name="chevronLeft" size={15} />
+                  </button>
+                </div>
+                <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
               </div>
-              <CueList song={song} selected={selected} onSelect={setSelected} onMove={move} onDuplicate={duplicate} onSplit={split} onDelete={remove} gesture={gesture} />
-            </div>
+            )}
             {current && (
-              <LookEditor key={current.id} stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
+              <LookEditor
+                key={current.id}
+                pinTransportRef={setPinTransportSlot}
+                sectionActions={
+                  <div className="editor-actions">
+                    {!showList && (
+                      <button type="button" className="ghost small" onClick={() => setShowList(true)} title="Show the sections as a list beside the editor">
+                        <Icon name="list" size={15} /> List
+                      </button>
+                    )}
+                    <button type="button" className="icon-button" onClick={() => split(current)} aria-label={`Split ${current.name} into two linked parts`} title="Split into two linked halves: same look, one cue plays both">
+                      <Icon name="split" size={16} />
+                    </button>
+                    <button type="button" className="icon-button" onClick={() => duplicate(current)} aria-label={`Duplicate ${current.name}`} title="Duplicate this section">
+                      <Icon name="copy" size={16} />
+                    </button>
+                    <button type="button" className="icon-button danger" onClick={() => remove(current)} aria-label={`Delete ${current.name}`} title="Delete this section">
+                      <Icon name="trash" size={16} />
+                    </button>
+                  </div>
+                }
+                stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
             {popped && current && (
               <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
@@ -583,9 +616,12 @@ function Timeline({
   recording,
   transportSlot,
   stageTransportSlot,
+  pinTransportSlot,
   onTempo,
   onSignature,
 }: {
+  /** Under the pinned preview: a small transport, so you can play without scrolling up. */
+  pinTransportSlot?: HTMLElement | null;
   onTempo: (bpm: number) => void;
   onSignature: (beatsPerBar: number) => void;
   /** Where the transport bar goes (above the timeline, in the song's header). */
@@ -1016,6 +1052,7 @@ function Timeline({
                     className={`block${isBlackout(s) ? " blackout" : ""}${selected === s.id ? " on" : ""}${dragging === s.id ? " dragging" : ""}${resizing?.id === s.id ? " resizing" : ""}`}
                     style={{ width: w, ...cssVars({ "--h": `${38 + s.energy * 12}%`, "--g": `linear-gradient(90deg, ${pal.join(", ")})` }) }}
                     tabIndex={0}
+                    title={`${s.name}: ${isBlackout(s) ? "blackout" : moodById(s.mood).label}, ${lengthLabel(s)}, ${fmt(ms)}`}
                     aria-label={`${s.name}, ${lengthLabel(s)}, ${fmt(ms)}. Enter to edit, Alt and arrows to move, Shift and arrows to change the length, Delete to remove.`}
                     onPointerDown={h.onPointerDown}
                     onKeyDown={(e) => {
@@ -1105,6 +1142,7 @@ function Timeline({
       </div>
       <div className="timeline-foot">
         {transportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, transportSlot)}
+        {!stageFullScreen && pinTransportSlot && createPortal(<MiniTransport sections={song.sections} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} />, pinTransportSlot)}
         {stageFullScreen && stageTransportSlot && createPortal(<TransportBar sections={song.sections} songBpm={song.bpm} posMs={pos} totalMs={totalMs} playing={playing} onPlay={togglePlay} onSeek={seek} onTempo={onTempo} onSignature={onSignature} />, stageTransportSlot)}
         {recording({ playheadMs: pos, tall, onTall: setTall })}
         {!audio && <p className="hint">Drag a block to reorder it, or its right edge to change its length. Select one and press Delete to remove it.</p>}
@@ -1517,9 +1555,15 @@ function LookEditor({
   previewSection,
   previewPlaying,
   stageTransportRef,
+  pinTransportRef,
   others,
   onCopyLookTo,
+  sectionActions,
 }: {
+  /** Split, duplicate and delete, beside the section's name. */
+  sectionActions?: ReactNode;
+  /** Where a small transport sits under the pinned preview. */
+  pinTransportRef?: (el: HTMLDivElement | null) => void;
   /** The song's other sections (not blackouts), to copy this look to. */
   others?: Section[];
   onCopyLookTo?: (ids: string[]) => void;
@@ -1651,6 +1695,17 @@ function LookEditor({
   ].filter(Boolean);
   const typeDefault = sectionTypeById(s.type).transition;
   const transitionLabel = blackout ? (s.transition === "snap" ? "Cut to black" : "Fade to black") : s.transition === "snap" ? "Changes instantly" : `Fades in over ${fadeChoices(s).find((c) => c.beats === fadeBeatsOf(s))?.label.toLowerCase() ?? `${fadeBeatsOf(s)} beats`}`;
+  // ---- Simple / Full: what shows. Hidden settings keep working;
+  // a card says when it has some in use, and "More options" shows them here.
+  const { level } = useLevel();
+  const [peek, setPeek] = useState<Set<string>>(new Set());
+  const sees = (id: string, min: Level) => atLeast(level, min) || peek.has(id);
+  const more = (id: string, items: [Level, boolean][]) => {
+    const hidden = items.filter(([min]) => !sees(id, min));
+    if (!hidden.length) return null;
+    const used = hidden.filter(([, set]) => set).length;
+    return <MoreOptions used={used} onShow={() => setPeek(new Set(peek).add(id))} />;
+  };
   const cards: Record<string, { summary: string; changed: boolean }> = {
     mood: { summary: `${mood.label}, ${lower(energyOf(s.energy).label)} energy${Object.keys(s.brightness ?? {}).length ? ", own brightness" : ""}`, changed: Object.keys(s.brightness ?? {}).length > 0 },
     colors: {
@@ -1676,15 +1731,22 @@ function LookEditor({
     },
     // Effects: the built-in effects and any chasers, both layered on top of the look.
     effects: {
-      summary: [...effectsOn.map((e) => e.label), ...usedSequences.map((q) => q.name)].join(", ") || "None",
-      changed: effectsOn.length > 0 || usedSequences.length > 0,
+      summary: effectsOn.map((e) => e.label).join(", ") || "None",
+      changed: effectsOn.length > 0,
+    },
+    chasers: {
+      summary: usedSequences.map((q) => q.name).join(", ") || "None",
+      changed: usedSequences.length > 0,
     },
     timing: {
       summary: `${transitionLabel} · ${s.autoAdvance && nextSection ? `goes straight into ${nextSection.name}` : prevSection?.autoAdvance ? `linked after ${prevSection.name}` : "waits for the next cue"}${control?.cueing === "step" ? (s.trigger ? ` · ${triggerText(s.trigger, control)}` : "") : triggerFor(control, s, index) ? ` · ${triggerText(triggerFor(control, s, index), control)}` : ""}`,
       changed: s.transition !== typeDefault || s.autoAdvance || !!s.trigger,
     },
   };
-  const visibleCards = blackout ? ["timing"] : Object.keys(cards);
+  const showChasers = sees("sequences", "full") || (s.sequences ?? []).length > 0;
+  const visibleCards = blackout ? ["timing"] : Object.keys(cards).filter((id) => id !== "chasers" || showChasers);
+  // The cards come in five steps, in the order a look is usually built.
+  const visibleSteps = STEPS.filter((st) => st.cards.some((c) => visibleCards.includes(c)));
   // ---- Tabs: one card at a time, or "All" for the long page with every card.
   const [tab, setTabState] = useState<string>(rememberedTab);
   const [loop, setLoopState] = useState<boolean>(rememberedLoop);
@@ -1699,7 +1761,7 @@ function LookEditor({
   const card = (id: string) => ({
     ...cards[id]!,
     id,
-    hidden: tab !== "all" && id !== shownTab,
+    hidden: tab !== "all" && !STEPS.find((st) => st.id === shownTab)?.cards.includes(id),
     closed: tab === "all" && closed.has(id),
     onToggle:
       tab === "all"
@@ -1713,17 +1775,6 @@ function LookEditor({
   });
   const allClosed = visibleCards.every((id) => closed.has(id));
 
-  // ---- Simple / Full: what shows. Hidden settings keep working;
-  // a card says when it has some in use, and "More options" shows them here.
-  const { level } = useLevel();
-  const [peek, setPeek] = useState<Set<string>>(new Set());
-  const sees = (id: string, min: Level) => atLeast(level, min) || peek.has(id);
-  const more = (id: string, items: [Level, boolean][]) => {
-    const hidden = items.filter(([min]) => !sees(id, min));
-    if (!hidden.length) return null;
-    const used = hidden.filter(([, set]) => set).length;
-    return <MoreOptions used={used} onShow={() => setPeek(new Set(peek).add(id))} />;
-  };
   const shape = s.moverShape ?? {};
   // A floor head at tilt 128 points straight up; pan then only turns the
   // beam round its own axis, so a sweep or circle shrinks to a small wobble.
@@ -1735,13 +1786,12 @@ function LookEditor({
     onChange({ moverShape: Object.keys(next).length ? next : undefined });
   };
   const showOwnLights = sees("lights", "full") || ownLights > 0;
-  const showChasers = sees("sequences", "full") || (s.sequences ?? []).length > 0;
 
   // ---- the bar that stays at the top: jump to a card, see which one you're in,
   // and a small copy of the preview once the big one has scrolled away.
-  const navIds = visibleCards;
+  const navIds = visibleSteps.map((st) => st.id);
   const navRef = useRef<HTMLDivElement>(null);
-  // The tab you picked, or the first one this section has (a blackout has only Start and end).
+  // The tab you picked, or the first one this section has (a blackout has only Timing).
   const shownTab = tab === "all" ? null : navIds.includes(tab) ? tab : (navIds[0] ?? null);
   const [previewGone, setPreviewGone] = useState(false);
   useEffect(() => {
@@ -1754,13 +1804,23 @@ function LookEditor({
     io.observe(el);
     return () => io.disconnect();
   }, [popped]);
+  /** Go to a step, or to a card (opening the step it's in and scrolling to it). */
   const pickTab = (id: string) => {
-    setTab(id);
-    // If you've scrolled down, bring the top of the new tab up under the bar.
-    const host = navRef.current?.parentElement;
-    if (host && host.getBoundingClientRect().top < 0) {
-      requestAnimationFrame(() => window.scrollTo({ top: window.scrollY + host.getBoundingClientRect().top, behavior: "auto" }));
+    const step = id === "all" ? undefined : STEPS.find((st) => st.id === id || st.cards.includes(id));
+    const isCard = !!step && step.id !== id;
+    if (isCard && tab === "all") {
+      document.getElementById(`card-${id}`)?.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" });
+      return;
     }
+    setTab(step?.id ?? id);
+    // If you've scrolled down, bring the top of the new step up under the bar,
+    // or the card that was asked for.
+    requestAnimationFrame(() => {
+      const card = isCard && step!.cards[0] !== id ? document.getElementById(`card-${id}`) : null;
+      if (card) return card.scrollIntoView({ behavior: reduceMotionPref() ? "auto" : "smooth", block: "start" });
+      const host = navRef.current?.parentElement;
+      if (host && host.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + host.getBoundingClientRect().top, behavior: "auto" });
+    });
   };
 
   return (
@@ -1768,10 +1828,32 @@ function LookEditor({
       <header className="editor-head">
         <span className="editor-num">{index + 1}</span>
         <input className="editor-name" aria-label="Section name" value={s.name} onChange={(e) => onChange({ name: e.target.value })} />
+        <div className="editor-type" title="The kind of section. Changing it sets a matching mood, energy and start.">
+          <Dropdown
+            label="Section type"
+            className="type-pick"
+            value={s.type}
+            options={SECTION_TYPES.map((t) => ({ value: t.id, label: t.label }))}
+            onChange={(type) => {
+              const t = sectionTypeById(type);
+              const renamed = SECTION_TYPES.some((x) => x.label === s.name) || !s.name;
+              onChange({ type: t.id, ...(renamed ? { name: t.label } : {}), mood: t.mood, energy: t.energy, transition: t.transition });
+            }}
+          />
+        </div>
+        <div className="editor-head-actions">
+          {!blackout && onCopyLookTo && others && others.length > 0 && <CopyLook s={s} others={others} onCopy={onCopyLookTo} />}
+          {sectionActions}
+        </div>
       </header>
 
       <div className="editor-grid">
         <div className="editor-preview">
+          <div className="stage-caption" aria-hidden="true">
+            <span className="card-nav-num">{index + 1}</span>
+            <strong>{s.name || "Untitled section"}</strong>
+            <span className="swatch-row">{blackout ? <i className="hatch" /> : paletteOf(s).map((c, k) => <i key={k} style={{ background: c }} />)}</span>
+          </div>
           {popped ? (
             <div className="preview-docked">
               <Icon name="popout" size={16} />
@@ -1814,50 +1896,17 @@ function LookEditor({
                     }}
                     title="Fill the screen with the preview (Esc to come back)"
                   >
-                    <Icon name="expand" size={15} /> Full screen
+                    <Icon name="expand" size={15} /> <span className="tool-label">Full screen</span>
                   </button>
                   <button type="button" className="preview-popout" onClick={onPopOut} title="Open the preview in a floating window you can move and resize">
-                    <Icon name="popout" size={15} /> Pop out
+                    <Icon name="popout" size={15} /> <span className="tool-label">Pop out</span>
                   </button>
                 </div>
               </div>
               <figcaption className="hint">{blackout ? "A blackout: a gap, a pause or a dramatic stop with no lights." : "A sketch of this section on your stage, at its tempo."}</figcaption>
             </figure>
           )}
-          <div className="timing-row">
-            <Field label="Section type">
-              <Dropdown
-                label="Section type"
-                value={s.type}
-                options={SECTION_TYPES.map((t) => ({ value: t.id, label: t.label }))}
-                onChange={(type) => {
-                  const t = sectionTypeById(type);
-                  const renamed = SECTION_TYPES.some((x) => x.label === s.name) || !s.name;
-                  onChange({ type: t.id, ...(renamed ? { name: t.label } : {}), mood: t.mood, energy: t.energy, transition: t.transition });
-                }}
-              />
-            </Field>
-            <Field label="Section tempo" hint={s.bpm === songBpm ? "Same as the song" : undefined}>
-              <span className="tempo-pair">
-                <NumberInput label="Section tempo in BPM" value={s.bpm} min={30} max={300} onChange={(bpm) => onChange({ bpm })} />
-                <TapTempo label="Section tempo" onTempo={(bpm) => onChange({ bpm })} />
-              </span>
-              {s.bpm !== songBpm && (
-                <button type="button" className="link small tempo-reset" onClick={() => onChange({ bpm: songBpm })} title="Use the song tempo for this section">
-                  Reset to {songBpm}
-                </button>
-              )}
-            </Field>
-            <Field label="Length" hint={lengthLabel(s).includes("+") ? lengthLabel(s).slice(lengthLabel(s).indexOf("+")) : undefined}>
-              <NumberInput label="Length in whole bars" value={Math.max(1, Math.floor(s.bars + 1e-6))} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + Math.max(0, s.bars - Math.floor(s.bars + 1e-6)) })} />
-            </Field>
-            <Field label="In time" hint="Like QLC+: 1m05s200ms. Kept exactly, to 10 ms.">
-              <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForLength(ms, s, "off") })} />
-            </Field>
-            <Field label="Beats per bar">
-              <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />
-            </Field>
-          </div>
+          <div className="pin-transport" ref={pinTransportRef} />
         </div>
 
         <div className="editor-controls">
@@ -1872,7 +1921,10 @@ function LookEditor({
               </>
             }
             items={[
-              ...navIds.map((id) => ({ id, label: CARD_LABELS[id]?.label ?? id, icon: CARD_LABELS[id]?.icon ?? "list", changed: cards[id]!.changed, summary: cards[id]!.summary })),
+              ...visibleSteps.map((st) => {
+                const own = st.cards.filter((c) => visibleCards.includes(c));
+                return { id: st.id, label: st.label, icon: st.icon, changed: own.some((c) => cards[c]!.changed), summary: own.map((c) => `${CARD_LABELS[c]?.label ?? c}: ${cards[c]!.summary}`).join("; ") };
+              }),
               ...(navIds.length > 1 ? [{ id: "all", label: "All", icon: "stack" as IconName, changed: false, summary: "" }] : []),
             ]}
             active={shownTab ?? "all"}
@@ -1885,10 +1937,9 @@ function LookEditor({
               ) : null
             }
             onPlay={previewGone || popped ? () => onReplay(false) : undefined}
-            actions={!blackout && onCopyLookTo && others && others.length > 0 ? <CopyLook s={s} others={others} onCopy={onCopyLookTo} /> : null}
           />
-          {/* Presets are whole looks, so they sit with the overall feel: on the Mood tab (and All). */}
-          {!blackout && (tab === "all" || shownTab === "mood") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
+          {/* Presets are whole looks, so they sit with the overall feel: on the Look step (and All). */}
+          {!blackout && (tab === "all" || shownTab === "look") && <PresetBar s={s} presets={presets} onSection={onChange} onPresets={onPresets} />}
           {tab === "all" && (
             <div className="cards-bar">
               <button
@@ -1967,42 +2018,6 @@ function LookEditor({
             {more("colors", [["full", s.colorFade || Object.keys(s.colorLayout ?? {}).length > 0 || Object.keys(s.colorSwitch ?? {}).length > 0 || Object.keys(s.colorRates ?? {}).length > 0]])}
           </Group>
 
-          <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above. In Full, you can also enter values for channels Lightsmith doesn't set itself.">
-            <h4 className="subhead">Focus</h4>
-            <p className="hint">For a solo or a quiet verse: the lights on that side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.</p>
-            <Segmented
-              label="Who to light"
-              value={s.focus}
-              onChange={(focus: Focus) => onChange({ focus })}
-              options={[
-                { value: "all", label: "No focus" },
-                ...focusOptions.map((f) => ({ value: f.side, label: sideName[f.side], disabled: f.ids.length === 0, title: f.ids.length ? undefined : `No lights on ${sideName[f.side].toLowerCase()}` })),
-              ]}
-            />
-            <p className="hint">
-              {s.focus === "all"
-                ? "Stage left and right are the performers' left and right, so stage left is on the right as the audience sees it."
-                : focusIds.length
-                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}. Lights you've switched off stay off.`
-                  : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
-            </p>
-            {showOwnLights ? (
-              <>
-                <h4 className="subhead">Individual lights</h4>
-                <p className="hint">Give particular lights their own color or brightness, or switch them off, for this section.</p>
-                <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
-              </>
-            ) : (
-              more("lights", [["full", ownLights > 0 || hasExtras]])
-            )}
-            {(sees("lights", "full") || hasExtras) && (
-              <>
-                <h4 className="subhead">Extra channels (values from QLC+)</h4>
-                <p className="hint">For the channels Lightsmith doesn't set itself, such as a moving head's bee-eye or LED ring, or a panel's built-in programs. The preview can't show these, so find the values you like in QLC+'s Simple Desk with the real lights on, then enter them here. Lightsmith sends them with this section on every export, and puts them back to rest in the sections that leave them unset.</p>
-                <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
-              </>
-            )}
-          </Group>
 
           <Group card={card("pattern")} icon="backdrop" title="Pattern" description="An animated pattern, like waves or rain, that runs across a set of lights. It works best on bars or pixel lights.">
             <Dropdown label="Pattern" value={s.pattern} options={patternOptions} onChange={(p) => onChange({ pattern: p })} className="wide" />
@@ -2134,7 +2149,7 @@ function LookEditor({
             )}
           </Group>
 
-          <Group card={card("effects")} icon="sparkle" title="Effects" description="Extras layered on top of the look and pattern: hits and flashes, then your chasers. Each effect runs on its usual lights; click the lights chip on an effect to choose others.">
+          <Group card={card("effects")} icon="sparkle" title="Effects" description="Hits and flashes layered on top of the look and pattern. Each effect runs on its usual lights; click the lights chip on an effect to choose others.">
             <div className="effects">
               {EFFECTS.map((e) => {
                 const on = !!s.effects[e.id];
@@ -2225,21 +2240,77 @@ function LookEditor({
               </div>
             )}
             {effectsOn.length > 0 && more("effects", [["full", Object.keys(s.effectTargets ?? {}).length > 0 || !!s.effects.lightningDelaySec || !!s.effects.strobeColor || !!s.effects.strobeOnly || !!s.effects.strobeRate]])}
-            {showChasers ? (
+            {!showChasers && more("sequences", [["full", usedSequences.length > 0]])}
+          </Group>
+          {showChasers && (
+            <Group card={card("chasers")} icon="list" title="Chasers" description="Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.">
+              <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
+            </Group>
+          )}
+          <Group card={card("lights")} icon="stage" title="Lights" description="Put one player in the spotlight, or give particular lights settings of their own. Everything else keeps following the mood and the settings above. In Full, you can also enter values for channels Lightsmith doesn't set itself.">
+            <h4 className="subhead">Focus</h4>
+            <p className="hint">For a solo or a quiet verse: the lights on that side go warm white at full brightness, even if they have their own color; the other side, floor and moving-head lights dim to half.</p>
+            <Segmented
+              label="Who to light"
+              value={s.focus}
+              onChange={(focus: Focus) => onChange({ focus })}
+              options={[
+                { value: "all", label: "No focus" },
+                ...focusOptions.map((f) => ({ value: f.side, label: sideName[f.side], disabled: f.ids.length === 0, title: f.ids.length ? undefined : `No lights on ${sideName[f.side].toLowerCase()}` })),
+              ]}
+            />
+            <p className="hint">
+              {s.focus === "all"
+                ? "Stage left and right are the performers' left and right, so stage left is on the right as the audience sees it."
+                : focusIds.length
+                  ? `Spotlight from: ${focusIds.map((id) => nameOf.get(id)).join(", ")}. Lights you've switched off stay off.`
+                  : `No lights on ${sideName[s.focus].toLowerCase()} can do this.`}
+            </p>
+            {showOwnLights ? (
               <>
-                <h4 className="subhead">Chasers</h4>
-                <p className="hint">Step-by-step chasers you build or import from your show file. They run on top of this section's look, and become QLC+ chasers when you export.</p>
-                <SequencesCard usedIn={chaserUses} s={s} sequences={sequences} rig={rig} profiles={profiles} lights={lights} showFile={showFile} palette={palette} onSection={onChange} onSequences={onSequences} onPlay={playInView} />
+                <h4 className="subhead">Individual lights</h4>
+                <p className="hint">Give particular lights their own color or brightness, or switch them off, for this section.</p>
+                <IndividualLights s={s} rig={rig} lights={lights} palette={s.colors.length ? s.colors : mood.colors} onChange={onChange} onCopy={onCopyLights} gesture={gesture} />
               </>
             ) : (
-              more("sequences", [["full", usedSequences.length > 0]])
+              more("lights", [["full", ownLights > 0 || hasExtras]])
+            )}
+            {(sees("lights", "full") || hasExtras) && (
+              <>
+                <h4 className="subhead">Extra channels (values from QLC+)</h4>
+                <p className="hint">For the channels Lightsmith doesn't set itself, such as a moving head's bee-eye or LED ring, or a panel's built-in programs. The preview can't show these, so find the values you like in QLC+'s Simple Desk with the real lights on, then enter them here. Lightsmith sends them with this section on every export, and puts them back to rest in the sections that leave them unset.</p>
+                <ExtraChannelsEditor s={s} lights={lights} profiles={profiles} onChange={(extras) => onChange({ extras })} gesture={gesture} />
+              </>
             )}
           </Group>
 
             </>
           )}
 
-          <Group card={card("timing")} icon="play" title="Start and end" description="How the lights change when this section begins, and what moves the show on to the next section.">
+          <Group card={card("timing")} icon="play" title="Timing" description="The section's length and tempo, how the lights change when it begins, and what moves the show on to the next section.">
+            <h4 className="subhead first">Length and tempo</h4>
+            <div className="timing-row section-facts">
+              <Field label="Section tempo" hint={s.bpm === songBpm ? "Same as the song" : undefined}>
+                <span className="tempo-pair">
+                  <NumberInput label="Section tempo in BPM" value={s.bpm} min={30} max={300} onChange={(bpm) => onChange({ bpm })} />
+                  <TapTempo label="Section tempo" onTempo={(bpm) => onChange({ bpm })} />
+                </span>
+                {s.bpm !== songBpm && (
+                  <button type="button" className="link small tempo-reset" onClick={() => onChange({ bpm: songBpm })} title="Use the song tempo for this section">
+                    Reset to {songBpm}
+                  </button>
+                )}
+              </Field>
+              <Field label="Length" hint={lengthLabel(s).includes("+") ? lengthLabel(s).slice(lengthLabel(s).indexOf("+")) : undefined}>
+                <NumberInput label="Length in whole bars" value={Math.max(1, Math.floor(s.bars + 1e-6))} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + Math.max(0, s.bars - Math.floor(s.bars + 1e-6)) })} />
+              </Field>
+              <Field label="In time" hint="Like QLC+: 1m05s200ms. Kept exactly, to 10 ms.">
+                <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForLength(ms, s, "off") })} />
+              </Field>
+              <Field label="Beats per bar">
+                <Dropdown label="Beats per bar" value={String(s.beatsPerBar)} options={["2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))} onChange={(v) => onChange({ beatsPerBar: +v })} />
+              </Field>
+            </div>
             <h4 className="subhead">When this section starts, the lights…</h4>
             {blackout ? (
               <ChoiceCards
@@ -2546,11 +2617,12 @@ function rememberView(v: PreviewView) {
 const TAB_KEY = "lightsmith.tab.v1";
 function rememberedTab(): string {
   try {
-    // Focus and Chasers became parts of the Lights and Effects tabs.
-    const t = localStorage.getItem(TAB_KEY) ?? "mood";
-    return t === "focus" ? "lights" : t === "sequences" ? "effects" : t;
+    // The old one-card tabs now live in the five steps.
+    const t = localStorage.getItem(TAB_KEY) ?? "look";
+    const old: Record<string, string> = { mood: "look", colors: "look", pattern: "motion", movers: "motion", effects: "accents", sequences: "accents", focus: "lights" };
+    return old[t] ?? t;
   } catch {
-    return "mood";
+    return "look";
   }
 }
 function rememberTab(id: string) {
@@ -2569,8 +2641,18 @@ const CARD_LABELS: Record<string, { label: string; icon: IconName }> = {
   pattern: { label: "Pattern", icon: "backdrop" },
   movers: { label: "Moving heads", icon: "mover" },
   effects: { label: "Effects", icon: "sparkle" },
-  timing: { label: "Start and end", icon: "play" },
+  chasers: { label: "Chasers", icon: "list" },
+  timing: { label: "Timing", icon: "play" },
 };
+
+/** The section editor's steps, in the order a look is usually built; each holds one or more cards. */
+const STEPS: { id: string; label: string; icon: IconName; cards: string[] }[] = [
+  { id: "look", label: "Look", icon: "sun", cards: ["mood", "colors"] },
+  { id: "motion", label: "Motion", icon: "mover", cards: ["pattern", "movers"] },
+  { id: "accents", label: "Accents", icon: "sparkle", cards: ["effects", "chasers"] },
+  { id: "lights", label: "Lights", icon: "stage", cards: ["lights"] },
+  { id: "timing", label: "Timing", icon: "play", cards: ["timing"] },
+];
 
 /**
  * The bar that stays at the top of the settings while you scroll: one button
@@ -2678,4 +2760,20 @@ function fadeHint(s: Section): string {
   const whole = fadeBeatsOf(s) * (60000 / s.bpm) >= sectionMs(s);
   const sec = Math.round(ms / 100) / 10;
   return whole ? `Longer than the section, so the look keeps rising through all of it (${sec} s).` : `About ${sec} s at ${Math.round(s.bpm * 10) / 10} BPM.`;
+}
+
+const LIST_KEY = "lightsmith.sectionList.v1";
+function remembered(key: string, fallback: string): string {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* not remembered; fine */
+  }
 }
