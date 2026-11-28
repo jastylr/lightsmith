@@ -19,7 +19,24 @@ export function App() {
   const store = useLightsmith();
   const ready = store.fixtures.length > 0;
   const [step, setStep] = useState<StepId>(ready ? "songs" : "import");
-  const [songId, setSongId] = useState<string>(store.project.songs[0]?.id ?? "");
+  // The song you were on, so a refresh comes back to it.
+  const [songId, setSongIdState] = useState<string>(() => {
+    try {
+      const last = localStorage.getItem(SONG_KEY);
+      if (last && store.project.songs.some((x) => x.id === last)) return last;
+    } catch {
+      /* fine */
+    }
+    return store.project.songs[0]?.id ?? "";
+  });
+  const setSongId = (id: string) => {
+    setSongIdState(id);
+    try {
+      localStorage.setItem(SONG_KEY, id);
+    } catch {
+      /* not remembered; fine */
+    }
+  };
   // Without a show file only the first step is open (after starting a new project, say).
   useEffect(() => {
     if (!ready && step !== "import") setStep("import");
@@ -243,3 +260,5 @@ function LevelSwitch() {
     </div>
   );
 }
+
+const SONG_KEY = "lightsmith.song.v1";

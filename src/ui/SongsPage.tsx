@@ -144,7 +144,14 @@ const EFFECT_ICON: Record<EffectId, IconName> = { lightning: "bolt", blinder: "s
 export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; songId: string; setSongId: (id: string) => void; onNext: () => void }) {
   const songs = store.project.songs;
   const song = songs.find((s) => s.id === songId) ?? songs[0];
-  const [selected, setSelected] = useState<string | null>(song?.sections[0]?.id ?? null);
+  // The section you were on (remembered across a refresh), else the first.
+  const [selected, setSelected] = useState<string | null>(() => {
+    const last = remembered(SECTION_KEY, "");
+    return song?.sections.some((x) => x.id === last) ? last : (song?.sections[0]?.id ?? null);
+  });
+  useEffect(() => {
+    if (selected) remember(SECTION_KEY, selected);
+  }, [selected]);
   // While the song plays, the section under the playhead. Only the timeline's
   // highlight and the preview follow it: switching the whole settings panel at
   // every section change rebuilds hundreds of elements and stalls the
@@ -2956,6 +2963,7 @@ function fadeHint(s: Section): string {
 }
 
 const LIST_KEY = "lightsmith.sectionList.v1";
+const SECTION_KEY = "lightsmith.section.v1";
 function remembered(key: string, fallback: string): string {
   try {
     return localStorage.getItem(key) ?? fallback;

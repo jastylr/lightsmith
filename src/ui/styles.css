@@ -7198,3 +7198,15 @@ dialog.library[open] {
 .tool-btn.feature {
   padding: 0 1rem 0 0.8rem;
 }
+.library-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--tungsten) 12%, var(--house));
+  color: var(--text);
+  font-size: 0.88rem;
+}

@@ -29,7 +29,9 @@ export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: 
       /* fine */
     }
   };
-  const [onlyKind, setOnlyKind] = useState(true);
+  // A custom section isn't any particular kind, so every look suits it.
+  const anyKind = s.type === "custom";
+  const [onlyKind, setOnlyKind] = useState(!anyKind);
   const [picked, setPicked] = useState<LibraryLook | null>(null);
   useEffect(() => {
     const d = ref.current;
@@ -39,7 +41,10 @@ export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: 
   const kind = sectionTypeById(s.type).label;
   const all = libraryFor(genre === "classic" ? undefined : genre, onlyKind ? s.type : undefined).filter((l) => genre !== "classic" || l.genres.includes("classic"));
   const suits = (l: LibraryLook) => l.roles.includes(s.type) || (s.type === "prechorus" && l.roles.includes("bridge")) || (s.type === "breakdown" && l.roles.includes("bridge"));
-  const shown = onlyKind ? all.filter(suits) : all;
+  const filtered = onlyKind ? all.filter(suits) : all;
+  // Nothing made for this kind in this genre: show the genre's others rather than an empty page.
+  const fellBack = onlyKind && filtered.length === 0;
+  const shown = fellBack ? libraryFor(genre === "classic" ? undefined : genre).filter((l) => genre !== "classic" || l.genres.includes("classic")) : filtered;
   const preview = picked ? applyLibraryLook(s, picked) : s;
 
   return (
@@ -62,14 +67,22 @@ export function LookLibraryDialog({ s, rig, sequences, onApply, onClose }: { s: 
               </button>
             ))}
           </div>
-          <label className="library-kind">
-            <input type="checkbox" checked={onlyKind} onChange={(e) => setOnlyKind(e.target.checked)} />
-            Only looks that suit a {kind.toLowerCase()}
-          </label>
+          {anyKind ? (
+            <p className="library-kind">A custom section can take any look, so every look is shown. Give the section a type (intro, verse, chorus…) to see the ones made for it first.</p>
+          ) : (
+            <label className="library-kind">
+              <input type="checkbox" checked={onlyKind} onChange={(e) => setOnlyKind(e.target.checked)} />
+              Only looks that suit a {kind.toLowerCase()}
+            </label>
+          )}
         </div>
         <div className="library-body">
           <div className="library-grid" role="listbox" aria-label="Looks">
-            {shown.length === 0 && <p className="hint">No {genre === "any" ? "" : `${GENRES.find((g) => g.id === genre)?.label ?? ""} `}looks made for a {kind.toLowerCase()} yet. Untick "Only looks that suit" to see them all.</p>}
+            {fellBack && (
+              <p className="library-note">
+                <Icon name="info" size={15} /> No {genre === "any" ? "" : `${GENRES.find((g) => g.id === genre)?.label ?? ""} `}looks are made for a {kind.toLowerCase()}, so here are all of them.
+              </p>
+            )}
             {shown.map((l) => {
               const on = picked?.id === l.id;
               const move = MOVEMENTS.find((m) => m.id === l.look.movement);
