@@ -13,6 +13,13 @@ import {
   generateSong,
   generateSet,
   safeLookSong,
+  buildSong,
+  planFromTemplate,
+  planFromMarks,
+  renumber,
+  VIBES,
+  ARCS,
+  MOODS,
   coachSong,
   variationsOf,
   effectiveLook,
@@ -1485,4 +1492,31 @@ test("variations: three different looks, repeatable for a seed", () => {
   assert.notDeepEqual(a[1]!.patch.colors, effectiveLook(s).palette);
   assert.equal(a[2]!.patch.energy, 4);
   assert.equal(variationsOf({ ...s, energy: 5 }, 1, { hasMovers: false })[2]!.id, "calmer");
+});
+
+test("song builder: structure, vibe, arc and moments make the sections", () => {
+  const plan = { bpm: 120, beatsPerBar: 4, sections: planFromTemplate("bridge"), vibe: "rock", arc: "punch", moments: ["ending", "cutChorus", "sweep", "strobePeak", "blinder"] };
+  assert.deepEqual(plan.sections.map((s) => s.name), ["Intro", "Verse 1", "Chorus 1", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"]);
+  const secs = buildSong(plan, { hasMovers: true });
+  assert.equal(secs.length, 9, "plus the blackout ending");
+  assert.equal(secs[8]!.type, "blackout");
+  const choruses = secs.filter((s) => s.type === "chorus");
+  assert.ok(choruses.every((c) => c.mood === "energetic" && c.transition === "snap" && c.movement === "sweep"));
+  assert.ok(choruses[0]!.effects.blinder);
+  assert.deepEqual(choruses.map((c) => c.energy), [4, 4, 5], "the last chorus is the biggest");
+  assert.ok(choruses[2]!.effects.strobe && choruses[2]!.effects.strobeColor === "look", "strobe at the peak");
+  assert.ok(secs.every((s) => MOODS.some((m) => m.id === s.mood)), "every vibe mood exists");
+  // Without moving heads the sweep is left out.
+  assert.ok(buildSong(plan, { hasMovers: false }).filter((s) => s.type === "chorus").every((c) => c.movement !== "sweep"));
+  // Every vibe and arc gives energies 1–5 for every kind of section.
+  for (const v of VIBES) for (const a of ARCS) for (const s of buildSong({ ...plan, vibe: v.id, arc: a.id, moments: [] }, { hasMovers: true })) assert.ok(s.energy >= 1 && s.energy <= 5 && MOODS.some((m) => m.id === s.mood), `${v.id}/${a.id}`);
+});
+
+test("song builder: sections from marks made while the recording plays", () => {
+  // 120 BPM: a beat is 500 ms, a 4/4 bar 2 s. Marks at 16 s and 48 s, song 80 s.
+  const p = planFromMarks([16_000, 48_000], 80_000, 120, 4);
+  assert.deepEqual(p.map((s) => [s.type, s.name, s.bars]), [["intro", "Intro", 8], ["verse", "Verse", 16], ["outro", "Outro", 16]]);
+  // A mark a little off still lands on a whole beat.
+  assert.equal(planFromMarks([16_200], 32_000, 120, 4)[0]!.bars, 8);
+  assert.deepEqual(renumber([{ type: "verse", name: "Verse 3", bars: 8 }, { type: "chorus", name: "Big one", bars: 8 }]).map((s) => s.name), ["Verse", "Big one"]);
 });

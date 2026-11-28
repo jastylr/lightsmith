@@ -96,6 +96,7 @@ import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
 import { CoachPanel, VariationsDialog } from "./Coach";
+import { SongBuilder } from "./SongBuilder";
 import { PreviewWindow } from "./PreviewWindow";
 import { RecordingControls, WaveLane } from "./Recording";
 import { MiniTransport, songSignature, TransportBar } from "./Transport";
@@ -205,6 +206,37 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [pinTransportSlot, setPinTransportSlot] = useState<HTMLDivElement | null>(null);
   // The section whose variations are open, if any.
   const [variationsFor, setVariationsFor] = useState<string | null>(null);
+  // The guided builder ("Build a song with me"), when it's open.
+  const [building, setBuilding] = useState(false);
+  const openBuilder = async () => {
+    if (song.sections.length) {
+      const ok = await askConfirm({
+        title: "Build this song again with the guide?",
+        message: (
+          <>
+            The guide makes a new set of sections for <strong>{song.title || "this song"}</strong>, replacing its {song.sections.length} sections. Undo brings them back.
+          </>
+        ),
+        confirmLabel: "Start the guide",
+      });
+      if (!ok) return;
+    }
+    setBuilding(true);
+  };
+  const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File) => {
+    let audio: Song["audio"];
+    if (file) {
+      try {
+        const a = await loadAudioFile(file);
+        audio = { key: a.key, name: a.name, durationMs: a.durationMs, offsetMs: 0 };
+      } catch (err) {
+        setAudioError(err instanceof Error ? err.message : "That file couldn't be read.");
+      }
+    }
+    store.updateSong({ ...song, ...patch, ...(audio ? { audio } : {}) });
+    if (audio) setAudioVersion((v) => v + 1);
+    setSelected(patch.sections[0]?.id ?? null);
+  };
   // The section list beside the editor: the timeline has every section too, so it's optional.
   const [showList, setShowListState] = useState<boolean>(() => remembered(LIST_KEY, "0") === "1");
   const setShowList = (on: boolean) => {
@@ -365,6 +397,9 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             )}
           </div>
           <div className="song-actions">
+            <button type="button" className="ghost small guide-open" onClick={() => void openBuilder()} title="Answer a few questions and the guide lays out the whole song">
+              <Icon name="sparkle" size={15} /> Build with the guide
+            </button>
             <button type="button" className="icon-button" onClick={() => setSongId(store.addSong())} aria-label="Add a song" title="Add a song">
               <Icon name="plus" size={17} />
             </button>
@@ -403,6 +438,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
 
       {song.sections.length === 0 ? (
         <SongStarter
+          onBuild={() => void openBuilder()}
           onAdd={add}
           onTemplate={(id) => {
             const sections = sectionsFromTemplate(id, song.bpm);
@@ -494,6 +530,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
         </>
       )}
 
+      {building && <SongBuilder song={song} rig={store.project.rig} sequences={store.project.sequences ?? []} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onDone={(patch, file) => void finishBuilder(patch, file)} onClose={() => setBuilding(false)} />}
+
       <div className="page-actions">
         <button className="primary" onClick={onNext} disabled={song.sections.length === 0}>
           Continue to show control
@@ -504,9 +542,19 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
 }
 
 /** What an empty song shows: add sections one by one, or start from a common structure. */
-function SongStarter({ onAdd, onTemplate }: { onAdd: (type: string) => void; onTemplate: (id: string) => void }) {
+function SongStarter({ onAdd, onTemplate, onBuild }: { onAdd: (type: string) => void; onTemplate: (id: string) => void; onBuild: () => void }) {
   return (
     <div className="starter">
+      <button type="button" className="starter-guide" onClick={onBuild}>
+        <span className="starter-guide-icon" aria-hidden="true">
+          <Icon name="sparkle" size={22} />
+        </span>
+        <span>
+          <strong>Build a song with me</strong>
+          <small>A few questions (the song, its structure, a vibe, the energy, some signature moments) and the guide lays out the whole song for you to fine-tune.</small>
+        </span>
+        <Icon name="chevronRight" size={18} />
+      </button>
       <div className="starter-head">
         <h2>Build the song's structure</h2>
         <p className="muted">Add sections in the order the band plays them. You can rename, reorder and adjust them afterwards.</p>
