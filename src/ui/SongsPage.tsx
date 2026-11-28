@@ -1171,6 +1171,21 @@ function Timeline({
                   </svg>
                 ) : null;
               })()}
+              {/* Blackouts are dark and often short, so each gets a marker you can see (and click) at any zoom. */}
+              {(() => {
+                let x = 0;
+                return song.sections.map((s) => {
+                  const w = (sectionMs(s) / 1000) * scale;
+                  const at = x + w / 2;
+                  x += w;
+                  if (!isBlackout(s)) return null;
+                  return (
+                    <button key={`bo-${s.id}`} type="button" className={selected === s.id ? "blackout-marker on" : "blackout-marker"} style={{ left: at }} onClick={() => onSelect(s.id)} title={`${s.name}: all lights off for ${lengthLabel(s)}`} aria-label={`${s.name}, a blackout. Select it.`}>
+                      <Icon name="moon" size={13} />
+                    </button>
+                  );
+                });
+              })()}
               {song.sections.map((s) => {
                 const pal = paletteOf(s);
                 const ms = sectionMs(s);

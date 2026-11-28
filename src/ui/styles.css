@@ -2362,13 +2362,16 @@ body.is-resizing * {
   padding-bottom: 0.6rem;
 }
 .block.blackout .block-light {
-  background: repeating-linear-gradient(135deg, #0d0c10 0 7px, #1e1b22 7px 13px);
+  background: repeating-linear-gradient(135deg, #08070a 0 6px, #2d2933 6px 11px);
   opacity: 1;
 }
 .block.blackout::after {
   background: none;
-  box-shadow: inset 0 0 0 1px #3a3540;
+  box-shadow: inset 0 0 0 1px #8a8292;
   border-radius: inherit;
+}
+.block.blackout:hover .block-light {
+  opacity: 1;
 }
 .block.blackout .block-text {
   color: var(--muted);
@@ -7213,4 +7216,33 @@ dialog.library[open] {
   background: color-mix(in srgb, var(--tungsten) 12%, var(--house));
   color: var(--text);
   font-size: 0.88rem;
+}
+
+/* Timeline: a marker over each blackout, so a short dark section is easy to find */
+.blackout-marker {
+  position: absolute;
+  /* Just above the blackout's block (its height is energy 1: 50% of the lane), clear of the link buttons. */
+  bottom: calc(50% + 5px);
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #8a8292;
+  background: #121015;
+  color: #d9d3e0;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.blackout-marker:hover,
+.blackout-marker.on {
+  border-color: var(--tungsten);
+  color: var(--tungsten);
+}
+.blackout-marker:focus-visible {
+  outline: 2px solid var(--tungsten);
+  outline-offset: 2px;
 }
