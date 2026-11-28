@@ -206,6 +206,9 @@ export function MiniTransport({ sections, posMs, totalMs, playing, onPlay, onSee
   return (
     <div className="mini-transport" role="group" aria-label="Transport">
       <div className="mini-buttons">
+        <button type="button" className="transport-btn" onClick={() => onSeek(0)} disabled={posMs === 0} aria-label="Back to the start" title="Back to the start of the song (Return)">
+          <Icon name="skipBack" size={15} />
+        </button>
         <button type="button" className="transport-btn" onClick={() => toMarker(-1)} aria-label="Previous section" title="Previous section">
           <Icon name="chevronLeft" size={17} />
         </button>
