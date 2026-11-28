@@ -3,9 +3,9 @@
  * of section gets), an energy arc and a few signature moments, turned into
  * sections. Pure, so the builder's preview and its tests see the same song.
  */
-import { isBlackout, newSection, type Section } from "./model";
-import { SONG_TEMPLATES, sectionTypeById } from "./presets";
-import { genreLookFor } from "./library";
+import { isBlackout, newSection, patternSpeedOf, type Section } from "./model";
+import { colorById, moodById, PATTERNS, SONG_TEMPLATES, sectionTypeById, type RGB } from "./presets";
+import { genreLooksFor } from "./library";
 
 /** One section of the plan: what kind it is, what it's called and how long it is. */
 export interface PlannedSection {
@@ -25,6 +25,10 @@ export interface SongPlan {
   genre?: string;
   arc: string;
   moments: string[];
+  /** Up to three color IDs every look leans toward: the band's own colors. */
+  bandColors?: string[];
+  /** Above 0: a different take on the looks, within the same choices ("Shuffle the looks"). */
+  shuffle?: number;
 }
 
 /** A vibe: the mood for each kind of section (`default` for any other). */
@@ -125,6 +129,27 @@ export const ARCS: Arc[] = [
       }),
   },
   {
+    id: "quietLoud",
+    label: "Quiet, loud, quiet",
+    description: "Hushed verses, choruses that explode, then it drops away again",
+    energies: (xs) => xs.map((x) => (x.type === "chorus" || x.type === "solo" ? 5 : x.type === "prechorus" ? 3 : x.type === "verse" || x.type === "custom" ? 2 : 1)),
+  },
+  {
+    id: "twoPeaks",
+    label: "Two peaks",
+    description: "Up to a big middle, a dip to catch your breath, then bigger still",
+    energies: (xs) => {
+      const mid = Math.floor(xs.length / 2);
+      return xs.map((x, i) => {
+        const big = x.type === "chorus" || x.type === "solo";
+        if (i === xs.length - 1 && x.type === "outro") return 2;
+        if (i < mid) return clamp(1 + (3 * i) / Math.max(1, mid) + (big ? 1 : 0));
+        if (i <= mid + 1 && !big) return 2;
+        return clamp(3 + (big ? 2 : 0) + (i > (xs.length * 3) / 4 ? 1 : 0));
+      });
+    },
+  },
+  {
     id: "natural",
     label: "Let the sections decide",
     description: "No arc: each kind of section keeps its usual energy",
@@ -136,18 +161,30 @@ export interface Moment {
   id: string;
   label: string;
   description: string;
+  /** Where in the song it happens, to group them. */
+  group: "open" | "hits" | "end";
   /** Only offered when the stage has moving heads. */
   needsMovers?: boolean;
 }
 
 export const MOMENTS: Moment[] = [
-  { id: "ending", label: "Blackout on the last hit", description: "The song ends with a cut to black, so everyone knows it's over" },
-  { id: "cutChorus", label: "Cut into every chorus", description: "The chorus look lands on the downbeat instead of fading in" },
-  { id: "fadeIntro", label: "Fade the intro in slowly", description: "The first look rises over two bars" },
-  { id: "darkIntro", label: "A low, still intro", description: "The intro stays dim and steady, so the first verse feels bigger" },
-  { id: "sweep", label: "Moving heads sweep the crowd in the choruses", description: "A slow sweep side to side whenever the chorus comes round", needsMovers: true },
-  { id: "blinder", label: "A blinder hit on the first chorus", description: "A flash of white as the first chorus starts" },
-  { id: "strobePeak", label: "Strobe at the peak", description: "Strobe hits, in the look's own colors, in the biggest section" },
+  { id: "fadeIntro", group: "open", label: "Fade the intro in slowly", description: "The first look rises over two bars" },
+  { id: "darkIntro", group: "open", label: "A low, still intro", description: "The intro stays dim and steady, so the first verse feels bigger" },
+  { id: "lightningIntro", group: "open", label: "Lightning in the intro", description: "Flashes of lightning while the song finds its feet" },
+  { id: "cutChorus", group: "hits", label: "Cut into every chorus", description: "The chorus look lands on the downbeat instead of fading in" },
+  { id: "blinder", group: "hits", label: "A blinder hit on the first chorus", description: "A flash of white as the first chorus starts" },
+  { id: "sweep", group: "hits", label: "Moving heads sweep the crowd in the choruses", description: "A slow sweep side to side whenever the chorus comes round", needsMovers: true },
+  { id: "buildLastChorus", group: "hits", label: "Build into the last chorus", description: "The part before the last chorus climbs, faster and brighter" },
+  { id: "spotlightSolo", group: "hits", label: "Spotlight the solo", description: "The front lights pick out the soloist (center stage; change the side later)" },
+  { id: "darkBridge", group: "hits", label: "A dark, intimate bridge", description: "The bridge drops to a low, still glow before the big return" },
+  { id: "strobePeak", group: "hits", label: "Strobe at the peak", description: "Strobe hits, in the look's own colors, in the biggest section" },
+  { id: "ending", group: "end", label: "Blackout on the last hit", description: "The song ends with a cut to black, so everyone knows it's over" },
+];
+
+export const MOMENT_GROUPS: { id: Moment["group"]; label: string }[] = [
+  { id: "open", label: "Openings" },
+  { id: "hits", label: "Big hits" },
+  { id: "end", label: "Endings" },
 ];
 
 /** Moments ticked to start with. */
@@ -212,6 +249,10 @@ export function momentMarks(sections: Section[]): { id: string; label: string }[
     if (s.movement === "sweep") out.push({ id: "sweep", label: "Heads sweep" });
     if (s.type === "chorus" && s.transition === "snap") out.push({ id: "cutChorus", label: "Cuts in" });
     if (i === 0 && s.type === "intro" && s.transition === "fade" && (s.fadeBeats ?? 0) > 1) out.push({ id: "fadeIntro", label: "Slow fade in" });
+    if (s.effects.lightning) out.push({ id: "lightningIntro", label: "Lightning" });
+    if (s.type === "solo" && s.focus !== "all") out.push({ id: "spotlightSolo", label: "Spotlight" });
+    if ((s.type === "bridge" || s.type === "breakdown") && s.energy === 1 && s.pattern === "solid" && s.movement === "static") out.push({ id: "darkBridge", label: "Dark bridge" });
+    if (sections[i + 1]?.type === "chorus" && i + 1 === sections.map((x) => x.type).lastIndexOf("chorus") && s.colorChange === "beat" && s.patternSpeed) out.push({ id: "buildLastChorus", label: "Builds up" });
     return out;
   });
 }
@@ -242,16 +283,20 @@ export function buildSong(plan: SongPlan, opts: { hasMovers: boolean }): Section
     const s = newSection(p.type, p.bpm ?? plan.bpm);
     const energy = energies[i] ?? s.energy;
     const base = { ...s, name: p.name, bars: p.bars, beatsPerBar: plan.beatsPerBar };
+    // Each kind of section gets the same take, so the choruses still match each other.
+    const roll = plan.shuffle ? plan.shuffle * 7 + hashOf(p.type) : 0;
     // A genre's own look for this kind of section, with the arc's energy.
-    const fromGenre = plan.genre ? genreLookFor(plan.genre, p.type) : undefined;
+    const looks = plan.genre ? genreLooksFor(plan.genre, p.type) : [];
+    const fromGenre = looks[roll % Math.max(1, looks.length)];
     if (fromGenre) return { ...base, ...structuredClone(fromGenre.look), energy };
     const mood = vibe.moods[p.type] ?? vibe.moods.default ?? s.mood;
+    const plain = p.type === "intro" || p.type === "outro" || p.type === "breakdown";
     return {
       ...base,
       mood,
       energy,
-      // Let each mood bring its own pattern; intros and outros stay plainer.
-      pattern: p.type === "intro" || p.type === "outro" || p.type === "breakdown" ? "solid" : "mood",
+      // Let each mood bring its own pattern; intros and outros stay plainer. A shuffle picks another moving pattern.
+      pattern: plain ? "solid" : roll ? SHUFFLE_PATTERNS[roll % SHUFFLE_PATTERNS.length]! : "mood",
     };
   });
 
@@ -262,11 +307,55 @@ export function buildSong(plan: SongPlan, opts: { hasMovers: boolean }): Section
   const intro = sections[0]?.type === "intro" ? sections[0] : undefined;
   if (intro && has("darkIntro")) Object.assign(intro, { energy: 1, colorChange: "hold", pattern: "solid", movement: "static" });
   if (intro && has("fadeIntro")) Object.assign(intro, { transition: "fade", fadeBeats: plan.beatsPerBar * 2 });
+  if (intro && has("lightningIntro")) intro.effects = { ...intro.effects, lightning: true };
+  if (has("spotlightSolo")) for (const s of sections.filter((x) => x.type === "solo")) s.focus = "C";
+  if (has("darkBridge")) for (const s of sections.filter((x) => x.type === "bridge" || x.type === "breakdown")) Object.assign(s, { energy: 1, pattern: "solid", movement: "static", colorChange: "hold" });
+  const lastChorus = sections.map((x) => x.type).lastIndexOf("chorus");
+  if (has("buildLastChorus") && lastChorus > 0) {
+    const before = sections[lastChorus - 1]!;
+    Object.assign(before, { energy: Math.max(before.energy, Math.min(4, sections[lastChorus]!.energy)), patternSpeed: 2 * patternSpeedOf(before), colorChange: "beat" });
+  }
   if (has("strobePeak") && sections.length) {
     const top = Math.max(...sections.map((s) => s.energy));
     const peak = [...sections].reverse().find((s) => s.energy === top)!;
     peak.effects = { ...peak.effects, strobe: true, strobeColor: "look" };
   }
   if (has("ending")) sections.push({ ...newSection("blackout", plan.bpm), bars: 1, beatsPerBar: plan.beatsPerBar, transition: "snap" });
-  return sections;
+  return plan.bandColors?.length ? withBandColors(sections, plan.bandColors) : sections;
+}
+
+/** Moving patterns a shuffle chooses from (the ones that move, so a shuffle is easy to see). */
+const SHUFFLE_PATTERNS = PATTERNS.filter((p) => p.id !== "solid" && p.id !== "mood" && p.id !== "none").map((p) => p.id);
+const hashOf = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7);
+
+/**
+ * Leans every section toward the band's colors: each color in a look becomes
+ * the band color nearest to it in hue. Whites and near-whites stay, so blinders
+ * and warm washes still read as white.
+ */
+export function withBandColors(sections: Section[], band: string[]): Section[] {
+  const bandHues = band.map((id) => ({ id, hsv: hsvOf(colorById(id).rgb) }));
+  const nearest = (id: string) => {
+    const { h, s } = hsvOf(colorById(id).rgb);
+    if (s < 0.3) return id;
+    return bandHues.reduce((a, b) => (hueGap(b.hsv.h, h) < hueGap(a.hsv.h, h) ? b : a)).id;
+  };
+  return sections.map((x) => {
+    if (isBlackout(x)) return x;
+    const palette = x.colors.length ? x.colors : moodById(x.mood).colors;
+    const colors = [...new Set(palette.map(nearest))];
+    // A look that collapsed to one band color gets a second one in the bigger parts, so they still have contrast.
+    const firstBand = colors.find((c) => band.includes(c));
+    if (x.energy >= 3 && band.length > 1 && colors.filter((c) => band.includes(c)).length === 1 && firstBand) colors.push(band[(band.indexOf(firstBand) + 1) % band.length]!);
+    return { ...x, colors, colorLayout: undefined };
+  });
+}
+const hueGap = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+function hsvOf([r, g, b]: RGB): { h: number; s: number } {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: max ? d / max : 0 };
 }

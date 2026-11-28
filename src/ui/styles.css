@@ -6665,6 +6665,8 @@ dialog.builder {
   background: var(--deck);
   color: var(--text);
   box-shadow: 0 40px 90px -20px rgba(0, 0, 0, 0.85);
+  /* Only the panes scroll, never the dialog itself (focusing a hidden checkbox could scroll it). */
+  overflow: clip;
 }
 dialog.builder::backdrop {
   background: rgba(8, 6, 12, 0.78);
@@ -7215,6 +7217,7 @@ em.optional {
   gap: 0.5rem;
 }
 .moment {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -7416,6 +7419,99 @@ em.optional {
   background: var(--tungsten-hi);
   box-shadow: 0 0 6px var(--tungsten);
   pointer-events: none;
+}
+.builder-same {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+}
+.band-colors {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--line-soft);
+}
+.band-colors-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.band-colors .hint {
+  margin: 0;
+}
+.band-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.band-swatch {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 120ms;
+}
+.band-swatch:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+.band-swatch.on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px var(--house), 0 0 14px currentColor;
+}
+.band-swatch:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.band-swatch svg {
+  filter: drop-shadow(0 0 2px #000);
+}
+.moment-group {
+  display: grid;
+  gap: 0.5rem;
+}
+.moment.idle {
+  opacity: 0.6;
+}
+.builder-choices.playback {
+  grid-template-columns: repeat(2, 1fr);
+}
+.builder-choices.playback .choice:last-child {
+  border-style: dashed;
+}
+.builder-playback-next {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--r-md);
+  background: rgba(124, 188, 255, 0.08);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.builder-playback-next svg {
+  flex: none;
+  margin-top: 0.2rem;
+  color: #9cccff;
+}
+.builder-shuffle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+.builder-finish {
+  display: flex;
+  gap: 0.6rem;
 }
 button.primary.big {
   padding: 0.7rem 1.4rem;

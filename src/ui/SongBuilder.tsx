@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ARCS,
+  COLORS,
   DEFAULT_MOMENTS,
+  MOMENT_GROUPS,
   GENRES,
   genreLookFor,
   MOMENTS,
@@ -22,6 +24,8 @@ import {
   type Rig,
   type Section,
   type Sequence,
+  type BuildStyle,
+  type ShowControl,
   type Song,
 } from "../core";
 import { cssColor } from "./ColorPicker";
@@ -29,7 +33,41 @@ import { Dropdown, DurationInput, Field, NumberInput, Segmented, TapTempo } from
 import { Icon } from "./icons";
 import { StagePreview } from "./StagePreview";
 
-const STEPS = ["The song", "Structure", "Style", "Energy", "Moments", "Your show"] as const;
+const STEPS = ["The song", "Structure", "Style", "Energy", "Moments", "On stage", "Your show"] as const;
+const SHOW = STEPS.length - 1;
+
+/** How the lights will be run on stage, which sets up the Show control page. */
+type Playback = "track" | "step" | "jump" | "laptop" | "skip";
+
+/** What the builder hands back. */
+export interface BuilderResult {
+  patch: Pick<Song, "title" | "bpm" | "sections" | "build">;
+  recording?: File;
+  offsetMs?: number;
+  /** How sections are cued, when the user chose one on the On stage step. */
+  cueing?: "jump" | "step";
+  bandColors: string[];
+  /** Make another song straight after this one. */
+  another: boolean;
+}
+
+/** The last answers, so the next song starts from them. */
+const LAST_KEY = "lightsmith.builderLast.v1";
+function rememberedStyle(): BuildStyle | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_KEY) ?? "null") as BuildStyle | null;
+    return v && typeof v.vibe === "string" && typeof v.arc === "string" && Array.isArray(v.moments) ? v : null;
+  } catch {
+    return null;
+  }
+}
+function rememberStyle(v: BuildStyle) {
+  try {
+    localStorage.setItem(LAST_KEY, JSON.stringify(v));
+  } catch {
+    /* not remembered */
+  }
+}
 
 const paletteOf = (s: Section) => (s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor);
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
@@ -69,6 +107,9 @@ export function SongBuilder({
   sequences,
   hasMovers,
   existingRecording,
+  songs,
+  bandColors: savedBand,
+  control,
   onDone,
   onClose,
 }: {
@@ -78,7 +119,13 @@ export function SongBuilder({
   hasMovers: boolean;
   /** The song's own recording, when it has one loaded: to mark sections against and play along with. */
   existingRecording?: { url: string; durationMs: number; name: string; offsetMs: number };
-  onDone: (patch: Pick<Song, "title" | "bpm" | "sections">, recording?: File, offsetMs?: number) => void;
+  /** The project's other songs, for "Same style as…". */
+  songs: Song[];
+  /** The band's colors, saved with the project. */
+  bandColors?: string[];
+  /** How the show is run now, to start the On stage step from it. */
+  control?: ShowControl;
+  onDone: (result: BuilderResult) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -90,11 +137,17 @@ export function SongBuilder({
   const [mode, setMode] = useState<"keep" | "template" | "marks" | "scratch">(restyle?.sections.length ? "keep" : "template");
   const [template, setTemplate] = useState("short");
   const [sections, setSections] = useState<PlannedSection[]>(() => (restyle?.sections.length ? restyle.sections : planFromTemplate("short")));
-  const [route, setRoute] = useState<"genre" | "vibe">("genre");
-  const [vibe, setVibe] = useState("rock");
-  const [genre, setGenre] = useState("rock");
-  const [arc, setArc] = useState("punch");
-  const [moments, setMoments] = useState<string[]>(() => (restyle && !restyle.endsInBlackout ? DEFAULT_MOMENTS.filter((m) => m !== "ending") : DEFAULT_MOMENTS));
+  // A song made here before starts from its own answers; a new one from the last song's.
+  const start = song.build ?? rememberedStyle();
+  const [route, setRoute] = useState<"genre" | "vibe">(start?.route ?? "genre");
+  const [vibe, setVibe] = useState(start?.vibe ?? "rock");
+  const [genre, setGenre] = useState(start?.genre ?? "rock");
+  const [arc, setArc] = useState(start?.arc ?? "punch");
+  const [moments, setMoments] = useState<string[]>(() => start?.moments ?? (restyle && !restyle.endsInBlackout ? DEFAULT_MOMENTS.filter((m) => m !== "ending") : DEFAULT_MOMENTS));
+  const [band, setBand] = useState<string[]>(savedBand ?? start?.bandColors ?? []);
+  const [shuffle, setShuffle] = useState(0);
+  const devicesSet = !!control?.devices.length;
+  const [playback, setPlayback] = useState<Playback>(devicesSet ? (control?.cueing === "step" ? "step" : "jump") : "skip");
   const [recording, setRecording] = useState<BuilderRecording | null>(existingRecording ? { url: existingRecording.url, durationMs: existingRecording.durationMs, name: existingRecording.name } : null);
   // Where the song starts in the recording: a count-in or silence to skip.
   const [offsetMs, setOffsetMsNow] = useState(Math.max(0, existingRecording?.offsetMs ?? 0));
@@ -115,8 +168,21 @@ export function SongBuilder({
   }, []);
   useEffect(() => () => (recording?.file ? URL.revokeObjectURL(recording.url) : undefined), [recording]);
 
-  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments, genre: route === "genre" ? genre : undefined };
-  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, genre, route, arc, moments, hasMovers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plan = { bpm, beatsPerBar, sections, vibe, arc, moments, genre: route === "genre" ? genre : undefined, bandColors: band, shuffle };
+  const built = useMemo(() => buildSong(plan, { hasMovers }), [bpm, beatsPerBar, sections, vibe, genre, route, arc, moments, band, shuffle, hasMovers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const style: BuildStyle = { route, ...(route === "genre" ? { genre } : {}), vibe, arc, moments, ...(band.length ? { bandColors: band } : {}) };
+  const madeBefore = songs.filter((x) => x.id !== song.id && x.build);
+  const useStyleOf = (id: string) => {
+    const b = songs.find((x) => x.id === id)?.build;
+    if (!b) return;
+    setRoute(b.route);
+    if (b.genre) setGenre(b.genre);
+    setVibe(b.vibe);
+    setArc(b.arc);
+    setMoments(b.moments);
+    if (b.bandColors) setBand(b.bandColors);
+    setShuffle(0);
+  };
   const marksOn = useMemo(() => momentMarks(built), [built]);
   const totalMs = built.reduce((t, s) => t + sectionMs(s), 0);
 
@@ -139,7 +205,7 @@ export function SongBuilder({
   useEffect(() => {
     const prev = before.current;
     before.current = built;
-    if (!prev || step < 2 || step > 4 || prev.length !== built.length) return;
+    if (!prev || step < 2 || (step > 4 && step !== SHOW) || prev.length !== built.length) return;
     const changed = built.map((s, i) => (lookKey(s) !== lookKey(prev[i]!) ? i : -1)).filter((i) => i >= 0);
     if (!changed.length) return;
     const best = changed.reduce((a, b) => (built[b]!.type === "chorus" && built[a]!.type !== "chorus" ? b : built[b]!.energy > built[a]!.energy && built[a]!.type !== "chorus" ? b : a));
@@ -149,15 +215,23 @@ export function SongBuilder({
   useEffect(() => setNote(null), [step]);
 
   const canNext = step === 0 ? bpm >= 30 : step === 1 ? sections.length > 0 : true;
-  const finish = () => {
+  const finish = (another: boolean) => {
     player.stop();
-    onDone({ title: title.trim() || "Untitled song", bpm, sections: built }, recording?.file, recording && (recording.file || offsetTouched) ? offsetMs : undefined);
+    rememberStyle(style);
+    onDone({
+      patch: { title: title.trim() || "Untitled song", bpm, sections: built, build: style },
+      recording: recording?.file,
+      offsetMs: recording && (recording.file || offsetTouched) ? offsetMs : undefined,
+      cueing: playback === "step" ? "step" : playback === "jump" || playback === "laptop" ? "jump" : undefined,
+      bandColors: band,
+      another,
+    });
     ref.current?.close();
   };
   const go = (next: number) => {
     setStep(next);
     // The last step is the show: start it.
-    if (next === STEPS.length - 1 && !playing) player.play(0);
+    if (next === SHOW && !playing) player.play(0);
   };
   const remark = (m: number[], rec: BuilderRecording, offset: number) =>
     setSections(planFromMarks(m.filter((x) => x > offset).map((x) => x - offset), rec.durationMs - offset, bpm, beatsPerBar));
@@ -184,7 +258,7 @@ export function SongBuilder({
             <h2 id="builder-title">
               <Icon name="sparkle" size={20} /> Song Builder
             </h2>
-            <p className="hint">Six quick questions, then a finished light show for your song. Watch the stage on the right: it follows every answer.</p>
+            <p className="hint">A few quick questions, then a finished light show for your song. Watch the stage on the right: it follows every answer.</p>
           </div>
           <button type="button" className="icon-button" onClick={() => ref.current?.close()} aria-label="Close without making the song">
             <Icon name="x" size={16} />
@@ -343,6 +417,13 @@ export function SongBuilder({
               <div className="builder-page">
                 <h3>What should it look like?</h3>
                 <p className="hint">Choose how Lightsmith dresses the whole song. Your pick styles every section; click any section under the stage to see how it lands there.</p>
+                {madeBefore.length > 0 && (
+                  <div className="builder-same">
+                    <Icon name="copy" size={15} />
+                    <span>Match another song?</span>
+                    <Dropdown label="Same style as" value="" placeholder="Same style as…" options={madeBefore.map((x) => ({ value: x.id, label: x.title || "Untitled song" }))} onChange={useStyleOf} />
+                  </div>
+                )}
                 <div className="builder-choices two route" role="radiogroup" aria-label="Style the song by">
                   <button type="button" role="radio" aria-checked={route === "genre"} className={route === "genre" ? "choice on" : "choice"} onClick={() => setRoute("genre")}>
                     <strong>By genre</strong>
@@ -402,6 +483,7 @@ export function SongBuilder({
                     </div>
                   </>
                 )}
+                <BandColors value={band} onChange={setBand} />
               </div>
             )}
 
@@ -435,33 +517,82 @@ export function SongBuilder({
               <div className="builder-page">
                 <h3>Any signature moments?</h3>
                 <p className="hint">The touches that make a show feel designed. Tick any you like: the stage jumps to the part each one changes, and a marker appears on it in the strip.</p>
-                <div className="builder-moments">
-                  {MOMENTS.filter((m) => !m.needsMovers || hasMovers).map((m) => {
-                    const on = moments.includes(m.id);
-                    return (
-                      <label key={m.id} className={on ? "moment on" : "moment"}>
-                        <input type="checkbox" checked={on} onChange={() => setMoments(on ? moments.filter((x) => x !== m.id) : [...moments, m.id])} />
-                        <span className="moment-box" aria-hidden="true">
-                          {on && <Icon name="check" size={14} />}
-                        </span>
-                        <span>
-                          <strong>{m.label}</strong>
-                          <small>{m.description}</small>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
+                {MOMENT_GROUPS.map((g) => {
+                  const here = MOMENTS.filter((m) => m.group === g.id && (!m.needsMovers || hasMovers));
+                  const missing = (id: string) => (id === "spotlightSolo" && !sections.some((x) => x.type === "solo")) || (id === "darkBridge" && !sections.some((x) => x.type === "bridge" || x.type === "breakdown")) || ((id === "fadeIntro" || id === "darkIntro" || id === "lightningIntro") && sections[0]?.type !== "intro") || (id === "buildLastChorus" && sections.map((x) => x.type).lastIndexOf("chorus") < 1);
+                  return (
+                    <div key={g.id} className="moment-group">
+                      <h4 className="builder-subhead">{g.label}</h4>
+                      <div className="builder-moments">
+                        {here.map((m) => {
+                          const on = moments.includes(m.id);
+                          const idle = missing(m.id);
+                          return (
+                            <label key={m.id} className={`${on ? "moment on" : "moment"}${idle ? " idle" : ""}`} title={idle ? "Your song doesn't have the part this changes; it'll apply if you add one." : undefined}>
+                              <input type="checkbox" checked={on} onChange={() => setMoments(on ? moments.filter((x) => x !== m.id) : [...moments, m.id])} />
+                              <span className="moment-box" aria-hidden="true">
+                                {on && <Icon name="check" size={14} />}
+                              </span>
+                              <span>
+                                <strong>{m.label}</strong>
+                                <small>{idle ? `${m.description}. (Your song has no part for this yet.)` : m.description}</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {step === 5 && (
+              <div className="builder-page">
+                <h3>How will you run it on stage?</h3>
+                <p className="hint">This sets up the Show control page for you, as a starting point. It's for the whole show, not just this song, and you can change it there any time.</p>
+                <div className="builder-choices playback" role="radiogroup" aria-label="How you'll run the lights">
+                  <PlaybackCard on={playback === "track"} value="track" onPick={setPlayback} icon="play" title="QLC+ plays it with the recording" text={recording ? "Hands-free: press ▶ With recording in QLC+ and the lights follow the track, every section on time. Great with a click or backing track." : "Hands-free, following the recording. Add a recording on step 1 to use this."} disabled={!recording} />
+                  <PlaybackCard on={playback === "step"} value="step" onPick={setPlayback} icon="midi" title="One footswitch steps through" text="Each press moves the song on to its next section. Ideal for a guitarist with a spare switch, or an amp modeler sending a message on each scene." />
+                  <PlaybackCard on={playback === "jump"} value="jump" onPick={setPlayback} icon="stack" title="A pad or button per section" text="Section 1, 2, 3… each on its own pad or switch, so you can jump anywhere. Great for drum pads and pad controllers." />
+                  <PlaybackCard on={playback === "laptop"} value="laptop" onPick={setPlayback} icon="keyboard" title="Clicking in QLC+" text="Someone runs the laptop and clicks the section buttons. Nothing to set up." />
+                  <PlaybackCard on={playback === "skip"} value="skip" onPick={setPlayback} icon="clock" title="Skip for now" text="Decide later on the Show control page." />
+                </div>
+                <p className="builder-playback-next">
+                  <Icon name="info" size={14} />
+                  {playback === "track"
+                    ? "The export adds a ▶ With recording button to the song; just put the recording beside the show file. Sections can still be cued by hand too."
+                    : playback === "step"
+                      ? "Next, on Show control: add your footswitch or amp modeler and press Learn on Next section. One message moves every song on."
+                      : playback === "jump"
+                        ? "Next, on Show control: add your pads or switches and Learn a message for section 1, 2, 3 and so on. They work for every song."
+                        : playback === "laptop"
+                          ? "The export gives each song a frame of section buttons in QLC+'s Virtual Console. Click one to start it."
+                          : devicesSet
+                            ? "Your current Show control settings stay as they are."
+                            : "No problem: the show works from QLC+'s buttons until you set something up."}
+                </p>
+              </div>
+            )}
+
+            {step === SHOW && (
               <div className="builder-page">
                 <h3>Here's your show</h3>
                 <p className="hint">
                   {playing ? "It's playing on the stage now" : "Press play on the stage to watch it"}
                   {recording ? ", with your recording." : "."} Click any part to look closer. When you make it, everything here becomes yours to tweak{song.sections.length ? " (it replaces the song's current sections; Undo brings them back)" : ""}.
                 </p>
+                <div className="builder-shuffle">
+                  <button type="button" className="ghost" onClick={() => setShuffle((n) => n + 1)} title="A different take on the looks, keeping every answer you gave">
+                    <Icon name="sparkle" size={15} /> Shuffle the looks
+                  </button>
+                  {shuffle > 0 && (
+                    <button type="button" className="link small" onClick={() => setShuffle(0)}>
+                      Back to the first take
+                    </button>
+                  )}
+                  <span className="muted">{shuffle > 0 ? `Take ${shuffle + 1}. Same choices, new looks.` : "Not quite it? Get a fresh take with the same choices."}</span>
+                </div>
                 <ol className="builder-review">
                   {built.map((s, i) => (
                     <li key={i}>
@@ -522,18 +653,74 @@ export function SongBuilder({
           <button type="button" className="ghost" onClick={() => (step ? go(step - 1) : ref.current?.close())}>
             {step ? "Back" : "Cancel"}
           </button>
-          {step < STEPS.length - 1 ? (
+          {step < SHOW ? (
             <button type="button" className="primary" disabled={!canNext} onClick={() => go(step + 1)}>
               Next: {STEPS[step + 1]}
             </button>
           ) : (
-            <button type="button" className="primary big" onClick={finish}>
-              <Icon name="check" size={16} /> Make the song
-            </button>
+            <span className="builder-finish">
+              <button type="button" className="ghost" onClick={() => finish(true)} title="Make this song, then start the next one with the same style">
+                <Icon name="plus" size={15} /> Make it and start another
+              </button>
+              <button type="button" className="primary big" onClick={() => finish(false)}>
+                <Icon name="check" size={16} /> Make the song
+              </button>
+            </span>
           )}
         </footer>
       </div>
     </dialog>
+  );
+}
+
+/** One way to run the lights on stage. */
+function PlaybackCard({ on, value, onPick, icon, title, text, disabled }: { on: boolean; value: Playback; onPick: (v: Playback) => void; icon: "play" | "midi" | "stack" | "keyboard" | "clock"; title: string; text: string; disabled?: boolean }) {
+  return (
+    <button type="button" role="radio" aria-checked={on} className={on ? "choice way on" : "choice way"} disabled={disabled} onClick={() => onPick(value)}>
+      <span className="way-icon" aria-hidden="true">
+        <Icon name={icon} size={18} />
+      </span>
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </button>
+  );
+}
+
+/** Up to three of the band's own colors: every look leans toward them. */
+function BandColors({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const choices = COLORS.filter((c) => c.id !== "warmWhite" && c.id !== "white" && c.id !== "black");
+  return (
+    <div className="band-colors">
+      <div className="band-colors-head">
+        <h4 className="builder-subhead">Your band's colors <em className="optional">optional</em></h4>
+        {value.length > 0 && (
+          <button type="button" className="link small" onClick={() => onChange([])}>
+            Clear
+          </button>
+        )}
+      </div>
+      <p className="hint">Got a logo or a stage look? Pick up to three colors and every look leans toward them, so your whole set feels like one show. Lightsmith remembers them for every song.</p>
+      <div className="band-swatches" role="group" aria-label="Your band's colors">
+        {choices.map((c) => {
+          const on = value.includes(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={on}
+              className={on ? "band-swatch on" : "band-swatch"}
+              style={{ background: cssColor(c.id) }}
+              title={c.label}
+              aria-label={c.label}
+              disabled={!on && value.length >= 3}
+              onClick={() => onChange(on ? value.filter((x) => x !== c.id) : [...value, c.id])}
+            >
+              {on && <Icon name="check" size={14} />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

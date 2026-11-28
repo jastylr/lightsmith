@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   COLORS,
+  emptyShowControl,
   STROBE_RATES,
   LOOK_COLOR,
   strobeRateOf,
@@ -96,7 +97,7 @@ import { IndividualLights } from "./IndividualLights";
 import { LightPicker, type Light } from "./LightPicker";
 import { ExtraChannelsEditor } from "./ExtraChannels";
 import { CoachPanel, VariationsDialog } from "./Coach";
-import { SongBuilder } from "./SongBuilder";
+import { SongBuilder, type BuilderResult } from "./SongBuilder";
 import { changedSections, sendCommand, useCommands } from "./commands";
 import { toast } from "./Toast";
 import { LookLibraryDialog } from "./LookLibrary";
@@ -220,6 +221,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [libraryFor, setLibraryFor] = useState<string | null>(null);
   // The Song Builder, when it's open.
   const [building, setBuilding] = useState(false);
+  const anotherNext = useRef(false);
   // Nothing changes until "Make the song" at the end (and Undo brings the old sections back), so no need to ask first.
   const openBuilder = () => {
     if (song) setBuilding(true);
@@ -230,8 +232,13 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
     else if (c.type === "open-library" && selected) setLibraryFor(selected);
     else if (c.type === "open-variations" && selected && !isBlackout(song?.sections.find((x) => x.id === selected) ?? ({} as Section))) setVariationsFor(selected);
   });
-  const finishBuilder = async (patch: Pick<Song, "title" | "bpm" | "sections">, file?: File, offsetMs?: number) => {
+  const finishBuilder = async ({ patch, recording: file, offsetMs, cueing, bandColors, another }: BuilderResult) => {
     if (!song) return;
+    // The band's colors and how the show is cued are the project's, not just this song's.
+    store.setBandColors(bandColors);
+    if (cueing && cueing !== (store.project.control?.cueing ?? "jump")) store.setControl({ ...(store.project.control ?? emptyShowControl()), cueing });
+    // The next song goes straight into the builder once this one closes (it starts from this song's style).
+    anotherNext.current = another;
     // The builder asks where the song starts in the recording (a count-in to skip).
     let audio: Song["audio"] = song.audio && offsetMs !== undefined ? { ...song.audio, offsetMs } : undefined;
     if (file) {
@@ -577,9 +584,20 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           rig={store.project.rig}
           sequences={store.project.sequences ?? []}
           hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")}
+          key={song.id}
           existingRecording={song.audio && track.status === "ready" ? { url: track.el.currentSrc || track.el.src, durationMs: song.audio.durationMs, name: song.audio.name, offsetMs: song.audio.offsetMs } : undefined}
-          onDone={(patch, file, offset) => void finishBuilder(patch, file, offset)}
-          onClose={() => setBuilding(false)}
+          songs={store.project.songs}
+          bandColors={store.project.bandColors}
+          control={store.project.control}
+          onDone={(result) => void finishBuilder(result)}
+          onClose={() => {
+            if (anotherNext.current) {
+              anotherNext.current = false;
+              setSongId(store.addSong());
+              return;
+            }
+            setBuilding(false);
+          }}
         />
       )}
 

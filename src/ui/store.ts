@@ -287,6 +287,15 @@ export function useLightsmith() {
     [change],
   );
   const setControl = useCallback((control: ShowControl) => change((p) => ({ ...p, control })), [change]);
+  /** The band's colors, offered in the Song Builder for every song (empty clears them). */
+  const setBandColors = useCallback(
+    (colors: string[]) =>
+      change((p) => {
+        const { bandColors: _old, ...rest } = p;
+        return colors.length ? { ...rest, bandColors: [...colors] } : rest;
+      }, false),
+    [change],
+  );
   const updateSong = useCallback((song: Song) => change((p) => ({ ...p, songs: p.songs.map((s) => (s.id === song.id ? song : s)) })), [change]);
   const addSong = useCallback(() => {
     const s = newSong("Untitled song", 120);
@@ -331,6 +340,7 @@ export function useLightsmith() {
     chooseSet,
     deleteSet,
     setControl,
+    setBandColors,
     projectFile,
     /** The loaded show file, read-only (for importing chasers). */
     showFile: parsed && !("error" in parsed) ? parsed : null,

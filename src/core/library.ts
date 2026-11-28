@@ -224,14 +224,19 @@ export function libraryFor(genre: string | undefined, role?: string): LibraryLoo
 
 /** The genre's look for a kind of section (the first that suits it), if it has one. */
 export function genreLookFor(genre: string, role: string): LibraryLook | undefined {
-  if (!genre || genre === "any") return undefined;
+  return genreLooksFor(genre, role)[0];
+}
+
+/** Every look a genre has for a kind of section, best fit first: what "Shuffle the looks" picks from. */
+export function genreLooksFor(genre: string, role: string): LibraryLook[] {
+  if (!genre || genre === "any") return [];
   const own = LIBRARY.filter((l) => l.genres.includes(genre));
   const alias: Record<string, string[]> = { prechorus: ["prechorus", "bridge", "verse"], breakdown: ["breakdown", "bridge"], custom: ["verse"], bridge: ["bridge", "breakdown"] };
   for (const r of alias[role] ?? [role]) {
-    const hit = own.find((l) => l.roles.includes(r));
-    if (hit) return hit;
+    const hits = own.filter((l) => l.roles.includes(r));
+    if (hits.length) return hits;
   }
-  return undefined;
+  return [];
 }
 
 /**

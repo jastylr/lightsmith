@@ -419,6 +419,19 @@ export interface Song {
   trigger?: Trigger;
   /** The song's recording, as a reference for laying it out (the sound stays in the browser). */
   audio?: SongAudio;
+  /** The Song Builder answers it was made from, for "Same style as…" on other songs. */
+  build?: BuildStyle;
+}
+
+/** The style answers from the Song Builder: everything but the song's own structure. */
+export interface BuildStyle {
+  route: "genre" | "vibe";
+  genre?: string;
+  vibe: string;
+  arc: string;
+  moments: string[];
+  /** Up to three color IDs every look leans toward. */
+  bandColors?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -663,6 +676,8 @@ export interface Project {
   control?: ShowControl;
   /** Made from Lightsmith's demo rig, not the user's own show file (until they load one). */
   demo?: boolean;
+  /** The band's colors, offered in the Song Builder for every new song. */
+  bandColors?: string[];
 }
 
 export interface Setlist {
@@ -804,6 +819,7 @@ export function normalizeProject(p: Project): Project {
       : {}),
     ...(p.currentSet && p.setlists?.some((x) => x.id === p.currentSet) ? { currentSet: p.currentSet } : {}),
     ...(p.demo ? { demo: true } : {}),
+    ...(p.bandColors?.length ? { bandColors: [...p.bandColors] } : {}),
   };
 }
 
