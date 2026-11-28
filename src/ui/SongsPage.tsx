@@ -544,7 +544,12 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
               />
             )}
             {popped && current && (
-              <PreviewWindow title={current.name} onClose={() => setPopped(false)}>
+              <PreviewWindow
+                // While the song plays, the window follows the song: its title, and the section playing.
+                title={playingId ? song.title || "Untitled song" : current.name}
+                detail={playingId ? `Playing ${song.sections.find((x) => x.id === playingId)?.name ?? ""}` : undefined}
+                onClose={() => setPopped(false)}
+              >
                 <SectionPreview s={(playingId && song.sections.find((x) => x.id === playingId)) || current} rig={store.project.rig} sequences={store.project.sequences} replay={replay} view={pview} names={fixtureNames} loop={rememberedLoop() && !playingId} follow={!!playingId} />
               </PreviewWindow>
             )}

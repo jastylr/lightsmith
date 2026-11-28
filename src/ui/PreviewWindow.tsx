@@ -34,7 +34,7 @@ function clamp(b: Box): Box {
  * scroll through a section's settings. Drag its title bar to move it and its
  * corner to resize it; its place and size are remembered.
  */
-export function PreviewWindow({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function PreviewWindow({ title, detail, onClose, children }: { title: string; detail?: string; onClose: () => void; children: ReactNode }) {
   const [box, setBox] = useState<Box>(initial);
   const boxRef = useRef(box);
   boxRef.current = box;
@@ -72,10 +72,13 @@ export function PreviewWindow({ title, onClose, children }: { title: string; onC
   };
 
   return createPortal(
-    <div className="preview-window" style={{ left: box.x, top: box.y, width: box.w }} role="dialog" aria-label={`Stage preview: ${title}`}>
+    <div className="preview-window" style={{ left: box.x, top: box.y, width: box.w }} role="dialog" aria-label={`Stage preview: ${title}${detail ? `, ${detail}` : ""}`}>
       <div className="preview-window-head" onPointerDown={(e) => drag(e, "move")}>
         <Icon name="stage" size={15} />
-        <span>{title}</span>
+        <span className="preview-window-title">
+          {title}
+          {detail && <small>{detail}</small>}
+        </span>
         <button type="button" className="preview-window-close" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Put the preview back in the page" aria-label="Put the preview back in the page">
           <Icon name="dock" size={15} />
         </button>

@@ -7246,3 +7246,17 @@ dialog.library[open] {
   outline: 2px solid var(--tungsten);
   outline-offset: 2px;
 }
+.preview-window-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.preview-window-title small {
+  color: var(--tungsten);
+  font-weight: 500;
+  font-size: 0.8em;
+}
