@@ -3973,6 +3973,50 @@ body.is-resizing * {
 .export-card.set {
   align-items: flex-end;
 }
+/* Which set, its name and slot, and whether it fits. */
+.set-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.set-picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.8rem;
+}
+.set-picker-row .field {
+  min-width: 10rem;
+}
+.set-name {
+  flex: 1;
+}
+.set-slot-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+.set-slot-input input {
+  width: 5.5rem;
+}
+.set-picker-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.set-time {
+  margin: 0;
+  color: var(--muted);
+}
+.set-time strong {
+  color: var(--text);
+}
+.set-time.over {
+  color: var(--bad);
+}
 .set-list {
   list-style: none;
   margin: 0;
@@ -7333,6 +7377,68 @@ dialog.library[open] {
 .welcome-drop-inner:focus-visible {
   outline: 2px solid var(--tungsten);
   outline-offset: 4px;
+}
+/* The note on the show file bar while the demo rig is loaded. */
+.showfile-demo {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin-top: 0.8rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(124, 188, 255, 0.08);
+  color: #9cccff;
+}
+.showfile-demo p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.showfile-demo p strong {
+  color: var(--text);
+}
+/* The demo: a second, quieter way in for anyone without a show file yet. */
+.welcome-demo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+}
+.welcome-demo p {
+  margin: 0;
+  flex: 1;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.welcome-demo p strong {
+  color: var(--text);
+}
+.welcome-demo-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: rgba(242, 167, 59, 0.14);
+  color: var(--tungsten-hi);
+}
+button.welcome-demo-btn {
+  flex: none;
+  border-color: var(--tungsten);
+  color: var(--tungsten-hi);
+  font-weight: 700;
+  padding: 0.55rem 1.1rem;
+}
+button.welcome-demo-btn:hover:not(:disabled) {
+  background: rgba(242, 167, 59, 0.12);
+}
+@media (max-width: 640px) {
+  .welcome-demo {
+    flex-wrap: wrap;
+  }
 }
 .journey {
   list-style: none;

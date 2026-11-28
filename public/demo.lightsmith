@@ -1,0 +1,761 @@
+{
+  "format": "lightsmith",
+  "formatVersion": 1,
+  "saved": "2026-11-28T00:00:00.000Z",
+  "project": {
+    "version": 1,
+    "rig": {
+      "fixtures": []
+    },
+    "songs": [
+      {
+        "id": "demo-song-1",
+        "title": "Neon Highway",
+        "bpm": 128,
+        "sections": [
+          {
+            "id": "demo-1-1",
+            "type": "intro",
+            "name": "Intro",
+            "bpm": 128,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 2,
+            "colors": [
+              "amber",
+              "orange"
+            ],
+            "colorChange": "hold",
+            "colorFade": true,
+            "pattern": "slowWaves",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-2",
+            "type": "verse",
+            "name": "Verse 1",
+            "bpm": 128,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 2,
+            "colors": [
+              "violet",
+              "blue"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "solid",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-3",
+            "type": "chorus",
+            "name": "Chorus 1",
+            "bpm": 128,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "energetic",
+            "energy": 4,
+            "colors": [
+              "red",
+              "amber",
+              "white"
+            ],
+            "colorChange": "bar",
+            "colorFade": false,
+            "pattern": "stripes",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {
+              "beatPulse": true,
+              "blinder": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-4",
+            "type": "verse",
+            "name": "Verse 2",
+            "bpm": 128,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 2,
+            "colors": [
+              "violet",
+              "blue"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "solid",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-5",
+            "type": "chorus",
+            "name": "Chorus 2",
+            "bpm": 128,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "energetic",
+            "energy": 4,
+            "colors": [
+              "red",
+              "amber",
+              "white"
+            ],
+            "colorChange": "bar",
+            "colorFade": false,
+            "pattern": "stripes",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {
+              "beatPulse": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-6",
+            "type": "bridge",
+            "name": "Bridge",
+            "bpm": 128,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 3,
+            "colors": [
+              "amber",
+              "red"
+            ],
+            "colorChange": "2beats",
+            "colorFade": false,
+            "pattern": "waves",
+            "movement": "circle",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-7",
+            "type": "chorus",
+            "name": "Chorus 3",
+            "bpm": 128,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "energetic",
+            "energy": 5,
+            "colors": [
+              "red",
+              "amber",
+              "white"
+            ],
+            "colorChange": "bar",
+            "colorFade": false,
+            "pattern": "stripes",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {
+              "beatPulse": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-8",
+            "type": "outro",
+            "name": "Outro",
+            "bpm": 128,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 2,
+            "colors": [
+              "amber",
+              "warmWhite"
+            ],
+            "colorChange": "hold",
+            "colorFade": true,
+            "pattern": "solid",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-1-9",
+            "type": "blackout",
+            "name": "Blackout",
+            "bpm": 128,
+            "bars": 1,
+            "beatsPerBar": 4,
+            "mood": "dark",
+            "energy": 1,
+            "colors": [],
+            "colorChange": "mood",
+            "colorFade": false,
+            "pattern": "solid",
+            "movement": "mood",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          }
+        ]
+      },
+      {
+        "id": "demo-song-2",
+        "title": "Slow Burn",
+        "bpm": 76,
+        "sections": [
+          {
+            "id": "demo-2-1",
+            "type": "intro",
+            "name": "Intro",
+            "bpm": 76,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 1,
+            "colors": [
+              "blue",
+              "amber"
+            ],
+            "colorChange": "hold",
+            "colorFade": true,
+            "pattern": "solid",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false,
+            "fadeBeats": 8
+          },
+          {
+            "id": "demo-2-2",
+            "type": "verse",
+            "name": "Verse 1",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 1,
+            "colors": [
+              "blue",
+              "indigo"
+            ],
+            "colorChange": "4bars",
+            "colorFade": false,
+            "pattern": "slowWaves",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-3",
+            "type": "chorus",
+            "name": "Chorus 1",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 3,
+            "colors": [
+              "amber",
+              "blue",
+              "warmWhite"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "waves",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-4",
+            "type": "verse",
+            "name": "Verse 2",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 2,
+            "colors": [
+              "blue",
+              "indigo"
+            ],
+            "colorChange": "4bars",
+            "colorFade": false,
+            "pattern": "slowWaves",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-5",
+            "type": "chorus",
+            "name": "Chorus 2",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 4,
+            "colors": [
+              "amber",
+              "blue",
+              "warmWhite"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "waves",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-6",
+            "type": "solo",
+            "name": "Solo",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 4,
+            "colors": [
+              "amber",
+              "orange"
+            ],
+            "colorChange": "bar",
+            "colorFade": false,
+            "pattern": "circles",
+            "movement": "leaf",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {
+              "beatPulse": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-7",
+            "type": "chorus",
+            "name": "Chorus 3",
+            "bpm": 76,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "warm",
+            "energy": 5,
+            "colors": [
+              "amber",
+              "blue",
+              "warmWhite"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "waves",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-8",
+            "type": "outro",
+            "name": "Outro",
+            "bpm": 76,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "dark",
+            "energy": 2,
+            "colors": [
+              "indigo",
+              "blue"
+            ],
+            "colorChange": "hold",
+            "colorFade": true,
+            "pattern": "solid",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-2-9",
+            "type": "blackout",
+            "name": "Blackout",
+            "bpm": 76,
+            "bars": 1,
+            "beatsPerBar": 4,
+            "mood": "dark",
+            "energy": 1,
+            "colors": [],
+            "colorChange": "mood",
+            "colorFade": false,
+            "pattern": "solid",
+            "movement": "mood",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          }
+        ]
+      },
+      {
+        "id": "demo-song-3",
+        "title": "Afterglow",
+        "bpm": 124,
+        "sections": [
+          {
+            "id": "demo-3-1",
+            "type": "intro",
+            "name": "Intro",
+            "bpm": 124,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "moody",
+            "energy": 1,
+            "colors": [
+              "cyan",
+              "violet"
+            ],
+            "colorChange": "4bars",
+            "colorFade": true,
+            "pattern": "starfield",
+            "movement": "sweep",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-2",
+            "type": "verse",
+            "name": "Verse 1",
+            "bpm": 124,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "lively",
+            "energy": 1,
+            "colors": [
+              "cyan",
+              "blue",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "fillUp",
+            "movement": "circle",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false,
+            "patternSpeed": 2
+          },
+          {
+            "id": "demo-3-3",
+            "type": "prechorus",
+            "name": "Pre-Chorus 1",
+            "bpm": 124,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "lively",
+            "energy": 2,
+            "colors": [
+              "cyan",
+              "blue",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "fillUp",
+            "movement": "circle",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "build",
+            "autoAdvance": false,
+            "patternSpeed": 2
+          },
+          {
+            "id": "demo-3-4",
+            "type": "chorus",
+            "name": "Chorus 1",
+            "bpm": 124,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "aggressive",
+            "energy": 3,
+            "colors": [
+              "magenta",
+              "cyan",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "alternate",
+            "movement": "sweep",
+            "moverSpread": "offset",
+            "focus": "all",
+            "effects": {
+              "blinder": true,
+              "strobe": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-5",
+            "type": "verse",
+            "name": "Verse 2",
+            "bpm": 124,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "lively",
+            "energy": 1,
+            "colors": [
+              "cyan",
+              "blue",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "fillUp",
+            "movement": "circle",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false,
+            "patternSpeed": 2
+          },
+          {
+            "id": "demo-3-6",
+            "type": "prechorus",
+            "name": "Pre-Chorus 2",
+            "bpm": 124,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "lively",
+            "energy": 2,
+            "colors": [
+              "cyan",
+              "blue",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "fillUp",
+            "movement": "circle",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "build",
+            "autoAdvance": false,
+            "patternSpeed": 2
+          },
+          {
+            "id": "demo-3-7",
+            "type": "chorus",
+            "name": "Chorus 2",
+            "bpm": 124,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "aggressive",
+            "energy": 5,
+            "colors": [
+              "magenta",
+              "cyan",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "alternate",
+            "movement": "sweep",
+            "moverSpread": "offset",
+            "focus": "all",
+            "effects": {
+              "blinder": true,
+              "strobe": true
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-8",
+            "type": "bridge",
+            "name": "Bridge",
+            "bpm": 124,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "mist",
+            "energy": 4,
+            "colors": [
+              "steelBlue",
+              "iceBlue"
+            ],
+            "colorChange": "2bars",
+            "colorFade": false,
+            "pattern": "sineWave",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-9",
+            "type": "chorus",
+            "name": "Chorus 3",
+            "bpm": 124,
+            "bars": 16,
+            "beatsPerBar": 4,
+            "mood": "aggressive",
+            "energy": 5,
+            "colors": [
+              "magenta",
+              "cyan",
+              "white"
+            ],
+            "colorChange": "beat",
+            "colorFade": false,
+            "pattern": "alternate",
+            "movement": "sweep",
+            "moverSpread": "offset",
+            "focus": "all",
+            "effects": {
+              "blinder": true,
+              "strobe": true,
+              "strobeColor": "look"
+            },
+            "transition": "snap",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-10",
+            "type": "outro",
+            "name": "Outro",
+            "bpm": 124,
+            "bars": 8,
+            "beatsPerBar": 4,
+            "mood": "twilight",
+            "energy": 3,
+            "colors": [
+              "midnight",
+              "lavender"
+            ],
+            "colorChange": "4bars",
+            "colorFade": true,
+            "pattern": "drift",
+            "movement": "static",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "fade",
+            "autoAdvance": false
+          },
+          {
+            "id": "demo-3-11",
+            "type": "blackout",
+            "name": "Blackout",
+            "bpm": 124,
+            "bars": 1,
+            "beatsPerBar": 4,
+            "mood": "dark",
+            "energy": 1,
+            "colors": [],
+            "colorChange": "mood",
+            "colorFade": false,
+            "pattern": "solid",
+            "movement": "mood",
+            "moverSpread": "together",
+            "focus": "all",
+            "effects": {},
+            "transition": "snap",
+            "autoAdvance": false
+          }
+        ]
+      }
+    ],
+    "setlists": [
+      {
+        "id": "demo-set-full",
+        "name": "Full set",
+        "order": [
+          "demo-song-1",
+          "demo-song-2",
+          "demo-song-3"
+        ],
+        "skip": []
+      },
+      {
+        "id": "demo-set-short",
+        "name": "Short slot",
+        "order": [
+          "demo-song-1",
+          "demo-song-2",
+          "demo-song-3"
+        ],
+        "skip": [
+          "demo-song-2"
+        ],
+        "minutes": 10
+      }
+    ],
+    "currentSet": "demo-set-full",
+    "demo": true
+  },
+  "showFile": {
+    "name": "Lightsmith demo.qxw",
+    "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE Workspace>\n<Workspace xmlns=\"http://www.qlcplus.org/Workspace\" CurrentWindow=\"VirtualConsole\">\n <Creator>\n  <Name>Q Light Controller Plus</Name>\n  <Version>4.14.1</Version>\n  <Author>Lightsmith demo</Author>\n </Creator>\n <Engine>\n  <InputOutputMap>\n   <BeatGenerator BeatType=\"Disabled\" BPM=\"0\"/>\n   <Universe Name=\"Universe 1\" ID=\"0\"/>\n   <Universe Name=\"Universe 2\" ID=\"1\"/>\n  </InputOutputMap>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>COLORband PiX-M</Model>\n   <Mode>38 Channel</Mode>\n   <ID>0</ID>\n   <Name>Bar 1 (stage right)</Name>\n   <Universe>0</Universe>\n   <Address>0</Address>\n   <Channels>38</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>COLORband PiX-M</Model>\n   <Mode>38 Channel</Mode>\n   <ID>1</ID>\n   <Name>Bar 2</Name>\n   <Universe>0</Universe>\n   <Address>38</Address>\n   <Channels>38</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>COLORband PiX-M</Model>\n   <Mode>38 Channel</Mode>\n   <ID>2</ID>\n   <Name>Bar 3</Name>\n   <Universe>0</Universe>\n   <Address>76</Address>\n   <Channels>38</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>COLORband PiX-M</Model>\n   <Mode>38 Channel</Mode>\n   <ID>3</ID>\n   <Name>Bar 4 (stage left)</Name>\n   <Universe>0</Universe>\n   <Address>114</Address>\n   <Channels>38</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>SlimPAR Pro Q USB</Model>\n   <Mode>10 Channel</Mode>\n   <ID>4</ID>\n   <Name>Floor wash SR</Name>\n   <Universe>0</Universe>\n   <Address>152</Address>\n   <Channels>10</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>SlimPAR Pro Q USB</Model>\n   <Mode>10 Channel</Mode>\n   <ID>5</ID>\n   <Name>Floor wash SL</Name>\n   <Universe>0</Universe>\n   <Address>162</Address>\n   <Channels>10</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>SlimPAR Pro Q USB</Model>\n   <Mode>10 Channel</Mode>\n   <ID>6</ID>\n   <Name>Front SR (on a stand)</Name>\n   <Universe>0</Universe>\n   <Address>172</Address>\n   <Channels>10</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>SlimPAR Pro Q USB</Model>\n   <Mode>10 Channel</Mode>\n   <ID>7</ID>\n   <Name>Front SL (on a stand)</Name>\n   <Universe>0</Universe>\n   <Address>182</Address>\n   <Channels>10</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>Intimidator Wash Zoom 350 IRC</Model>\n   <Mode>14-Ch</Mode>\n   <ID>8</ID>\n   <Name>Head SR</Name>\n   <Universe>0</Universe>\n   <Address>192</Address>\n   <Channels>14</Channels>\n  </Fixture>\n  <Fixture>\n   <Manufacturer>Chauvet</Manufacturer>\n   <Model>Intimidator Wash Zoom 350 IRC</Model>\n   <Mode>14-Ch</Mode>\n   <ID>9</ID>\n   <Name>Head SL</Name>\n   <Universe>0</Universe>\n   <Address>206</Address>\n   <Channels>14</Channels>\n  </Fixture>\n  <Monitor DisplayMode=\"1\" ShowLabels=\"1\">\n   <Font>Arial,12,-1,5,50,0,0,0,0,0</Font>\n   <ChannelStyle>0</ChannelStyle>\n   <ValueStyle>0</ValueStyle>\n   <Grid Width=\"8\" Height=\"4\" Depth=\"6\" Units=\"0\"/>\n   <FxItem ID=\"0\" XPos=\"700\" YPos=\"500\" ZPos=\"600\" XRot=\"270\" ZRot=\"270\"/>\n   <FxItem ID=\"1\" XPos=\"2900\" YPos=\"500\" ZPos=\"1100\" XRot=\"270\" ZRot=\"270\"/>\n   <FxItem ID=\"2\" XPos=\"5100\" YPos=\"500\" ZPos=\"1100\" XRot=\"270\" ZRot=\"270\"/>\n   <FxItem ID=\"3\" XPos=\"7300\" YPos=\"500\" ZPos=\"600\" XRot=\"270\" ZRot=\"270\"/>\n   <FxItem ID=\"4\" XPos=\"1500\" YPos=\"10\" ZPos=\"4300\" YRot=\"20\"/>\n   <FxItem ID=\"5\" XPos=\"6500\" YPos=\"10\" ZPos=\"4300\" YRot=\"-20\"/>\n   <FxItem ID=\"6\" XPos=\"1800\" YPos=\"1800\" ZPos=\"7000\" XRot=\"20\"/>\n   <FxItem ID=\"7\" XPos=\"6200\" YPos=\"1800\" ZPos=\"7000\" XRot=\"20\"/>\n   <FxItem ID=\"8\" XPos=\"300\" YPos=\"3\" ZPos=\"3200\"/>\n   <FxItem ID=\"9\" XPos=\"7700\" YPos=\"3\" ZPos=\"3200\"/>\n  </Monitor>\n </Engine>\n <VirtualConsole>\n  <Frame Caption=\"\">\n   <Appearance>\n    <FrameStyle>None</FrameStyle>\n    <ForegroundColor>Default</ForegroundColor>\n    <BackgroundColor>Default</BackgroundColor>\n    <BackgroundImage>None</BackgroundImage>\n    <Font>Default</Font>\n   </Appearance>\n  </Frame>\n  <Properties>\n   <Size Width=\"1920\" Height=\"1080\"/>\n   <GrandMaster ChannelMode=\"Intensity\" ValueMode=\"Reduce\" SliderMode=\"Normal\"/>\n  </Properties>\n </VirtualConsole>\n <SimpleDesk>\n  <Engine/>\n </SimpleDesk>\n</Workspace>\n"
+  },
+  "fixtureDefinitions": []
+}

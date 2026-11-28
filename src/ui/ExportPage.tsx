@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { checkWorkspace, generateSet, generateSong, moodById, parseWorkspace, PATH_ROOT, sectionMs, serializeWorkspace, setOrder, songPathFor, type GenerateSummary, type Issue, type SetSummary, type Song } from "../core";
+import { checkWorkspace, formatClock, generateSet, generateSong, moodById, newId, parseWorkspace, PATH_ROOT, sectionMs, serializeWorkspace, setlistsOf, setMs, setOrder, songMs, songPathFor, type Setlist, type GenerateSummary, type Issue, type SetSummary, type Song } from "../core";
 import { cssColor } from "./ColorPicker";
 import { Dropdown, Segmented } from "./controls";
 import { startNewProject } from "./newProject";
@@ -19,10 +19,19 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
   const [failure, setFailure] = useState<string | null>(null);
   const unusable = useMemo(() => store.project.rig.fixtures.filter((f) => f.role !== "ignore" && !store.profiles.has(f.fixtureId)).length, [store.project.rig, store.profiles]);
 
-  const order = setOrder(store.project);
+  const { sets, current: set } = setlistsOf(store.project);
+  const order = setOrder(store.project, set);
   const inSet = order.filter((o) => o.included && o.song.sections.length > 0).map((o) => o.song);
-  const saveOrder = (next: { song: Song; included: boolean }[]) => {
-    store.setSetlist({ order: next.map((o) => o.song.id), skip: next.filter((o) => !o.included).map((o) => o.song.id) });
+  const saveSet = (changes: Partial<Setlist>) => {
+    store.saveSet({ ...set, ...changes });
+    setResult(null);
+  };
+  const saveOrder = (next: { song: Song; included: boolean }[]) => saveSet({ order: next.map((o) => o.song.id), skip: next.filter((o) => !o.included).map((o) => o.song.id) });
+  const newSet = () => {
+    let n = sets.length + 1;
+    while (sets.some((x) => x.name === `Set ${n}`)) n++;
+    // A copy of this set, to trim or reorder: most short sets are a full set with songs taken out.
+    store.saveSet({ ...set, id: newId("set"), name: `Set ${n}` });
     setResult(null);
   };
   const moveSong = (i: number, by: number) => {
@@ -41,7 +50,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
         const summary = generateSet({ ws, profiles: store.profiles, rig: store.project.rig, songs: inSet, sequences: store.project.sequences, control: store.project.control });
         const xml = serializeWorkspace(ws);
         const issues = checkWorkspace(parseWorkspace(xml), store.profiles, PATH_ROOT);
-        setResult({ mode, xml, summary, issues, title: "Set" });
+        setResult({ mode, xml, summary, issues, title: set.name || "Set" });
       } else if (song) {
         const summary = generateSong({ ws, profiles: store.profiles, rig: store.project.rig, song, sequences: store.project.sequences, control: store.project.control, neighbours: store.project.songs });
         const xml = serializeWorkspace(ws);
@@ -83,7 +92,8 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
       {mode === "set" ? (
         <div className="export-card set">
           <div className="export-pick">
-            <p className="hint">Songs in the order you play them. Each one gets a page of section buttons in QLC+, in this order. Untick a song to leave it out.</p>
+            <SetPicker store={store} sets={sets} set={set} onSave={saveSet} onNew={newSet} onPicked={() => setResult(null)} />
+            <p className="hint">Songs in the order you play them. Each one gets a page of section buttons in QLC+, in this order. Untick a song to leave it out of this set.</p>
             <ol className="set-list" aria-label="Songs in the set">
               {order.map((o, i) => (
                 <li key={o.song.id} className={o.included ? "set-song" : "set-song out"}>
@@ -92,7 +102,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
                     <input type="checkbox" checked={o.included} onChange={(e) => saveOrder(order.map((x, k) => (k === i ? { ...x, included: e.target.checked } : x)))} aria-label={`Include ${o.song.title || "Untitled song"} in the set`} />
                     <span className="set-title">{o.song.title || "Untitled song"}</span>
                   </label>
-                  <span className="set-meta">{o.song.sections.length ? `${o.song.sections.length} sections` : "No sections yet"}</span>
+                  <span className="set-meta">{o.song.sections.length ? `${o.song.sections.length} sections, ${formatClock(songMs(o.song))}` : "No sections yet"}</span>
                   <SongStrip song={o.song} />
                   <span className="set-move">
                     <button type="button" className="icon-btn" onClick={() => moveSong(i, -1)} disabled={i === 0} aria-label={`Move ${o.song.title} earlier`} title="Earlier in the set">
@@ -244,6 +254,78 @@ function SongStrip({ song }: { song: Song }) {
       {song.sections.map((s) => (
         <span key={s.id} style={{ flexGrow: sectionMs(s), background: `linear-gradient(90deg, ${(s.colors.length ? s.colors : moodById(s.mood).colors).map(cssColor).join(",")})` }} title={s.name} />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Which set: a gig with a 30-minute slot gets its own set with fewer songs,
+ * and the running time says whether it fits.
+ */
+function SetPicker({ store, sets, set, onSave, onNew, onPicked }: { store: Store; sets: Setlist[]; set: Setlist; onSave: (c: Partial<Setlist>) => void; onNew: () => void; onPicked: () => void }) {
+  const ms = setMs(store.project, set);
+  const songs = setOrder(store.project, set).filter((o) => o.included).length;
+  const slotMs = set.minutes ? set.minutes * 60_000 : 0;
+  const spare = slotMs - ms;
+  return (
+    <div className="set-picker">
+      <div className="set-picker-row">
+        {sets.length > 1 && (
+          <label className="field">
+            <span className="field-label">Set</span>
+            <Dropdown
+              label="Which set"
+              value={set.id}
+              options={sets.map((x) => ({ value: x.id, label: x.name, description: formatClock(setMs(store.project, x)) }))}
+              onChange={(id) => {
+                store.chooseSet(id);
+                onPicked();
+              }}
+            />
+          </label>
+        )}
+        <label className="field set-name">
+          <span className="field-label">Name</span>
+          <input value={set.name} onChange={(e) => onSave({ name: e.target.value })} onBlur={(e) => !e.target.value.trim() && onSave({ name: "Untitled set" })} aria-label="Name of this set" />
+        </label>
+        <label className="field set-slot">
+          <span className="field-label">Slot length</span>
+          <span className="set-slot-input">
+            <input
+              type="number"
+              min={1}
+              max={600}
+              inputMode="numeric"
+              placeholder="None"
+              value={set.minutes ?? ""}
+              onChange={(e) => {
+                const v = Math.round(Number(e.target.value));
+                onSave({ minutes: e.target.value && v > 0 ? v : undefined });
+              }}
+              aria-label="Slot length in minutes"
+            />
+            <span>min</span>
+          </span>
+        </label>
+        <span className="set-picker-actions">
+          <button type="button" className="ghost small" onClick={onNew} title="A copy of this set, to trim or reorder for another gig">
+            <Icon name="plus" size={14} /> New set
+          </button>
+          {sets.length > 1 && (
+            <button type="button" className="ghost small danger" onClick={() => store.deleteSet(set.id)} title="Delete this set (the songs stay)">
+              <Icon name="trash" size={14} /> Delete set
+            </button>
+          )}
+        </span>
+      </div>
+      <p className={slotMs && spare < 0 ? "set-time over" : "set-time"}>
+        <strong>
+          {songs} {songs === 1 ? "song" : "songs"}, {formatClock(ms)}
+        </strong>{" "}
+        of music
+        {slotMs > 0 && (spare >= 0 ? <>: {formatClock(spare)} to spare in a {set.minutes}-minute slot, for talking, tuning and applause.</> : <>: {formatClock(-spare)} over a {set.minutes}-minute slot. Untick a song or two.</>)}
+        {!slotMs && "."}
+      </p>
     </div>
   );
 }

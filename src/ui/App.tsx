@@ -116,7 +116,7 @@ export function App() {
       id: "stage",
       label: "Stage",
       icon: "stage",
-      status: !store.workspace ? "Load your QLC+ show" : store.missing.length ? `${store.missing.length} ${store.missing.length === 1 ? "light needs" : "lights need"} a definition` : `${placed} lights in use`,
+      status: !store.workspace ? "Load your QLC+ show" : store.project.demo ? "The demo rig" : store.missing.length ? `${store.missing.length} ${store.missing.length === 1 ? "light needs" : "lights need"} a definition` : `${placed} lights in use`,
     },
     { id: "songs", label: "Songs", icon: "music", status: `${store.project.songs.length} ${store.project.songs.length === 1 ? "song" : "songs"}` },
     { id: "control", label: "Show control", icon: "midi", status: controlStatus },
@@ -280,7 +280,13 @@ export function App() {
             </button>
           </div>
         )}
-        {step === "stage" && (ready ? <StagePage store={store} onNext={() => setStep("songs")} /> : <Welcome store={store} />)}
+        {step === "stage" && (ready ? <StagePage store={store} onNext={() => setStep("songs")} /> : <Welcome
+              store={store}
+              onDemo={() => {
+                setSongId("demo-song-1");
+                setStep("songs");
+              }}
+            />)}
         {step === "songs" && <SongsPage store={store} songId={songId} setSongId={setSongId} onNext={() => setStep("control")} />}
         {step === "control" && <ShowControlPage store={store} onNext={() => setStep("export")} />}
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}

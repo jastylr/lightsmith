@@ -1,4 +1,4 @@
-import { COLORS, SAFE_LOOK_DEFAULT_LEVEL, emptyShowControl, safeLookSong, setOrder, stepCuesFor, triggerFor, newId, type ControlDevice, type Rig, type SafeLookStyle, type ShowControl, type Trigger } from "../core";
+import { COLORS, SAFE_LOOK_DEFAULT_LEVEL, emptyShowControl, safeLookSong, setlistsOf, setOrder, stepCuesFor, triggerFor, newId, type ControlDevice, type Rig, type SafeLookStyle, type ShowControl, type Trigger } from "../core";
 import { cssColor } from "./ColorPicker";
 import { StagePreview } from "./StagePreview";
 import { ChoiceCards, Dropdown, Field, NumberInput, Segmented } from "./controls";
@@ -46,7 +46,8 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
     store.setControl({ ...base, slots });
   };
 
-  const order = setOrder(store.project).filter((o) => o.included);
+  const { sets, current: currentSet } = setlistsOf(store.project);
+  const order = setOrder(store.project, currentSet).filter((o) => o.included);
   const songs = order.map((o) => o.song);
   const slotCount = Math.max(8, ...songs.map((s) => s.sections.length), control.slots.length);
   const universeOptions = [
@@ -219,7 +220,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
 
       <section className="control-card no-print">
         <h2>Between songs</h2>
-        <p className="hint">Next and previous move through the set in order. A song can also have its own trigger that jumps straight to it, such as a different preset on your amp modeler for each song.</p>
+        <p className="hint">Next and previous move through the set in order{sets.length > 1 ? <> (now <strong>{currentSet.name}</strong>; choose another set on the Export page)</> : null}. A song can also have its own trigger that jumps straight to it, such as a different preset on your amp modeler for each song.</p>
         <div className="control-pairs">
           <Field label="Next song">
             <TriggerField label="Next song" value={control.nextSong} control={control} inputs={inputs} onChange={setTrigger("nextSong")} />
@@ -266,7 +267,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
 
       <section className="control-card cheat-sheet">
         <div className="cheat-head">
-          <h2>Cheat sheet</h2>
+          <h2>Cheat sheet{sets.length > 1 ? `: ${currentSet.name}` : ""}</h2>
           <button type="button" className="ghost no-print" onClick={() => window.print()}>
             <Icon name="printer" size={16} /> Print
           </button>

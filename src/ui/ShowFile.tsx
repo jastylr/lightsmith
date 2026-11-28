@@ -52,7 +52,14 @@ const JOURNEY: { icon: IconName; title: string; text: string }[] = [
 ];
 
 /** The first page: what Lightsmith does, and the place to drop a show (or a saved project). */
-export function Welcome({ store }: { store: Store }) {
+export function Welcome({ store, onDemo }: { store: Store; onDemo: () => void }) {
+  const [opening, setOpening] = useState(false);
+  const tryDemo = async () => {
+    setOpening(true);
+    const ok = await store.openDemo();
+    setOpening(false);
+    if (ok) onDemo();
+  };
   return (
     <section className="page welcome">
       <header className="welcome-hero">
@@ -77,6 +84,19 @@ export function Welcome({ store }: { store: Store }) {
           </button>
         )}
       </DropTarget>
+
+      <div className="welcome-demo">
+        <span className="welcome-demo-icon" aria-hidden="true">
+          <Icon name="play" size={18} />
+        </span>
+        <p>
+          <strong>No show file handy?</strong> Try the demo: a typical small band rig (LED bars, floor washes, front lights and two moving heads) with
+          three songs ready to play. Bring your own show whenever you like.
+        </p>
+        <button type="button" className="welcome-demo-btn" onClick={() => void tryDemo()} disabled={opening}>
+          {opening ? "Opening…" : "Try the demo"}
+        </button>
+      </div>
 
       {store.workspaceError && (
         <div className="notice error">
@@ -149,6 +169,15 @@ export function ShowFileBar({ store }: { store: Store }) {
               </button>
             </div>
           </div>
+          {store.project.demo && (
+            <div className="showfile-demo">
+              <Icon name="info" size={16} />
+              <p>
+                <strong>You're trying the demo rig.</strong> Play with anything; nothing here touches a real light. When you're ready for your own band, drop
+                your QLC+ show file on this bar: your songs stay, and Lightsmith works out your lights.
+              </p>
+            </div>
+          )}
           {missing.length > 0 && (
             <div className="showfile-warn" role="alert">
               <p>

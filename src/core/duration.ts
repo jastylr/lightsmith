@@ -71,3 +71,12 @@ export function parseDuration(text: string, bare: "s" | "ms" = "s"): number | nu
   if (!used || used.length !== t.length) return null;
   return Math.round(total);
 }
+
+/** A running time as people say it: 197000 → "3:17", 3725000 → "1:02:05". */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / SECOND));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}

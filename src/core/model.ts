@@ -649,26 +649,61 @@ export interface Project {
   sequences?: Sequence[];
   /** The user's own presets, shared by every song. */
   presets?: LookPreset[];
-  /** The set: songs in playing order, and any left out of the export. */
+  /**
+   * The sets you play: each its own songs, in its own order (a full show, a
+   * 30-minute support slot, an acoustic set). Older projects had a single
+   * `setlist`; it becomes the first of these.
+   */
+  setlists?: Setlist[];
+  /** The set being worked on: Export builds it, and Show control follows it. */
+  currentSet?: string;
+  /** Older projects: the one set. Read once, then kept as `setlists[0]`. */
   setlist?: Setlist;
   /** MIDI devices and what they trigger. */
   control?: ShowControl;
+  /** Made from Lightsmith's demo rig, not the user's own show file (until they load one). */
+  demo?: boolean;
 }
 
 export interface Setlist {
+  id: string;
+  /** What the band calls it: "Full show", "Friday support slot". */
+  name: string;
   /** Song ids in playing order. Songs not listed follow, in the order they were made. */
   order: string[];
-  /** Song ids left out of the whole-set export. */
+  /** Song ids left out of this set. */
   skip: string[];
+  /** How long the slot is, in minutes, if there's a limit; the set's running time is checked against it. */
+  minutes?: number;
 }
 
-/** The project's songs in set order, with whether each one is in the set. */
-export function setOrder(p: Pick<Project, "songs" | "setlist">): { song: Song; included: boolean }[] {
+export const DEFAULT_SET_NAME = "Full set";
+
+/** Every set, and the one being worked on. A project always has at least one. */
+export function setlistsOf(p: Pick<Project, "setlists" | "currentSet" | "setlist">): { sets: Setlist[]; current: Setlist } {
+  const sets = p.setlists?.length ? p.setlists : [{ id: "set-main", name: DEFAULT_SET_NAME, order: p.setlist?.order ?? [], skip: p.setlist?.skip ?? [] }];
+  return { sets, current: sets.find((x) => x.id === p.currentSet) ?? sets[0]! };
+}
+
+/** A set's songs in order, with whether each one is in it. Songs made after the set was arranged join it at the end. */
+export function setOrder(p: Pick<Project, "songs" | "setlists" | "currentSet" | "setlist">, set: Setlist = setlistsOf(p).current): { song: Song; included: boolean }[] {
   const byId = new Map(p.songs.map((s) => [s.id, s]));
-  const listed = (p.setlist?.order ?? []).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  const listed = set.order.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
   const rest = p.songs.filter((s) => !listed.includes(s));
-  const skip = new Set(p.setlist?.skip ?? []);
+  const skip = new Set(set.skip);
   return [...listed, ...rest].map((song) => ({ song, included: !skip.has(song.id) }));
+}
+
+/** How long a song runs, from its sections. */
+export function songMs(song: Pick<Song, "sections">): number {
+  return song.sections.reduce((t, x) => t + sectionMs(x), 0);
+}
+
+/** How long a set runs: its songs, back to back (the talking between them is up to you). */
+export function setMs(p: Pick<Project, "songs" | "setlists" | "currentSet" | "setlist">, set?: Setlist): number {
+  return setOrder(p, set)
+    .filter((o) => o.included)
+    .reduce((t, o) => t + songMs(o.song), 0);
 }
 
 /** A section's look, copied so the preset doesn't share anything with the section. */
@@ -756,7 +791,19 @@ export function normalizeProject(p: Project): Project {
     ...(p.sequences ? { sequences: p.sequences.filter((q) => p.songs.some((song) => song.sections.some((s) => (s.sequences ?? []).some((u) => u.id === q.id)))).map((q) => ({ ...q, steps: q.steps.map((st) => ({ ...st, lights: [...st.lights], ...(st.lightColors ? { lightColors: { ...st.lightColors } } : {}) })) })) } : {}),
     ...(p.presets ? { presets: p.presets.map((x) => ({ ...x, look: structuredClone(x.look) })) } : {}),
     ...(p.control ? { control: { ...p.control, devices: [...(p.control.devices ?? [])], slots: [...(p.control.slots ?? [])], ...(p.control.cues ? { cues: [...p.control.cues] } : {}), ...(p.control.safeLookStyle ? { safeLookStyle: { ...p.control.safeLookStyle } } : {}) } } : {}),
-    ...(p.setlist ? { setlist: { order: [...(p.setlist.order ?? [])], skip: [...(p.setlist.skip ?? [])] } } : {}),
+    ...(p.setlists?.length || p.setlist
+      ? {
+          setlists: setlistsOf(p).sets.map((x, i) => ({
+            ...x,
+            id: x.id || `set-${i + 1}`,
+            name: x.name || (i ? `Set ${i + 1}` : DEFAULT_SET_NAME),
+            order: [...(x.order ?? [])],
+            skip: [...(x.skip ?? [])],
+          })),
+        }
+      : {}),
+    ...(p.currentSet && p.setlists?.some((x) => x.id === p.currentSet) ? { currentSet: p.currentSet } : {}),
+    ...(p.demo ? { demo: true } : {}),
   };
 }
 
