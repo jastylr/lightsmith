@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointer
 import { DEFAULT_PAN_RANGE, DEFAULT_TILT_RANGE, DEFAULT_PAN_SECONDS, defaultHome, isDefaultHome, guessRole, isBar, mountOf, settleRig, type FixtureProfile, type Mount, type Rig, type RigFixture, type Role, type WsFixture } from "../core";
 import { DurationInput, Field, NumberInput, Segmented, Toggle } from "./controls";
 import { Icon, type IconName } from "./icons";
+import { LightsList, ShowFileBar } from "./ShowFile";
 import { PositionsCard } from "./PositionsCard";
 import type { Store } from "./store";
 
@@ -186,14 +187,15 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
 
   return (
     <section className="page stage-page">
-      <header className="page-head">
-        <h1>Set up your stage</h1>
+      <header className="page-head stage-head">
+        <h1>Your stage</h1>
         <p className="lead">
           {rig.stage
             ? "Your lights are where you put them in QLC+'s 3D view. Pick a light to set its job, or drag it to move it. Moves here go back into QLC+ when you export."
             : "This show file has no 3D layout, so Lightsmith has spread your lights out. Drag them to where they really are, and pick a light to set its job."}
         </p>
       </header>
+      <ShowFileBar store={store} />
 
       <div className="stage-layout">
         <div className="stage-col">
@@ -350,7 +352,7 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
                         onPointerMove={moveDrag}
                         onPointerUp={endDrag}
                         onClick={() => setSelected(f.fixtureId)}
-                        title={usable ? "Drag onto the stage" : "Add this fixture's definition in step 1 first"}
+                        title={usable ? "Drag onto the stage" : "Add this fixture's definition first (Replace or add files, above)"}
                       >
                         <Icon name="grip" size={14} />
                         <span>{fx?.name ?? `Fixture ${f.fixtureId}`}</span>
@@ -362,11 +364,14 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
               </ul>
             )}
           </div>
-          <PositionsCard rig={rig} fixtures={byId} onChange={commit} />
         </div>
 
         <aside className="inspector" aria-label="Selected light">
           {sel && selFixture ? (
+            <>
+            <button type="button" className="link small inspector-back" onClick={() => setSelected(null)}>
+              <Icon name="chevronLeft" size={14} /> All lights
+            </button>
             <Inspector
               rf={sel}
               fixture={selFixture}
@@ -377,20 +382,11 @@ export function StagePage({ store, onNext }: { store: Store; onNext: () => void 
               likeThis={sameModel(sel).length}
               onCopyToLike={() => copyToLike(sel)}
             />
+            {/* A moving head's saved positions (one place per section, shared by all the heads) sit with it. */}
+            {sel.role === "mover" && <PositionsCard rig={rig} fixtures={byId} onChange={commit} />}
+            </>
           ) : (
-            <div className="inspector-empty">
-              <Icon name="stage" size={28} />
-              <h2>Pick a light</h2>
-              <p>Click a light to see its details, change its job, or set where a moving head points.</p>
-              <dl className="counts">
-                {JOBS.map((r) => (
-                  <div key={r}>
-                    <dt>{ROLE_INFO[r].label}</dt>
-                    <dd>{rig.fixtures.filter((f) => f.role === r).length}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
+            <LightsList store={store} rig={rig} roleInfo={ROLE_INFO} selected={selected} onSelect={setSelected} />
           )}
         </aside>
       </div>

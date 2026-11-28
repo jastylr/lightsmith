@@ -6,19 +6,19 @@ import { Logo } from "./Logo";
 import { Icon, type IconName } from "./icons";
 import { download, useLightsmith } from "./store";
 import { sectionMs } from "../core";
-import { ImportPage } from "./ImportPage";
+import { Welcome } from "./ShowFile";
 import { StagePage } from "./StagePage";
 import { SongsPage } from "./SongsPage";
 import { ExportPage } from "./ExportPage";
 import { ShowControlPage } from "./ShowControlPage";
 import { hasWork, startNewProject } from "./newProject";
 
-type StepId = "import" | "stage" | "songs" | "control" | "export";
+type StepId = "stage" | "songs" | "control" | "export";
 
 export function App() {
   const store = useLightsmith();
   const ready = store.fixtures.length > 0;
-  const [step, setStep] = useState<StepId>(ready ? "songs" : "import");
+  const [step, setStep] = useState<StepId>(ready ? "songs" : "stage");
   // The song you were on, so a refresh comes back to it.
   const [songId, setSongIdState] = useState<string>(() => {
     try {
@@ -39,7 +39,7 @@ export function App() {
   };
   // Without a show file only the first step is open (after starting a new project, say).
   useEffect(() => {
-    if (!ready && step !== "import") setStep("import");
+    if (!ready && step !== "stage") setStep("stage");
   }, [ready, step]);
 
   // The sidebar folds down to a strip of icons, for more room on the page. Remembered.
@@ -88,12 +88,11 @@ export function App() {
   const controlStatus = devices ? `${devices} MIDI ${devices === 1 ? "device" : "devices"}` : "Pads and footswitches";
   const steps: { id: StepId; label: string; icon: IconName; status: string }[] = [
     {
-      id: "import",
-      label: "Show file",
-      icon: "file",
-      status: store.workspace ? `${store.fixtures.length} fixtures${store.missing.length ? `, ${store.missing.length} need definitions` : ""}` : "Load your QLC+ workspace",
+      id: "stage",
+      label: "Stage",
+      icon: "stage",
+      status: !store.workspace ? "Load your QLC+ show" : store.missing.length ? `${store.missing.length} ${store.missing.length === 1 ? "light needs" : "lights need"} a definition` : `${placed} lights in use`,
     },
-    { id: "stage", label: "Stage", icon: "stage", status: ready ? `${placed} lights in use` : "Place your lights" },
     { id: "songs", label: "Songs", icon: "music", status: `${store.project.songs.length} ${store.project.songs.length === 1 ? "song" : "songs"}` },
     { id: "control", label: "Show control", icon: "midi", status: controlStatus },
     { id: "export", label: "Export", icon: "download", status: "Build the QLC+ file" },
@@ -143,7 +142,7 @@ export function App() {
           <ol className="rail-steps">
             {steps.map((s, i) => (
               <li key={s.id}>
-                <button className={step === s.id ? "rail-step on" : "rail-step"} onClick={() => setStep(s.id)} disabled={s.id !== "import" && !ready} aria-current={step === s.id ? "step" : undefined} aria-label={`${i + 1}. ${s.label}: ${s.status}`} title={collapsed ? `${s.label}: ${s.status}` : undefined}>
+                <button className={step === s.id ? "rail-step on" : "rail-step"} onClick={() => setStep(s.id)} disabled={s.id !== "stage" && !ready} aria-current={step === s.id ? "step" : undefined} aria-label={`${i + 1}. ${s.label}: ${s.status}`} title={collapsed ? `${s.label}: ${s.status}` : undefined}>
                   <span className="rail-num">
                     <span className="rail-num-n">{i + 1}</span>
                     {/* The folded sidebar shows each step's icon instead of its number. */}
@@ -217,8 +216,7 @@ export function App() {
             </button>
           </div>
         )}
-        {step === "import" && <ImportPage store={store} onNext={() => setStep("stage")} />}
-        {step === "stage" && <StagePage store={store} onNext={() => setStep("songs")} />}
+        {step === "stage" && (ready ? <StagePage store={store} onNext={() => setStep("songs")} /> : <Welcome store={store} />)}
         {step === "songs" && <SongsPage store={store} songId={songId} setSongId={setSongId} onNext={() => setStep("control")} />}
         {step === "control" && <ShowControlPage store={store} onNext={() => setStep("export")} />}
         {step === "export" && <ExportPage store={store} songId={songId} setSongId={setSongId} />}

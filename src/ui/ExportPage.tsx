@@ -135,7 +135,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
         <div className="notice warn">
           <Icon name="info" />
           <span>
-            {unusable} {unusable === 1 ? "light has" : "lights have"} no definition yet and will be left out. Add the definitions on the Show file step.
+            {unusable} {unusable === 1 ? "light has" : "lights have"} no definition yet and will be left out. Add the definitions in the show file bar on the Stage page.
           </span>
         </div>
       )}
@@ -201,7 +201,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
 
       <section className="backup">
         <h2>Keep a copy of your work</h2>
-        <p className="hint">Your work is kept in this browser as you go. To back it up or move it to another computer, save a project file (.lightsmith): it holds your stage, songs, set and show control, plus the QLC+ show file and the fixture definitions you added. Drop it on the Show file step to open it.</p>
+        <p className="hint">Your work is kept in this browser as you go. To back it up or move it to another computer, save a project file (.lightsmith): it holds your stage, songs, set and show control, plus the QLC+ show file and the fixture definitions you added. Drop it on the show file bar on the Stage page (or the first page, for a new project) to open it.</p>
         <div className="row">
           <button
             className="ghost"

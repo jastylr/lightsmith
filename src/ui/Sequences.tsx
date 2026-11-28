@@ -195,7 +195,7 @@ export function SequencesCard({
           </button>
         </div>
       )}
-      <Field label={uses.length ? "Add another chaser" : "Add a chaser"} hint={showFile ? undefined : "Load your show file on the Show file page to import its chasers."}>
+      <Field label={uses.length ? "Add another chaser" : "Add a chaser"} hint={showFile ? undefined : "Load your show file on the Stage page to import its chasers."}>
         <Dropdown label="Add a chaser" value="" placeholder="Choose…" options={addOptions} onChange={add} className="wide" />
       </Field>
     </div>
