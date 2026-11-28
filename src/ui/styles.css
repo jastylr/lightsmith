@@ -5876,11 +5876,19 @@ input.extra-slider:focus-visible {
 }
 
 @container editor (min-width: 940px) {
-  .editor-grid {
+  /* The stage column runs from the very top, beside the header and the settings. */
+  .editor-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) clamp(340px, 42%, 560px);
-    grid-template-areas: "controls stage";
+    grid-template-areas: "head stage" "controls stage";
+    grid-template-rows: auto 1fr;
     align-items: start;
+  }
+  .editor-layout > .editor-head {
+    grid-area: head;
+  }
+  .editor-grid {
+    display: contents;
   }
   .editor-controls {
     grid-area: controls;
@@ -5888,6 +5896,7 @@ input.extra-slider:focus-visible {
   }
   .editor-preview {
     grid-area: stage;
+    grid-row: 1 / span 2;
     position: sticky;
     top: 0.75rem;
     border-bottom: none;
@@ -6371,7 +6380,98 @@ dialog.variations[open] {
   }
 }
 .editor-meta-time {
-  margin-left: 0.6rem;
-  padding-left: 0.75rem;
-  border-left: 1px solid var(--line);
+  margin-left: 0.5rem;
+}
+
+/* The stage sits in a frame with a band on top for its controls (view, loop,
+   full screen, pop out) and a little floor below, so they never cover the lights. */
+.editor .preview-frame:not(:fullscreen) {
+  padding: 2.85rem 0 0.75rem;
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, #19161e, #0f0d13);
+  box-shadow: 0 0 0 1px var(--line-soft), 0 20px 40px -20px rgba(0, 0, 0, 0.8);
+}
+.editor .preview-frame:not(:fullscreen) .preview {
+  border-radius: 0;
+  box-shadow: none;
+}
+.editor .preview-frame:not(:fullscreen) .preview-views,
+.editor .preview-frame:not(:fullscreen) .preview-tools {
+  top: 0.45rem;
+}
+.editor .preview-frame:not(:fullscreen) .preview-views {
+  background: transparent;
+  backdrop-filter: none;
+}
+.editor .preview-frame:not(:fullscreen) .preview-popout {
+  opacity: 1;
+}
+
+.section-menu {
+  position: relative;
+}
+.toolbar-group.manage .section-menu-btn {
+  background: transparent;
+  color: var(--muted);
+}
+.toolbar-group.manage .section-menu-btn[aria-expanded="true"],
+.toolbar-group.manage .section-menu-btn:hover {
+  color: var(--text);
+  border-color: var(--tungsten);
+}
+.section-menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 17rem;
+  padding: 0.35rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.section-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.section-menu-item > svg {
+  margin-top: 0.15rem;
+  color: var(--muted);
+}
+.section-menu-item span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.section-menu-item strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.section-menu-item small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.section-menu-item:hover,
+.section-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--tungsten) 14%, var(--deck));
+  outline: none;
+}
+.section-menu-item.danger:hover strong,
+.section-menu-item.danger:focus-visible strong,
+.section-menu-item.danger:hover > svg,
+.section-menu-item.danger:focus-visible > svg {
+  color: #ff8d8f;
 }

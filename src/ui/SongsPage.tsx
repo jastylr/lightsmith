@@ -461,17 +461,14 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
                 coach={<CoachPanel song={song} hasMovers={store.project.rig.fixtures.some((f) => f.role === "mover")} onSong={(next) => set({ sections: next.sections })} onSelect={setSelected} onVariations={setVariationsFor} />}
                 onVariations={() => setVariationsFor(current.id)}
                 sectionActions={
-                  <>
-                    <button type="button" className="tool-btn" onClick={() => split(current)} title="Split into two linked halves: same look, one cue plays both">
-                      <Icon name="split" size={15} /> Split
-                    </button>
-                    <button type="button" className="tool-btn" onClick={() => duplicate(current)} title="Add a copy of this section after it">
-                      <Icon name="copy" size={15} /> Duplicate
-                    </button>
-                    <button type="button" className="tool-btn danger" onClick={() => remove(current)} title="Delete this section (Undo brings it back)">
-                      <Icon name="trash" size={15} /> Delete
-                    </button>
-                  </>
+                  <SectionMenu
+                    name={current.name}
+                    items={[
+                      { label: "Split into two linked halves", hint: "Same look, one cue plays both", icon: "split", onPick: () => split(current) },
+                      { label: "Duplicate", hint: "Add a copy after this section", icon: "copy", onPick: () => duplicate(current) },
+                      { label: "Delete", hint: "Undo brings it back", icon: "trash", danger: true, onPick: () => remove(current) },
+                    ]}
+                  />
                 }
                 stageTransportRef={setStageTransportSlot} others={song.sections.filter((x) => x.id !== current.id && !isBlackout(x))} onCopyLookTo={(ids) => set({ sections: song.sections.map((x) => (ids.includes(x.id) ? copyLook(current, x) : x)) })} previewSection={playingId || stageId ? song.sections.find((x) => x.id === (playingId ?? stageId)) : undefined} previewPlaying={!!playingId} profiles={store.profiles} onRigChange={store.setRig} sequences={store.project.sequences ?? []} onSequences={store.setSequences} presets={store.project.presets ?? []} onPresets={store.setPresets} control={store.project.control} onControl={store.setControl} view={pview} onView={setPview} names={fixtureNames} chaserUses={chaserUses} showFile={store.showFile} replay={replay} onReplay={(skip) => setReplay((r) => ({ n: r.n + 1, skip }))} s={current} songBpm={song.bpm} gesture={gesture} popped={popped} onPopOut={() => setPopped(true)} onPopIn={() => setPopped(false)} onCopyLights={(scope) => copyLights(current, scope)} rig={store.project.rig} lights={lights} onChange={(p) => setSection(current.id, p)} index={song.sections.indexOf(current)} prevSection={song.sections[song.sections.indexOf(current) - 1]} nextSection={song.sections[song.sections.indexOf(current) + 1]} />
             )}
@@ -1923,6 +1920,7 @@ function LookEditor({
 
   return (
     <article className="editor" aria-label={`Editing ${s.name}`}>
+      <div className="editor-layout">
       <header className="editor-head">
         <div className="editor-id">
           <span className="editor-num" aria-hidden="true">{index + 1}</span>
@@ -2535,6 +2533,7 @@ function LookEditor({
           </Group>
         </div>
       </div>
+      </div>
     </article>
   );
 }
@@ -2902,4 +2901,70 @@ function remember(key: string, value: string) {
   } catch {
     /* not remembered; fine */
   }
+}
+
+/** The section's housekeeping (split, duplicate, delete) in one labelled menu. */
+function SectionMenu({ name, items }: { name: string; items: { label: string; hint: string; icon: IconName; danger?: boolean; onPick: () => void }[] }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        root.current?.querySelector<HTMLButtonElement>(".section-menu-btn")?.focus();
+      }
+    };
+    window.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", esc);
+    // Focus the first item, as menus do.
+    requestAnimationFrame(() => root.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return (
+    <div className="section-menu" ref={root}>
+      <button type="button" className="tool-btn section-menu-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title={`Split, duplicate or delete ${name}`}>
+        Section <Icon name={open ? "chevronUp" : "chevronDown"} size={15} />
+      </button>
+      {open && (
+        <div
+          className="section-menu-pop"
+          role="menu"
+          aria-label={`${name}: section actions`}
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+            e.preventDefault();
+            const list = [...(root.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+            const at = list.indexOf(document.activeElement as HTMLButtonElement);
+            list[(at + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
+          }}
+        >
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              className={it.danger ? "section-menu-item danger" : "section-menu-item"}
+              onClick={() => {
+                setOpen(false);
+                it.onPick();
+              }}
+            >
+              <Icon name={it.icon} size={16} />
+              <span>
+                <strong>{it.label}</strong>
+                <small>{it.hint}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
