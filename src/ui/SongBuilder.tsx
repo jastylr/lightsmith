@@ -33,7 +33,7 @@ const paletteOf = (s: Section) => (s.colors.length ? s.colors : moodById(s.mood)
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 
 /**
- * "Build a song with me": a few questions with big visual choices (the song,
+ * The Song Builder: a few questions with big visual choices (the song,
  * its structure, a vibe, an energy arc, some signature moments), a live
  * preview that follows every choice, and the finished song at the end. Every
  * section it makes can be edited afterwards like any other.
@@ -78,7 +78,7 @@ export function SongBuilder({ song, rig, sequences, hasMovers, onDone, onClose }
       <div className="builder-box">
         <header className="builder-head">
           <div>
-            <h2 id="builder-title">Build a song with me</h2>
+            <h2 id="builder-title">Song Builder</h2>
             <p className="hint">A few questions, then a finished song you can fine-tune. The preview follows every choice.</p>
           </div>
           <button type="button" className="icon-button" onClick={() => ref.current?.close()} aria-label="Close without making the song">

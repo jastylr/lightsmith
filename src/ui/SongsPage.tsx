@@ -216,19 +216,19 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
   const [variationsFor, setVariationsFor] = useState<string | null>(null);
   // The section the look library is open for, if any.
   const [libraryFor, setLibraryFor] = useState<string | null>(null);
-  // The guided builder ("Build a song with me"), when it's open.
+  // The Song Builder, when it's open.
   const [building, setBuilding] = useState(false);
   const openBuilder = async () => {
     if (!song) return;
     if (song.sections.length) {
       const ok = await askConfirm({
-        title: "Build this song again with the guide?",
+        title: "Build this song again in the Song Builder?",
         message: (
           <>
-            The guide makes a new set of sections for <strong>{song.title || "this song"}</strong>, replacing its {song.sections.length} sections. Undo brings them back.
+            The Song Builder makes a new set of sections for <strong>{song.title || "this song"}</strong>, replacing its {song.sections.length} sections. Undo brings them back.
           </>
         ),
-        confirmLabel: "Start the guide",
+        confirmLabel: "Open the Song Builder",
       });
       if (!ok) return;
     }
@@ -409,8 +409,8 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
             )}
           </div>
           <div className="song-actions">
-            <button type="button" className="ghost small guide-open" onClick={() => void openBuilder()} title="Answer a few questions and the guide lays out the whole song">
-              <Icon name="sparkle" size={15} /> Build with the guide
+            <button type="button" className="ghost small guide-open" onClick={() => void openBuilder()} title="Answer a few questions and the Song Builder lays out the whole song">
+              <Icon name="sparkle" size={15} /> Song Builder
             </button>
             <button type="button" className="icon-button" onClick={() => setSongId(store.addSong())} aria-label="Add a song" title="Add a song">
               <Icon name="plus" size={17} />
@@ -572,8 +572,8 @@ function SongStarter({ onAdd, onTemplate, onBuild }: { onAdd: (type: string) => 
           <Icon name="sparkle" size={22} />
         </span>
         <span>
-          <strong>Build a song with me</strong>
-          <small>A few questions (the song, its structure, a vibe, the energy, some signature moments) and the guide lays out the whole song for you to fine-tune.</small>
+          <strong>Song Builder</strong>
+          <small>A few questions (the song, its structure, a vibe, the energy, some signature moments) and it lays out the whole song for you to fine-tune.</small>
         </span>
         <Icon name="chevronRight" size={18} />
       </button>
