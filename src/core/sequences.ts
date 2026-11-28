@@ -277,7 +277,7 @@ function stepsOf(ws: Workspace, ch: XmlElement, profiles: Map<number, FixturePro
  */
 export function importChaser(ws: Workspace, chaserId: number, profiles: Map<number, FixtureProfile>): ImportResult {
   const ch = functionEl(ws, chaserId);
-  if (!ch || getAttr(ch, "Type") !== "Chaser") throw new Error("That chaser isn't in the show file any more.");
+  if (!ch || getAttr(ch, "Type") !== "Chaser") throw new Error("That chaser isn't in the show file anymore.");
   const notes: string[] = [];
   const runOrder = textOf(childElements(ch, "RunOrder")[0]).trim();
   const order: SequenceOrder = runOrder === "PingPong" ? "bounce" : runOrder === "SingleShot" ? "once" : "loop";

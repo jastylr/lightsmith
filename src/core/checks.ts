@@ -64,7 +64,7 @@ export function checkWorkspace(ws: Workspace, profiles: Map<number, FixtureProfi
         const ch = nums[i]!;
         const v = nums[i + 1]!;
         if (!Number.isInteger(ch) || ch < 0 || ch >= count) issues.push({ level: "error", message: `"${name}" sets channel ${ch + 1} on fixture ${fid}, which only has ${count} channels`, functionName: name });
-        if (!Number.isInteger(v) || v < 0 || v > 255) issues.push({ level: "error", message: `"${name}" has value ${v} (must be 0-255)`, functionName: name });
+        if (!Number.isInteger(v) || v < 0 || v > 255) issues.push({ level: "error", message: `"${name}" has value ${v} (it must be 0–255)`, functionName: name });
         if (seen.has(ch)) issues.push({ level: "error", message: `"${name}" sets channel ${ch + 1} on fixture ${fid} twice`, functionName: name });
         seen.set(ch, v);
       }

@@ -424,7 +424,7 @@ export interface Song {
 // ---------------------------------------------------------------------------
 // Show control: MIDI from pads, footswitches and amp modelers starts sections.
 
-/** Something that sends MIDI: a drum pad, a footswitch, a Quad Cortex. */
+/** Something that sends MIDI: a drum pad, a footswitch, an amp modeler. */
 export interface ControlDevice {
   id: string;
   name: string;

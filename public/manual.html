@@ -152,6 +152,9 @@
           <li><a href="#what">What Lightsmith does</a></li>
           <li><a href="#steps">The four steps</a></li>
           <li><a href="#songs">Songs and sections</a></li>
+          <li><a href="#guide">The Song Builder</a></li>
+          <li><a href="#library">The look library</a></li>
+          <li><a href="#speed">Working faster</a></li>
           <li><a href="#recording">Working with a recording</a></li>
           <li><a href="#looks">Designing a look</a></li>
           <li><a href="#heads">Moving heads</a></li>
@@ -167,18 +170,18 @@
 
       <main>
         <h1>Lightsmith user manual</h1>
-        <p class="lead">Lightsmith builds a light show for your band's songs and writes it into a QLC+ show file. You design each song in your browser; QLC+ runs the lights at the gig.</p>
+        <p class="lead">Lightsmith turns your songs into a light show. You design each song in your browser, thinking like a musician (verse, chorus, big finish), and Lightsmith writes it all into a QLC+ show file. QLC+ runs the lights at the gig; you get to play.</p>
 
         <h2 id="what">What Lightsmith does</h2>
-        <p>QLC+ is free lighting software that drives your lights through a USB or Art-Net adapter. It can do almost anything, but building a show in it means making hundreds of scenes, chasers and buttons by hand. Lightsmith makes them for you from a few musical choices per song section: the mood, how much energy, which colors, what the moving heads do.</p>
+        <p>QLC+ is free lighting software that drives your lights through a USB or Art-Net adapter. It can do almost anything, but building a show in it means making hundreds of scenes, chasers and buttons by hand. Lightsmith makes them for you from a few musical choices per section of a song: the mood, how much energy, which colors, what the moving heads do. Think of it as a lighting designer who already knows your setlist.</p>
         <p>Lightsmith never controls the lights itself. It reads your QLC+ show file, adds the show to it, and gives you a new file to open in QLC+. Everything runs in your browser: your files and recordings stay on your computer.</p>
         <div class="tip"><p>It works with any lights QLC+ knows and any number of them. The examples here mention one band's rig (wash bars, LED panels and two moving heads), but nothing in Lightsmith is tied to it.</p></div>
 
         <h2 id="steps">The four steps</h2>
-        <p>The menu on the left walks you through them in order. You can go back to any step at any time.</p>
+        <p>The menu on the left takes you through them in order, and you can jump back to any step at any time.</p>
         <table>
           <tr><th>Step</th><th>What you do</th></tr>
-          <tr><td><strong>Stage</strong></td><td>Open your QLC+ show file (<code>.qxw</code>) with your lights already patched, or a saved Lightsmith project (<code>.lightsmith</code>): before anything is loaded, the first page is a drop zone for it. Then check what each light is for (backdrop, wash, moving head, front) and where it stands. Moving heads also get their home position, how fast they move, which way they face and the saved positions sections point them at.</td></tr>
+          <tr><td><strong>Stage</strong></td><td>Drop in your QLC+ show file (<code>.qxw</code>, with your lights already patched) or a saved Lightsmith project (<code>.lightsmith</code>). Then tell Lightsmith what each light is for (backdrop, wash, moving head, front) and where it stands. Moving heads also get a home position, a top speed, the way they face and any saved positions.</td></tr>
           <tr><td><strong>Songs</strong></td><td>Lay out each song as sections on a timeline and design a look for each one.</td></tr>
           <tr><td><strong>Show control</strong></td><td>Tell Lightsmith which pads, switches and footswitches will cue the lights on stage.</td></tr>
           <tr><td><strong>Export</strong></td><td>Download the show file for one song or the whole set, then open it in QLC+.</td></tr>
@@ -198,14 +201,14 @@
         <h3>Linked sections</h3>
         <p>A section can <strong>go straight into</strong> the next one. Then one cue plays both: the first runs for its length and the second starts by itself. Use it to give one part of a song two looks (the first half of a chorus calm, the second half big), or to move on when a sample of fixed length ends.</p>
         <ul>
-          <li><strong>Split</strong> (the arrows icon on a section in the list) cuts a section into two linked halves with the same look. Change the second half's look to taste. Chasers and lightning stay with the first half, since they're timed from its start.</li>
+          <li><strong>Split</strong> (in the <strong>Section</strong> menu at the right of the section's header) cuts a section into two linked halves with the same look. Change the second half's look to taste. Chasers and lightning stay with the first half, since they're timed from its start.</li>
           <li>Hover the timeline and click the <strong>link badge</strong> where two blocks meet to link or unlink them. Linked pairs keep an orange badge.</li>
           <li>The same setting is in the section's <strong>Timing</strong> card: "Wait for the next cue" or "Go straight into …".</li>
         </ul>
         <p>You can chain more than two. The last section in a chain holds its look until the next cue.</p>
 
         <h2 id="guide">The Song Builder</h2>
-        <p>The quickest way to a good-looking song. On a new, empty song click <strong>Song Builder</strong> (or, on any song, <strong>Song Builder</strong> beside its title; for a song that already has sections it asks first, and Undo brings them back). The Song Builder asks six things, with a live preview of the song on the right that follows every choice:</p>
+        <p>The quickest way from a blank song to a good-looking one. On a new, empty song click <strong>Song Builder</strong> (or, on any song, <strong>Song Builder</strong> beside its title; for a song that already has sections it asks first, and Undo brings them back). The Song Builder asks six things, with a live preview of the song on the right that follows every choice:</p>
         <ol>
           <li><strong>The song:</strong> its title, tempo (type it, or tap along) and beats per bar, and, if you have it, the recording.</li>
           <li><strong>Structure:</strong> pick the common structure closest to the song, or, with a recording, <strong>Mark it while it plays</strong>: press play and press <kbd>M</kbd> (or the button) each time a new section starts. Either way you get a list of sections to adjust: their kind, name and length in bars, their order, and sections to add or remove.</li>
@@ -217,7 +220,7 @@
         <p>The song it makes is an ordinary song: change anything, and the show coach and variations work on it as on any other.</p>
 
         <h2 id="library">The look library</h2>
-        <p>Over a hundred ready-made looks to start from, made for twelve genres (rock, metal, pop, electronic, hip-hop and R&amp;B, funk and soul, country and folk, blues and jazz, punk, indie and alternative, ambient and cinematic, Latin and reggae) plus some classics that suit anything. Each is tagged with the kinds of section it suits.</p>
+        <p>Over a hundred ready-made looks to start from (no lighting degree required), made for twelve genres (rock, metal, pop, electronic, hip-hop and R&amp;B, funk and soul, country and folk, blues and jazz, punk, indie and alternative, ambient and cinematic, Latin and reggae) plus some classics that suit anything. Each is tagged with the kinds of section it suits.</p>
         <ul>
           <li>In a section's header, click <strong>Look library</strong>. Pick a genre (or <strong>Any genre</strong>, or <strong>Classics</strong>); by default you see the looks that suit the kind of section you're editing (untick that to see them all). A Custom section can take any look, so it shows them all; and where a genre has nothing made for a kind of section, it says so and shows the genre's other looks. Click a look to see it on your stage, then <strong>Use this look</strong> (or double-click it).</li>
           <li>A look sets the mood, colors, pattern, movement, effects and energy. The section keeps its name, length, its own lights, chasers, where the heads point, its cue and how it starts. Undo brings its old look back.</li>
@@ -323,7 +326,7 @@
         <p>Then make that shared message your only cue. Lightsmith warns you on export when a QLC+ 4 file has more than one.</p>
         <h3>Between songs, and when something goes wrong</h3>
         <p><strong>Next song</strong> and <strong>Previous song</strong> move through the set in order, and a song can have its own message that jumps straight to it. <strong>Safe look</strong> stops everything and brings up a steady wash with the heads at home; after it, the next cue carries on from where the song was. It's also the look to use between songs, while you talk. Under <strong>The safe look</strong> on the Show control page you choose its color, its brightness (very dim to bright) and whether the moving heads stay lit; the preview shows the result. Left alone, it's a medium warm-white wash. A common routine: end each song on a Blackout section timed to the last hit, then press Safe look after the applause. <strong>Blackout</strong> switches QLC+'s blackout on and off.</p>
-        <p>The <strong>cheat sheet</strong> at the bottom of the Show control step lists what every switch does, song by song. Print it and tape it to the floor.</p>
+        <p>The <strong>cheat sheet</strong> at the bottom of the Show control step lists what every switch does, song by song. Print it and tape it to the floor. Gaffer tape recommended.</p>
         <h3>Devices and QLC+ inputs</h3>
         <p>Each device needs its own input in QLC+ (Inputs/Outputs): a USB MIDI device appears by name, and a MIDI interface usually shows each of its ports separately. In Show control, set which QLC+ universe each device is patched to. Learn adds a device by itself the first time it hears one.</p>
 
@@ -348,7 +351,7 @@
           <tr><td>A movement looks jerky or tiny</td><td>The heads can't keep up: set How fast it moves in the Stage step, or slow the movement.</td></tr>
           <tr><td>The recording doesn't line up</td><td>Set where it starts (Starts at), then check the song's tempo; with Snap set to Off, line the edges up by ear.</td></tr>
         </table>
-        <p>Questions and bug reports: see the project's source code page, linked from the bottom of Lightsmith's menu.</p>
+        <p>Questions, ideas and bug reports are all welcome on the project's source code page, linked from the bottom of Lightsmith's menu.</p>
       </main>
     </div>
   </body>

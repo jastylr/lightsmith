@@ -178,7 +178,7 @@ function LightPopover({ anchor, title, set, custom, lights, needsRgb, onChange, 
         </div>
       </div>
 
-      {needsRgb && lights.some((l) => !usable(l)) && <p className="hint">Greyed-out lights have no color channels, so they can't show this.</p>}
+      {needsRgb && lights.some((l) => !usable(l)) && <p className="hint">Grayed-out lights have no color channels, so they can't show this.</p>}
 
       <div className="lights-pop-foot">
         {custom ? (

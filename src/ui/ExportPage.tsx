@@ -64,7 +64,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
     <section className="page">
       <header className="page-head">
         <h1>Export to QLC+</h1>
-        <p className="lead">Lightsmith adds your songs to a copy of your workspace. The rest of your show stays as it was, and exporting again replaces what Lightsmith made before.</p>
+        <p className="lead">The moment of truth. Lightsmith adds your songs to a copy of your QLC+ show: everything else in it stays exactly as it was, and exporting again simply replaces what Lightsmith made last time.</p>
       </header>
 
       <Segmented
@@ -179,7 +179,7 @@ export function ExportPage({ store, songId, setSongId }: { store: Store; songId:
                 In the Virtual Console, the frame “{result.summary.buttonsFrame}” is {result.summary.buttonsWhere}. It has one page per song, named with its place in the set ({result.summary.songs.map((x, i) => `${i + 1}. ${x.title}`).slice(0, 3).join(", ")}{result.summary.songs.length > 3 ? " …" : ""}). Use the arrows in the frame's header to change song.
               </li>
               <li>Each button starts its section and stops whatever was running, even from the song before. Section 1 sits in the same spot on every page, as do section 2 and the rest, so a pad or footswitch can be set up once per spot.</li>
-              <li>Every page also has Safe look (stops everything and brings up a plain warm wash) and Blackout.</li>
+              <li>Every page also has Safe look (stops everything and brings up the steady wash you chose on the Show control page) and Blackout.</li>
               <li>{store.project.control?.devices.length ? "Your pads, switches and presets from Show control are already mapped to the buttons, the song arrows and the song pages. Keep the devices patched to the same universes in QLC+'s Inputs/Outputs." : "To start sections from pads and footswitches, set them up on the Show control step and export again."}</li>
               <li>If you exported single songs before, their own frames are replaced by the set. Songs you left out keep what they had.</li>
               <li>Check moving-head positions on the real rig, adjust them on the Stage step, and export again. The frame stays where you put it.</li>

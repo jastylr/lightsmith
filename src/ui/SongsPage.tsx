@@ -278,7 +278,7 @@ export function SongsPage({ store, songId, setSongId, onNext }: { store: Store; 
           <h1>Songs</h1>
         </header>
         <div className="empty">
-          <p>Add a song to start building its looks.</p>
+          <p>No songs yet. Add one and give it some light.</p>
           <button className="primary" onClick={() => setSongId(store.addSong())}>
             <Icon name="plus" /> Add a song
           </button>
@@ -2277,7 +2277,7 @@ function LookEditor({
                 );
               return (
                 <p className="hint mood-parts">
-                  {follow.length ? <>From the mood: {list(follow)}. </> : <>Nothing follows the mood any more; it still sets brightness with the energy. </>}
+                  {follow.length ? <>From the mood: {list(follow)}. </> : <>Nothing follows the mood anymore; it still sets brightness with the energy. </>}
                   {own.length ? <>Your own: {list(own)}. </> : null}
                   Set any of them in its tab to make it your own.
                 </p>
@@ -2586,7 +2586,7 @@ function LookEditor({
               <Field label="Length" hint={lengthLabel(s).includes("+") ? lengthLabel(s).slice(lengthLabel(s).indexOf("+")) : undefined}>
                 <NumberInput label="Length in whole bars" value={Math.max(1, Math.floor(s.bars + 1e-6))} min={1} max={256} suffix="bars" onChange={(bars) => onChange({ bars: Math.max(1, Math.round(bars)) + Math.max(0, s.bars - Math.floor(s.bars + 1e-6)) })} />
               </Field>
-              <Field label="In time" hint="Like QLC+: 1m05s200ms. Kept exactly, to 10 ms.">
+              <Field label="In time" hint="Written the way QLC+ writes times, such as 1m05s200ms, to the nearest 10 ms.">
                 <DurationInput label="Length as a time" valueMs={sectionMs(s)} minMs={100} maxMs={3_600_000} stepMs={(60000 / s.bpm) * s.beatsPerBar} onChange={(ms) => onChange({ bars: barsForLength(ms, s, "off") })} />
               </Field>
               <Field label="Beats per bar">

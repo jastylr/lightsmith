@@ -74,7 +74,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
     <section className="page show-control">
       <header className="page-head no-print">
         <h1>Show control</h1>
-        <p className="lead">Run the lights from the stage: a drum pad, a footswitch or an amp preset moves the lights on, with nobody at the laptop. Lightsmith writes these into the show file it makes for QLC+, so export again after changing them.</p>
+        <p className="lead">Run the lights from the stage, with nobody at the laptop: a drum pad, a footswitch or an amp preset moves the show along. Lightsmith writes all of this into the show file it makes for QLC+, so export again after you change anything here.</p>
       </header>
 
       {midi.status === "unsupported" ? (
@@ -219,7 +219,7 @@ export function ShowControlPage({ store, onNext }: { store: Store; onNext: () =>
 
       <section className="control-card no-print">
         <h2>Between songs</h2>
-        <p className="hint">Next and previous move through the set in order. A song can also have its own trigger that jumps straight to it, like a preset on the Quad Cortex for each song.</p>
+        <p className="hint">Next and previous move through the set in order. A song can also have its own trigger that jumps straight to it, such as a different preset on your amp modeler for each song.</p>
         <div className="control-pairs">
           <Field label="Next song">
             <TriggerField label="Next song" value={control.nextSong} control={control} inputs={inputs} onChange={setTrigger("nextSong")} />

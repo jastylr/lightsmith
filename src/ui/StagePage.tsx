@@ -681,7 +681,7 @@ function Inspector({
               <NumberInput label={`${axis} value`} value={(rf.home ?? defaultHome(rf.facesBack))[axis]} min={0} max={255} onChange={(v) => onChange({ home: { ...(rf.home ?? defaultHome(rf.facesBack)), [axis]: Math.round(v) } })} />
             </div>
           ))}
-          <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="Runs each movement's shape the other way round, for example clockwise instead of anticlockwise." />
+          <Toggle checked={!!rf.reverse} onChange={(reverse) => onChange({ reverse })} label="Reverse movement" hint="Runs each movement's shape the other way round, for example clockwise instead of counterclockwise." />
           <h3>How fast it moves</h3>
           <p className="hint">
             Seconds to pan from one end of its range to the other at full speed. To time it, set pan to 0 in QLC+'s Simple Desk, then jump to 255 and count. Lightsmith slows any movement these heads can't keep up with, so they trace the shape instead of twitching on the spot. Leave it at {DEFAULT_PAN_SECONDS} if you're not sure.
@@ -696,9 +696,9 @@ function Inspector({
             <Field label="Pan that faces the audience" hint={rf.panFront === undefined ? "Not set yet" : undefined}>
               <NumberInput label="Pan that faces the audience" value={rf.panFront ?? 128} min={0} max={255} step={1} onChange={(v) => onChange({ panFront: Math.round(v) })} />
             </Field>
-            <Field label="Raising pan turns it towards">
+            <Field label="Raising pan turns it toward">
               <Segmented
-                label="Raising pan turns it towards"
+                label="Raising pan turns it toward"
                 value={rf.panTurns ?? "left"}
                 options={[
                   { value: "left", label: "Stage left" },
